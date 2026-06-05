@@ -1,0 +1,350 @@
+MVP ROOMIA
+
+
+Interior Design Configurator
+MVP Blueprint — Full Technical & Product Breakdown
+Version 1.0 | Confidential | Algeria Market
+
+FIELD		VALUE
+PHASE		MVP — Phase 1
+TEAM		Dev (You) + Designer (GF) + Claude Code
+STACK		Next.js · Laravel · Supabase
+TARGET		Young Algerian couples / homebuilders
+GOAL		Working demo to validate idea & land partnerships
+
+1/What You're Building:
+
+A guided interior design web app where a user inputs their room info, picks a style, sets a budget, and receives
+a curated furniture list + moodboard + estimated cost. Your girlfriend supplies the design intelligence. You build
+and ship the product. Monetization comes from furniture partner commissions (primary) and template sales
+(secondary).
+
+Core Value Proposition:
+
+WHO			VALUE
+For the user		Get a real interior design result in under 3 minutes — free
+For partners		Qualified buyers landing on your product pages via our platform
+For you			Commission on every partner purchase driven through the app
+
+2/Configurator — Full Step-by-Step Flow:
+
+Step 1 — Room Info
+• Room type: Living Room / Bedroom / Kitchen / Office / Full Apartment
+• Shape: Simple (rectangle) → user enters Width × Length in metres
+• Shape: Complex → user uploads floor plan photo → AI (Claude Vision API)
+• reads it, extracts dimensions, generates a simplified plan SVG
+• That's it. No apartment type (F2/F3). Room size + shape is all that matters.
+
+Step 2 — Style Picker
+• Show 4–5 large visual cards, each with a curated moodboard image (your GF selects these)
+• Styles at launch: Modern · Minimal · Warm & Cozy · Traditional Algerian · Industrial
+• Each card: style name + 3-word tagline (e.g. 'Clean. Light. Open.')
+• User picks ONE. This is the most visually critical step — images must be beautiful.
+
+Step 3 — Budget Range
+• 3 options only — no free input (people don't know exact budgets)
+• Tight / Comfortable / Premium
+• DZD ranges defined by your GF based on real Algerian market prices
+• Example: Tight < 150,000 DZD · Comfortable 150k–400k · Premium 400k+
+Step 4 — Priorities (quick, 2 picks max)
+
+• Comfort · Aesthetics · Storage · Durability · Price
+• This feeds the furniture ranking logic — makes the result feel personalised
+• Cheap to build, high perceived value for the user
+
+
+■ The AI floor plan scan (complex room shape) is optional at launch. Ship the simple rectangle input first. Add AI
+scan in week 2-3 once the core flow works.
+
+
+3/The Result Page — Your Real Product:
+
+This is what the user came for. It must feel like a deliverable they want to screenshot and share. Every design
+decision on this page matters.
+
+BLOCK			              CONTENT								                                              PRIORITY
+Style Header		        Style name + tagline + colour palette chips			                    Must have
+Moodboard		            3×2 image grid — atmosphere, textures, real rooms		                Must have
+Furniture List		      Photo · Name · Category · Price range · 'View Product' link 	      Must have
+Budget Summary		      Furniture total + accessories + grand range in DZD		              Must have
+Save Design		          Email capture → sends PDF summary to user			                      Must have
+Book Consultation	      CTA linking to your GF's contact / calendar			                    Must have
+Share Button		        Copy link or WhatsApp share of result page			                    Nice to have
+Start Over		          Reset and go again						                                      Must have
+
+The single most important question: after seeing the result, does the user screenshot it and send it to their partner? If
+yes — you've won.
+
+4/All Pages at Launch:
+
+PAGE			    PURPOSE								                                  BUILD EFFORT
+/ Landing		  Hook + value prop + CTA to start configurator			      Medium
+/configure		Multi-step configurator (the core)				              High
+/result			  The design output page						                      High
+/about			  Who you are — trust for partners				                Low
+/partners		  Landing page for furniture companies to contact you		  Low               
+
+No auth. No dashboard. No payment flow. No user accounts. Not for MVP.
+
+
+5/Tech Stack Recommendation:
+-Frontend — Next.js (not Vue)
+You know React. Vue is fine, but Next.js gives you SSR (critical for SEO — people searching 'interior design
+algeria'), built-in API routes (you might not even need a separate backend for MVP), file-based routing, and it
+deploys to Vercel in one click. It's also the industry standard right now. When you go mobile with Capacitor later,
+you can wrap the Next.js app just as easily as Vue.
+
+-Backend — Do you even need Laravel for MVP?
+
+Honest answer: probably not at first. Supabase gives you a Postgres database, auth (if you need it later), file
+storage for images, and a real-time API — all for free at MVP scale. Your Next.js API routes handle the logic.
+Laravel becomes relevant when you build the partner dashboard, commission tracking, and CMS for your GF to
+update furniture content. Add it in Phase 2. For now: Next.js + Supabase = you ship faster.
+
+
+LAYER				      TOOL					                          WHY
+Frontend		      Next.js 14 (App Router)				          SSR + SEO + API routes + you know React
+Styling			      Tailwind CSS					                  Speed.Don't overthink UI from scratch
+Database		      Supabase (Postgres)				              Free, real-time, storage, auth — all in one
+Images			      Supabase Storage or Cloudinary			    Furniture photos, moodboards
+AI Room Scan		  Claude Vision API (Anthropic)			      Send floor plan photo, get dimensions back
+Deployment		    Vercel (frontend) + Supabase cloud		  Free tier. One command deploy
+Mobile later		  Capacitor over Next.js				          Same codebase → iOS + Android
+Backend later		  Laravel (PHP)					                  Add in Phase 2 for partner portal + CMS
+
+About the database migration question — Supabase IS Postgres. It doesn't get replaced as you scale; you just
+upgrade the plan. No migration headache. It was the right call.
+
+6/Data Structure — Your GF's Homework:
+
+Before you write a line of code, she needs to fill in the content matrix. This is the configurator's brain. You wire it
+up — she defines it.
+
+( a modification happened after i got my gf's informations so this is the style of tables after the update. it is in sql format so we go with that ) 
+for the schema and the the content inside here's the full thing : 
+
+create table styles (
+  id text primary key,
+  name text not null,
+  tagline text,
+  description text,
+  main_color text,
+  accent_color text,
+  notes text
+);
+
+create table furniture_items (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  category text,
+  room text,
+  style_id text references styles(id),
+  price integer,
+  budget_tier text,
+  image_keyword text,
+  partner_link text,
+  notes text
+);
+
+create table moodboard_images (
+  id uuid default gen_random_uuid() primary key,
+  style_id text references styles(id),
+  room text,
+  image_url text,
+  search_keyword text,
+  description text
+);
+
+create table budget_ranges (
+  room text primary key,
+  tight text,
+  comfortable text,
+  premium text,
+  notes text
+);
+
+-- STYLES
+insert into styles (id, name, tagline, description, main_color, accent_color, notes) values
+('maximalism', 'Maximalism', 'Bold. Layered. Expressive.',
+ 'Built on abundance and curated visual richness. Mixes patterns, textures, colors, and eras in a deliberate but visually dense composition. Focuses on storytelling through objects, art, and layered decor.',
+ '#0F4C5C', '#6A1F2B',
+ 'Patterned wallpaper, velvet, lacquered wood, silk and embroidered textiles, glass and mirrored surfaces, mixed metals'),
+
+('minimalism', 'Minimalism', 'Calm. Clean. Spacious.',
+ 'Based on the idea of less is more. Contains only necessary elements, emphasizing simplicity, functionality, and visual clarity with soft neutral tones.',
+ '#FAF8F2', '#DCCDB8',
+ 'Frameless or hidden-leg furniture, light wood, soft neutral tones, very little decoration'),
+
+('industrial', 'Industrial', 'Raw. Bold. Utilitarian.',
+ 'Exposes structural and mechanical elements instead of hiding them. Combines rough textures with functional furniture to create a strong, masculine, and urban atmosphere.',
+ '#3C3C3C', '#8B4A32',
+ 'Black steel-framed furniture, dark brown leather, factory-style chairs, open storage systems, metal and iron details'),
+
+('traditional_algerian', 'Traditional Algerian', 'Ornate. Warm. Cultural.',
+ 'Emphasizes craftsmanship, decorative details, and hospitality. Spaces often feel vibrant, intimate, and deeply rooted in heritage.',
+ '#B65E3C', '#1F4E79',
+ 'Carved wooden furniture, low seating, copper accessories, richly patterned fabrics, arches'),
+
+('mediterranean_coastal', 'Mediterranean Coastal', 'Breezy. Natural. Sunlit.',
+ 'Prioritizes natural light, earthy textures, and a relaxed atmosphere with organic materials and soft ocean-inspired colors. Interiors feel fresh, inviting, and connected to nature.',
+ '#D9C3A5', '#4F84A6',
+ 'Natural stone, rattan, linen, light wood, ceramics');
+
+
+-- FURNITURE ITEMS
+insert into furniture_items (name, category, room, style_id, price, budget_tier, image_keyword, notes) values
+-- SOFAS
+('Oslo', 'Sofa', 'Living Room', 'industrial', 100000, 'comfortable', 'leather sofa 3 seater metal legs', 'Low profile, grey fabric'),
+('Orion', 'Sofa', 'Living Room', 'minimalism', 120000, 'comfortable', 'L shape beige floating sofa 4 seater', 'Low profile, beige fabric, middle table'),
+('Ruffle', 'Sofa', 'Living Room', 'maximalism', 150000, 'premium', 'round sofa 5 seater bold color', 'Mustard fabric, middle table'),
+('Coupé', 'Sofa', 'Living Room', 'traditional_algerian', 200000, 'premium', 'U shaped sofa carved wood low', 'One sided arm'),
+('Raphael', 'Sofa', 'Living Room', 'minimalism', 70000, 'tight', 'linear sofa light grey 3 seater', null),
+('Riley', 'Sofa', 'Living Room', 'mediterranean_coastal', 65000, 'tight', 'L shape on ground sofa white 3 seater', 'Off-white fabric, short L side'),
+
+-- BEDS
+('Dagger', 'Bed', 'Bedroom', 'industrial', 115000, 'comfortable', 'metal frame bed angular shape', null),
+('Lils', 'Bed', 'Bedroom', 'minimalism', 100000, 'comfortable', 'light wood floating bed', null),
+('Aurora', 'Bed', 'Bedroom', 'maximalism', 180000, 'premium', 'deep red velvet bed floor to ceiling headboard chunky frame', null),
+('Neptune', 'Bed', 'Bedroom', 'traditional_algerian', 200000, 'premium', 'dark carved wood bed ornamental gold details', null),
+('Venus', 'Bed', 'Bedroom', 'minimalism', 55000, 'tight', 'on floor bed no headboard', null),
+('Saturn', 'Bed', 'Bedroom', 'mediterranean_coastal', 70000, 'tight', 'wood bed wood legs angular', null),
+
+-- CHAIRS
+('Mid-Way', 'Chair', 'Living Room', 'industrial', 40000, 'comfortable', 'metal legs leather chair no arms', null),
+('Shine', 'Chair', 'Living Room', 'minimalism', 50000, 'comfortable', 'beige textured chair', null),
+('Dorothy', 'Chair', 'Living Room', 'maximalism', 70000, 'premium', 'throne chair dark forest green rococo', null),
+('Forest', 'Chair', 'Living Room', 'traditional_algerian', 120000, 'premium', 'traditional algerian carved wood chair', null),
+('Pure', 'Chair', 'Living Room', 'minimalism', 5000, 'tight', 'bubble chair white', null),
+('Sea', 'Chair', 'Living Room', 'mediterranean_coastal', 10000, 'tight', 'hanging chair woven rope', null),
+
+-- COFFEE TABLES
+('Audacious', 'Coffee Table', 'Living Room', 'industrial', 40000, 'comfortable', 'glass coffee table black metal legs rectangular', null),
+('Feather', 'Coffee Table', 'Living Room', 'minimalism', 25000, 'comfortable', 'round table sphere legs light wood', null),
+('All Curve', 'Coffee Table', 'Living Room', 'maximalism', 100000, 'premium', 'double height coffee table baroque black', null),
+('Meida', 'Coffee Table', 'Living Room', 'traditional_algerian', 80000, 'premium', 'octagonal gold carved coffee table', null),
+('Aladdin', 'Coffee Table', 'Living Room', 'minimalism', 12000, 'tight', 'single leg square beige coffee table', null),
+('Wave', 'Coffee Table', 'Living Room', 'mediterranean_coastal', 8000, 'tight', 'dark wood natural coffee table', null),
+
+-- DINING TABLES
+('Futura', 'Dining Table', 'Living Room', 'industrial', 80000, 'comfortable', 'rectangular metal legs dark wood dining table', null),
+('Vivienne', 'Dining Table', 'Living Room', 'minimalism', 60000, 'comfortable', 'oval dining table two legs white marble', null),
+('Henta', 'Dining Table', 'Living Room', 'maximalism', 300000, 'premium', 'round dining table black marble', null),
+('Walima', 'Dining Table', 'Living Room', 'traditional_algerian', 550000, 'premium', 'low profile rectangular carved wood dining table', null),
+('Sharpe', 'Dining Table', 'Living Room', 'minimalism', 40000, 'tight', 'diagonal one leg dining table', null),
+('Chunk', 'Dining Table', 'Living Room', 'mediterranean_coastal', 35000, 'tight', 'natural wood dining table', null),
+
+-- LIGHTS
+('Accent', 'Light', 'Living Room', 'industrial', 35000, 'comfortable', 'black metal pendant light warm glass', null),
+('Ghost', 'Light', 'Living Room', 'minimalism', 40000, 'comfortable', 'sphere light wall', null),
+('A Hundred Tails', 'Light', 'Living Room', 'maximalism', 250000, 'premium', 'leopard pattern red velvet string light', null),
+('Leila', 'Light', 'Living Room', 'traditional_algerian', 600000, 'premium', 'arabesque motif copper islamic light', null),
+('Thread', 'Light', 'Living Room', 'minimalism', 15000, 'tight', 'linear black light', null),
+('Rattan', 'Light', 'Living Room', 'mediterranean_coastal', 20000, 'tight', 'rattan woven rope light', null);
+
+
+-- BUDGET RANGES
+insert into budget_ranges (room, tight, comfortable, premium, notes) values
+('Living Room', 'under 100,000 DZD', '100,000 – 350,000 DZD', '350,000+ DZD', 'Sofa, coffee table, rug, lighting, curtains'),
+('Bedroom', 'under 150,000 DZD', '150,000 – 300,000 DZD', '300,000+ DZD', 'Bed, wardrobe, night stands');
+
+
+-- MOODBOARD IMAGES
+insert into moodboard_images (style_id, room, image_url, search_keyword, description) values
+('maximalism', 'Living Room', 'https://fr.pinterest.com/pin/751397519123568262/', 'Maximalist bold living room', 'Vibrant colored living room with a pink L shaped sofa, crowded art wall, patterned colored carpet and multiple accent colors'),
+('maximalism', 'Living Room', 'https://fr.pinterest.com/pin/2814818512698081/', 'Maximalist living room', 'Cozy maximalist living room with warm palette, different sofa and chairs colors, patterned throw pillows and carpet, crowded art wall'),
+('maximalism', 'Bedroom', 'https://fr.pinterest.com/pin/565553665726215579/', 'Maximalist bedroom', 'Vibrant bold colored bedroom with tiger patterned duvet and gold decor'),
+('maximalism', 'Bedroom', 'https://fr.pinterest.com/pin/1047720300847433635/', 'Maximalist bedroom', 'Richly patterned bedroom with leopard carpet and throw pillow, wallpaper walls and dark colors'),
+
+('minimalism', 'Living Room', 'https://fr.pinterest.com/pin/916552961661959236/', 'Beige minimalist living room', 'Beige living room with a low profile sofa, dark wood coffee table and minimal decor'),
+('minimalism', 'Living Room', 'https://fr.pinterest.com/pin/688910074280090114/', 'Beige minimalist living room', 'Beige living room with floating profile sofa, dark wood coffee table and minimal decor'),
+('minimalism', 'Bedroom', 'https://fr.pinterest.com/pin/2251868559102813/', 'Off-white minimalist bedroom', 'Off-white bedroom with light wooden bed frame, floating wooden side table, pendant light and textured wall'),
+('minimalism', 'Bedroom', 'https://fr.pinterest.com/pin/854065516892624941/', 'Light grey minimalist bedroom', 'Grey bedroom with fabric on floor bed frame, fabric headboard, light wooden night stands and asymmetric lighting'),
+
+('industrial', 'Living Room', 'https://fr.pinterest.com/pin/281543726880336/', 'Industrial living room', 'Bold living room with brick wall, dark brown leather L shaped sofa, metal beams and black colored decor'),
+('industrial', 'Living Room', 'https://fr.pinterest.com/pin/4996249583861343/', 'Industrial living room', 'Masculine living room with concrete accent wall, built-in black metal bookshelves, black leather chairs and dark wooden coffee table'),
+('industrial', 'Bedroom', 'https://fr.pinterest.com/pin/14918242511353403/', 'Industrial bedroom', 'Dark bedroom with raw brick wall, simple dark wooden bed with black metal legs, metal lights and accent plants'),
+('industrial', 'Bedroom', 'https://fr.pinterest.com/pin/670825307030361072/', 'Industrial bedroom', 'Symmetric bedroom with brick wall, grey middle panel, floating black leather bed frame, concrete floor and black metal details'),
+
+('traditional_algerian', 'Living Room', 'https://fr.pinterest.com/pin/794603928045626007/', 'Traditional Algerian living room', 'Neutral colored living room with on-ground linear sofas, rounded coffee table made of woven fabric and minimal decor'),
+('traditional_algerian', 'Living Room', 'https://fr.pinterest.com/pin/988047605755957644/', 'Traditional Algerian living room', 'Richly furnished living room with on-ground sofas, matching ceramic walls, traditional wooden tea tables and bright carpet'),
+('traditional_algerian', 'Bedroom', 'https://fr.pinterest.com/pin/807833251944392910/', 'Algerian architecture interior', 'Warm toned bedroom with decorative niche, dark wooden furniture and bright patterned carpet and pillows'),
+('traditional_algerian', 'Bedroom', 'https://fr.pinterest.com/pin/58265388931352045/', 'Algerian home bathroom', 'Vibrant bathroom with white and blue ceramic tiles, marble vanity and colorful ceramics'),
+
+('mediterranean_coastal', 'Living Room', 'https://fr.pinterest.com/pin/944418984365708625/', 'Mediterranean Coastal living room', 'White cozy living room with wooden beams, white linear sofa, rattan armchair, light wooden coffee table and blue details'),
+('mediterranean_coastal', 'Living Room', 'https://fr.pinterest.com/pin/395190936072019737/', 'Mediterranean Coastal living room', 'Symmetric airy living room with central fireplace, wooden ceiling, white linear facing sofas and blue accent details'),
+('mediterranean_coastal', 'Bedroom', 'https://fr.pinterest.com/pin/944418984364435320/', 'Mediterranean Coastal bedroom', 'Light colored airy bedroom with white as main color, blue as secondary, layering of textures and rattan decor'),
+('mediterranean_coastal', 'Bedroom', 'https://fr.pinterest.com/pin/2955556003581241/', 'Mediterranean Coastal bedroom', 'Grey-ish beige bedroom with white fabric bed frame, minimal monochromatic and blue decor and natural plants');
+
+**then the content so u can have an exact idea how wats happening now (we keep the post links for now and we'll fix them later.
+The actual image URLs from Pinterest (i.pinimg.com) expire and break over time anyway. For MVP iam not even displaying these images yet — i am just seeding the database. When i get to build the result page UI, that's when i replace them with permanent hosted images on Supabase Storage or Cloudinary.**
+
+
+7/AI Room Scan — How It Works:
+
+When the user says their room is an irregular shape, they upload a floor plan photo (hand-drawn, printed, or
+screenshot). Here's the flow:
+1. User uploads photo in Step 1 of the configurator
+2. Frontend sends image to your Next.js API route as base64
+3. API route calls Claude Vision API with prompt:
+"Analyze this floor plan. Extract the room dimensions if visible.
+Return a JSON: { width_m, length_m, shape_type, notes }"
+4. Claude returns the parsed dimensions
+5. You display a simple SVG rectangle/polygon preview to confirm
+6. User confirms or adjusts — then continues to Step 2
+Cost: Claude API calls are fractions of a cent each. For MVP volume, this is essentially free.
+
+**THERE IS A BIG POSSIBILTY WE SWITCH TO NANO BANANA BY GOOGLE/GEMINI** 
+
+
+8/How to Use Claude Code Effectively: (OR MAYBE WE ARE GONNA USE CURSOR OR CRACKED FREE VERSION OF CLAUDE CODE)
+
+Claude Code is your force multiplier but it needs context to produce clean output. Don't dump everything at
+once. Feed it one focused task at a time.
+
+
+TASK					HOW TO PROMPT CLAUDE CODE
+Multi-step configurator			"Build a Vue/Next multi-step form: step 1 room info, step 2 style picker, step 3 budget. Data structure: [paste JS
+Result page				"Build the result page component. It receives this props object: [paste structure]. Show moodboard grid, furnitur
+Supabase schema				"Generate the Supabase SQL schema for these tables: styles, furniture_items, budget_matrix. Fields: [paste]."
+AI scan API route			"Write a Next.js API route that accepts a base64 image, calls Claude Vision API with this prompt: [...], returns pa
+Landing page				"Build a dark-themed landing page for an interior design configurator app targeting young Algerian couples. CTA
+
+Rule: always paste your data structure when prompting. Claude Code without context gives generic output. With context, it builds your exact product.
+
+9/Build Order — What to Do First: (the timeline is false so dont mind it. we are gonan finish this in 2 days) 
+so i am gonna send the tasks and no time envolved :
+
+ WHO		TASK
+ Her		Fill the content matrix: 4 styles, 30+ furniture items, budget logic, moodboard images
+ You		Set up Next.js + Tailwind + Supabase. Push schema. Deploy skeleton to Vercel.
+ You		Build multi-step configurator (Steps 1–4). Wire to static JSON first, no DB needed yet.
+ You		Build result page. Hardcode one style + one room to test the full flow end to end.
+ You		Connect real data from Supabase. Add all styles and furniture items from her matrix.
+ You		Add email capture on result page. Add simple rectangle room input.
+ Both		Internal demo. Fix UX. Polish visuals. Get result page screenshot-worthy.
+ You		Add AI room scan for irregular shapes (Claude Vision API route).
+ Both		External demo to 2–3 people. Gather feedback. Fix critical issues.
+ Both		Partner outreach begins. Show the live working product.
+ 
+ 
+ 10/MVP — Done When...
+ 
+ User completes full flow in under 3 minutes					                        ✓
+Result page is screenshot-worthy — looks designed, not like a form output	    ✓
+Email capture works and sends a summary						                            ✓
+Works on mobile browser (responsive Tailwind)					                        ✓
+You can demo it live to a furniture company without crashing			            ✓
+At least 1 style × 3 rooms fully populated with real furniture data		        ✓
+AI room scan works for irregular shapes 					                            Week4  (dont mind the weeks. like i said the time is irrelevent)
+All 4–5 styles fully populated							                                  Week 4
+User accounts — NOT for MVP							                                      → Phase 2
+Payment system — NOT for MVP							                                    → Phase 2
+3D room visualization — NOT for MVP						                                → Phase 2
+
+
+** Remember
+The MVP is not the final product. It's the tool you use to walk into a furniture showroom in Algiers and say:
+this exists, your products could be in it, here's how you earn from it. That conversation — not the code — is
+the real deliverable of Phase 1.
+ 
+ 
