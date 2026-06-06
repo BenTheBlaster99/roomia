@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import RoomScanner from '@/components/RoomScanner'
 import type { Style, BudgetRange, Room, BudgetTier, ConfigState } from '@/types'
 
 export default function ConfiguratorPage() {
@@ -167,6 +168,12 @@ function StepRoom({
               {(parseFloat(config.width) * parseFloat(config.length)).toFixed(1)} m²
             </p>
           )}
+
+          <RoomScanner
+            onResult={(w, l) =>
+              setConfig(c => ({ ...c, width: w, length: l }))
+            }
+          />
         </div>
       )}
     </div>

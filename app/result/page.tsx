@@ -206,6 +206,14 @@ export default async function ResultPage({ searchParams }: Props) {
         <div className="space-y-3 pb-10">
           <EmailCapture room={room} style={styleData?.name} budget={budget} />
 
+          <Link
+            href={`/plan?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`}
+            className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
+                       text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
+          >
+            🗺️ Arrange furniture in my room
+          </Link>
+
           <a
             href="mailto:contact@roomia.dz"
             className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
