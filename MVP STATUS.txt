@@ -1,0 +1,381 @@
+Stack confirmed: @react-three/fiber + @react-three/drei — no contest, this is the standard.
+Test models strategy: Don't download anything yet. We build the scene first using procedural box geometry (colored boxes per category). When real GLBs arrive, we swap one line. This is exactly what you asked — stage first, real assets later.
+When you do want test GLBs: Go to meshy.ai/category/furniture-home — CC0 license, free, GLB format, no attribution needed. Download sofa/bed/chair/table/light and drop them in /public/models/.
+
+Install
+bashnpm install three @react-three/fiber @react-three/drei
+npm install --save-dev @types/three
+
+1. SQL migration — add model_url to furniture
+Run in Supabase SQL editor:
+sqlalter table furniture_items add column model_url text;
+
+2. Update types/index.ts — add model_url
+tsexport interface FurnitureItem {
+  id: string
+  name: string
+  category: string
+  room: string
+  style_id: string
+  price: number
+  budget_tier: string
+  image_keyword: string
+  model_url: string | null   // ← add this
+  partner_link: string | null
+  notes: string | null
+}
+
+3. app/room3d/page.tsx — server component
+tsximport { supabase } from '@/lib/supabase'
+import type { FurnitureItem } from '@/types'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
+
+const Room3DCanvas = dynamic(() => import('./Room3DCanvas'), { ssr: false })
+
+interface Props {
+  searchParams: {
+    room: string
+    style: string
+    budget: string
+    width: string
+    length: string
+  }
+}
+
+export default async function Room3DPage({ searchParams }: Props) {
+  const { room, style, budget, width, length } = searchParams
+
+  const { data: furniture } = await supabase
+    .from('furniture_items')
+    .select('*')
+    .eq('style_id', style)
+    .ilike('room', `%${room}%`)
+    .eq('budget_tier', budget)
+
+  const backHref = `/result?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <span className="text-xl font-bold text-amber-400">roomia</span>
+        <Link href={backHref} className="text-sm text-zinc-400 hover:text-white transition-colors">
+          ← Back to results
+        </Link>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
+        <div>
+          <h1 className="text-xl font-bold mb-1">3D Room View</h1>
+          <p className="text-sm text-zinc-400">
+            {room} · {width}m × {length}m · Orbit with mouse · Scroll to zoom
+          </p>
+        </div>
+
+        <Room3DCanvas
+          furniture={furniture ?? []}
+          width={parseFloat(width)}
+          length={parseFloat(length)}
+        />
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {furniture?.map(item => (
+            <div key={item.id}
+              className="flex items-center gap-2 bg-zinc-900 border border-zinc-800
+                         rounded-lg px-3 py-1.5">
+              <div
+                className="w-2.5 h-2.5 rounded-sm"
+                style={{ backgroundColor: CATEGORY_COLORS[item.category] ?? '#888' }}
+              />
+              <span className="text-xs text-zinc-300">{item.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-zinc-700 text-center pb-6">
+          Furniture shown with standard dimensions. Real 3D models coming with partner catalog.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Sofa':         '#4F84A6',
+  'Bed':          '#7C5C8A',
+  'Chair':        '#4CAF7D',
+  'Coffee Table': '#C9A84C',
+  'Dining Table': '#C9A84C',
+  'Light':        '#E8C97A',
+}
+
+4. app/room3d/Room3DCanvas.tsx — the full 3D scene
+tsx'use client'
+
+import { Suspense, useMemo } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, Environment, useGLTF, Html } from '@react-three/drei'
+import * as THREE from 'three'
+import type { FurnitureItem } from '@/types'
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const ROOM_HEIGHT = 2.8
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Sofa':         '#4F84A6',
+  'Bed':          '#7C5C8A',
+  'Chair':        '#4CAF7D',
+  'Coffee Table': '#C9A84C',
+  'Dining Table': '#C9A84C',
+  'Light':        '#E8C97A',
+}
+
+// Standard dimensions in metres: width × depth × height
+const CATEGORY_DIMS: Record<string, [number, number, number]> = {
+  'Sofa':         [2.1,  0.85, 0.80],
+  'Bed':          [1.6,  2.00, 0.50],
+  'Chair':        [0.65, 0.65, 0.85],
+  'Coffee Table': [1.10, 0.60, 0.45],
+  'Dining Table': [1.40, 0.80, 0.75],
+  'Light':        [0.30, 0.30, 0.30],
+}
+
+// ── Room geometry ────────────────────────────────────────────────────────────
+
+function Room({ w, l }: { w: number; l: number }) {
+  const h = ROOM_HEIGHT
+  return (
+    <group>
+      {/* Floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[w / 2, 0, l / 2]} receiveShadow>
+        <planeGeometry args={[w, l]} />
+        <meshStandardMaterial color="#E8E2D9" roughness={0.85} />
+      </mesh>
+
+      {/* Back wall (z = 0) */}
+      <mesh position={[w / 2, h / 2, 0]} receiveShadow>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial color="#F4F0EB" roughness={0.9} side={THREE.FrontSide} />
+      </mesh>
+
+      {/* Left wall (x = 0) */}
+      <mesh position={[0, h / 2, l / 2]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
+        <planeGeometry args={[l, h]} />
+        <meshStandardMaterial color="#EEEAE4" roughness={0.9} side={THREE.FrontSide} />
+      </mesh>
+
+      {/* Right wall (x = w) */}
+      <mesh position={[w, h / 2, l / 2]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
+        <planeGeometry args={[l, h]} />
+        <meshStandardMaterial color="#EEEAE4" roughness={0.9} side={THREE.FrontSide} />
+      </mesh>
+
+      {/* Baseboard line on back wall */}
+      <mesh position={[w / 2, 0.04, 0.01]}>
+        <boxGeometry args={[w, 0.08, 0.02]} />
+        <meshStandardMaterial color="#D4CFC8" />
+      </mesh>
+    </group>
+  )
+}
+
+// ── GLB loader (only used when model_url exists) ─────────────────────────────
+
+function GLBModel({
+  url,
+  position,
+  targetDims,
+}: {
+  url: string
+  position: [number, number, number]
+  targetDims: [number, number, number]
+}) {
+  const { scene } = useGLTF(url)
+  const cloned = useMemo(() => {
+    const clone = scene.clone()
+    // Auto-scale to fit category target dimensions
+    const box = new THREE.Box3().setFromObject(clone)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const scale = Math.min(
+      targetDims[0] / size.x,
+      targetDims[1] / size.z,
+      targetDims[2] / size.y,
+    )
+    clone.scale.setScalar(scale)
+    // Snap to floor
+    box.setFromObject(clone)
+    clone.position.y = -box.min.y
+    return clone
+  }, [scene, targetDims])
+
+  return <primitive object={cloned} position={position} castShadow />
+}
+
+// ── Furniture piece ──────────────────────────────────────────────────────────
+
+function FurniturePiece({
+  item,
+  position,
+}: {
+  item: FurnitureItem
+  position: [number, number, number]
+}) {
+  const dims = CATEGORY_DIMS[item.category] ?? [0.8, 0.8, 0.8]
+  const [fw, fd, fh] = dims
+  const color = CATEGORY_COLORS[item.category] ?? '#888888'
+
+  if (item.model_url) {
+    return (
+      <Suspense fallback={null}>
+        <GLBModel url={item.model_url} position={position} targetDims={dims} />
+      </Suspense>
+    )
+  }
+
+  // Procedural fallback — colored box
+  return (
+    <group position={position}>
+      <mesh position={[0, fh / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[fw, fh, fd]} />
+        <meshStandardMaterial color={color} roughness={0.65} metalness={0.05} />
+      </mesh>
+
+      {/* Label */}
+      <Html position={[0, fh + 0.25, 0]} center distanceFactor={6}>
+        <div style={{
+          background: 'rgba(15,15,15,0.85)',
+          color: '#F0EDE8',
+          padding: '2px 7px',
+          borderRadius: 5,
+          fontSize: 11,
+          whiteSpace: 'nowrap',
+          border: '1px solid rgba(201,168,76,0.4)',
+          backdropFilter: 'blur(4px)',
+          pointerEvents: 'none',
+        }}>
+          {item.name}
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+// ── Layout algorithm ─────────────────────────────────────────────────────────
+
+function computeLayout(
+  furniture: FurnitureItem[],
+  w: number,
+  l: number,
+): { item: FurnitureItem; position: [number, number, number] }[] {
+  const margin = 0.25
+  let x = margin
+  let z = margin
+  let rowDepth = 0
+
+  return furniture.map(item => {
+    const [fw, fd] = CATEGORY_DIMS[item.category] ?? [0.8, 0.8, 0.8]
+
+    if (x + fw + margin > w - margin) {
+      x = margin
+      z += rowDepth + margin
+      rowDepth = 0
+    }
+    if (z + fd > l - margin) {
+      x = margin
+      z = margin
+    }
+
+    const pos: [number, number, number] = [x + fw / 2, 0, z + fd / 2]
+    x += fw + margin
+    rowDepth = Math.max(rowDepth, fd)
+
+    return { item, position: pos }
+  })
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
+
+interface Props {
+  furniture: FurnitureItem[]
+  width: number
+  length: number
+}
+
+export default function Room3DCanvas({ furniture, width, length }: Props) {
+  const layout = useMemo(
+    () => computeLayout(furniture, width, length),
+    [furniture, width, length],
+  )
+
+  return (
+    <div className="w-full h-[560px] bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+      <Canvas
+        shadows
+        camera={{
+          position: [width * 1.4, width * 1.0, length * 1.6],
+          fov: 50,
+          near: 0.1,
+          far: 200,
+        }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      >
+        <Suspense fallback={null}>
+          {/* Lighting */}
+          <ambientLight intensity={0.6} />
+          <directionalLight
+            position={[width * 0.8, ROOM_HEIGHT * 2, length * 0.8]}
+            intensity={1.4}
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-width * 2}
+            shadow-camera-right={width * 2}
+            shadow-camera-top={length * 2}
+            shadow-camera-bottom={-length * 2}
+          />
+          <pointLight
+            position={[width / 2, ROOM_HEIGHT * 0.85, length / 2]}
+            intensity={0.4}
+            color="#FFF5E0"
+          />
+
+          {/* Environment for reflections */}
+          <Environment preset="apartment" />
+
+          {/* Room */}
+          <Room w={width} l={length} />
+
+          {/* Furniture */}
+          {layout.map(({ item, position }) => (
+            <FurniturePiece key={item.id} item={item} position={position} />
+          ))}
+
+          {/* Camera controls */}
+          <OrbitControls
+            target={[width / 2, 0.4, length / 2]}
+            maxPolarAngle={Math.PI / 2 - 0.05}
+            minDistance={1.5}
+            maxDistance={Math.max(width, length) * 3}
+            enablePan={true}
+            enableDamping
+            dampingFactor={0.08}
+          />
+        </Suspense>
+      </Canvas>
+    </div>
+  )
+}
+
+5. Add "View in 3D" button to result page
+In app/result/page.tsx, inside the actions section add:
+tsx<Link
+  href={`/room3d?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`}
+  className="w-full block text-center py-3 border border-zinc-700 rounded-xl text-sm
+             text-zinc-300 hover:border-amber-400 hover:text-amber-400 transition-all"
+>
+  🧊 View room in 3D
+</Link>
+
+That's the full phase. What you get right now without any GLB files: a proper lit 3D room with floor and walls, colored boxes per furniture category with floating name labels, orbit/zoom/pan controls, and real shadows. When you get real GLB models later — just set model_url in Supabase and they auto-load and auto-scale. Nothing else changes.

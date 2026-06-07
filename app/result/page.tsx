@@ -214,6 +214,14 @@ export default async function ResultPage({ searchParams }: Props) {
             🗺️ Arrange furniture in my room
           </Link>
 
+          <Link
+            href={`/room3d?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`}
+            className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
+                       text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
+          >
+            🧊 View room in 3D
+          </Link>
+
           <a
             href="mailto:contact@roomia.dz"
             className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
