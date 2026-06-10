@@ -1,0 +1,240 @@
+ROOMIA — IMPROVEMENT PLAN (saved for tomorrow)
+================================================
+Review date: June 7, 2026
+Source: Code review of configure → result → 2D plan → 3D flow,
+        cross-checked with docs/rooma-improvements.txt (Claude's sprint)
+
+
+OVERALL FLOW — WHAT WORKS
+-------------------------
+Landing → Configure (3 steps) → Result → Plan / 3D
+
+✓ Configure is clear and fast (room → style → budget)
+✓ Result page is the right hub: furniture, budget, email, WhatsApp, viz links
+✓ Room scanner on step 1 is a nice differentiator
+✓ Email capture + share links work
+
+Main flow gap: 2D floor plan and 3D room do NOT talk to each other.
+User arranges furniture in 2D, opens 3D, gets a completely different layout.
+This is the biggest user-facing bug right now.
+
+
+2D FLOOR PLAN — CURRENT STATE
+-----------------------------
+File: app/plan/FloorPlanCanvas.tsx
+
+What works:
+  - Drag-and-drop with wall bounds
+  - 1m grid + dimension labels
+  - Responsive width (ResizeObserver)
+  - Category colors match 3D
+
+What's weak:
+  - Grid-stacks from corner (old 3D bug — still here in 2D)
+  - 2D layout ≠ 3D layout (user rearranges in 2D, 3D ignores it)
+  - Positions lost on refresh (drag work disappears)
+  - No rotation (can't turn sofa to face wall)
+  - No overlap warning (pieces can stack on each other)
+  - No save / export (can't screenshot or share arrangement)
+  - Dark theme on plan page, light on result — feels like two apps
+
+
+3D ROOM VIEW — CURRENT STATE
+------------------------------
+File: app/room3d/Room3DCanvas.tsx
+
+What improved (recent fix):
+  - Smart category-based placement (sofa back wall, table in front, etc.)
+  - Floor-snapping for GLB models (yOffset on position prop)
+  - Box fallbacks while models load
+  - Light gets pole + sphere instead of flat cube
+
+What's still weak:
+  - Ignores 2D drag positions
+  - Placeholder GLBs (bed/light = Couch Medium, etc.)
+  - GLB models have no name labels (only box fallbacks show names)
+  - No rotation on models
+  - Fixed 560px canvas height (cramped on mobile)
+  - Large rooms (12×6m) feel empty with only 5 pieces
+  - Outdated footer: "Real 3D models coming with partner catalog"
+  - No per-model error boundary (one bad GLB can crash scene)
+
+
+CROSS-CUTTING ISSUES
+--------------------
+1. Duplicated constants in 3+ places:
+     FloorPlanCanvas.tsx  → DIMS, COLORS
+     Room3DCanvas.tsx     → CATEGORY_DIMS, CATEGORY_COLORS
+     result/page.tsx      → CATEGORY_EMOJI
+     room3d/page.tsx      → CATEGORY_COLORS (again)
+   → Fix: single lib/furniture.ts or constants.ts
+
+2. Same Supabase query repeated in result, plan, room3d pages
+   → Fix: lib/queries.ts (Claude's item #4)
+
+3. No layout persistence
+   → Quick win: sessionStorage keyed by design params
+   → Long-term: save to DB when user emails design
+
+4. URL params built manually in 4+ places
+   → Fix: utils/url.ts (Claude's item #6)
+
+
+CLAUDE'S DOC (docs/rooma-improvements.txt) — ASSESSMENT
+---------------------------------------------------------
+Claude's sprint = partner-demo readiness (~2 hrs). All items are valid:
+
+  1. Deploy to Vercel          — live URL for demos
+  2. Sarah images → Supabase   — real moodboard/furniture photos
+  3. constants.ts              — kill duplicate DIMS/COLORS
+  4. lib/queries.ts            — centralise Supabase calls
+  5. EmptyState component      — no blank pages on empty data
+  6. utils/url.ts              — consistent result/share URLs
+
+What Claude's doc MISSES:
+  - 2D still grid-stacks (3D was fixed, 2D wasn't)
+  - 2D → 3D position sync
+  - Rotation, overlap detection in 2D
+  - GLB name labels in 3D
+  - Theme consistency (dark plan vs light result)
+
+Verdict: Run Claude's sprint for demo polish, BUT add layout sync
+or the floor plan / 3D pair still feels broken to users.
+
+
+MERGED PRIORITY — WHAT TO START TOMORROW
+========================================
+
+PHASE 1 — Quick code wins (~1 hr)
+---------------------------------
+Do these first. Low risk, unblock everything else.
+
+  [ ] 1a. Create lib/constants.ts (or lib/furniture.ts)
+        Export: CATEGORY_DIMS, CATEGORY_COLORS, CATEGORY_EMOJI, ROOM_HEIGHT
+        Update: FloorPlanCanvas.tsx, Room3DCanvas.tsx, result/page.tsx, room3d/page.tsx
+
+  [ ] 1b. Create lib/url.ts
+        Export: designParams(room, style, budget, width, length)
+                getResultUrl(params) — prefixes NEXT_PUBLIC_BASE_URL
+        Update: result/page.tsx, plan/page.tsx, room3d/page.tsx,
+                EmailCapture.tsx, WhatsApp link in result page
+
+  [ ] 1c. Extract computeLayout() → lib/layout.ts
+        Share between 2D and 3D for consistent initial placement
+
+  [ ] 1d. Wire smart layout into FloorPlanCanvas (replace grid stacking)
+
+  [ ] 1e. sessionStorage sync: plan drag positions → 3D reads them
+        Key idea: sessionStorage keyed by room+style+budget+width+length
+        Plan saves on drag end; 3D checks storage before computeLayout
+
+
+PHASE 2 — Deploy (~15 min)
+--------------------------
+  [ ] 2. Deploy to Vercel
+        Env vars required:
+          NEXT_PUBLIC_SUPABASE_URL
+          NEXT_PUBLIC_SUPABASE_ANON_KEY
+          RESEND_API_KEY
+          GEMINI_API_KEY (for room scanner)
+          NEXT_PUBLIC_BASE_URL = https://your-vercel-url.vercel.app  (NOT localhost)
+        Run: vercel --prod (or push to main if CI hooked up)
+
+
+PHASE 3 — Visual credibility (~45 min, needs Sarah's files)
+---------------------------------------------------------
+  [ ] 3. Upload Sarah's images to Supabase Storage
+        - Create bucket (e.g. "furniture" / "moodboard")
+        - Upload JPEG/PNG files
+        - Update furniture_items.image_url and moodboard_images.image_url
+        - Show images on result page furniture tiles + moodboard grid
+
+  [ ] 4. EmptyState component
+        - components/EmptyState.tsx (title, description, optional CTA)
+        - Use in result, plan, room3d when furniture array is empty
+
+
+PHASE 4 — Code hygiene (~30 min, when calm)
+-------------------------------------------
+  [ ] 5. lib/queries.ts service layer
+        fetchStyles(), fetchFurniture(styleId, room, budget), fetchBudget(room)
+        Replace direct supabase.from() in result, plan, room3d, configure pages
+
+
+PHASE 5 — Visualization polish (after demo)
+-------------------------------------------
+  [ ] Rotation in 2D (double-click or handle → rotate 90°)
+  [ ] Overlap highlight on drag end (red stroke if pieces overlap)
+  [ ] Name labels on 3D GLB models (Html above loaded models)
+  [ ] Per-model error boundary in 3D (bad GLB → box fallback, not crash)
+  [ ] Responsive 3D canvas (h-[50vh] min-h-[400px] instead of fixed 560px)
+  [ ] Unify theme: light everywhere OR dark everywhere (plan page is dark now)
+  [ ] Update stale copy on 3D page footer
+  [ ] Replace placeholder GLBs with real per-category models
+  [ ] Export floor plan as PNG (stage.toDataURL())
+  [ ] Door/window markers on walls
+
+
+SKIP FOR NOW (post-launch)
+--------------------------
+  - React Context for global state
+  - Virtualization / IntersectionObserver for 3D
+  - JSDoc, linting, unit/E2E tests
+  - Accessibility (keyboard nav, ARIA)
+  - Saved designs (DB or local)
+  - Budget slider UI
+  - Partner tracking
+
+
+FILE CHANGES SUMMARY (for commits)
+----------------------------------
+NEW FILES:
+  lib/constants.ts       — CATEGORY_DIMS, COLORS, EMOJI, ROOM_HEIGHT
+  lib/layout.ts          — computeLayout() shared by 2D + 3D
+  lib/url.ts             — designParams(), getResultUrl()
+  lib/queries.ts         — fetchStyles, fetchFurniture, fetchBudget
+  lib/layout-storage.ts  — save/load positions from sessionStorage (optional)
+  components/EmptyState.tsx
+
+MODIFY:
+  app/plan/FloorPlanCanvas.tsx   — import constants + layout + storage
+  app/room3d/Room3DCanvas.tsx    — import constants + layout + storage
+  app/result/page.tsx            — queries helper, EmptyState, url helper
+  app/plan/page.tsx              — queries helper, EmptyState, url helper
+  app/room3d/page.tsx            — queries helper, EmptyState, url helper
+  app/configure/page.tsx         — queries helper (optional)
+  components/EmailCapture.tsx    — url helper
+
+
+ARCHITECTURE TARGET (2D ↔ 3D sync)
+-----------------------------------
+
+  Configure → Result
+  Result → Plan (2D drag)
+  Result → Room3D
+  Plan → sessionStorage (positions on drag end)
+  sessionStorage → Room3D (read before computeLayout)
+  lib/layout.ts → initial placement for BOTH Plan and Room3D
+
+
+SUGGESTED TOMORROW SESSION ORDER
+---------------------------------
+Morning block (~2 hrs):
+  1. constants.ts + url.ts           (25 min)
+  2. lib/layout.ts + wire 2D + 3D    (45 min)
+  3. sessionStorage 2D→3D sync     (30 min)
+  4. npm run dev + test full flow    (20 min)
+
+Afternoon block:
+  5. Deploy Vercel + set env vars    (15 min)
+  6. EmptyState component            (15 min)
+  7. Sarah images (if files ready)   (45 min)
+  8. lib/queries.ts refactor         (30 min, if time)
+
+
+NOTES
+-----
+- .env.local NEXT_PUBLIC_BASE_URL must change to production URL after deploy
+- Resend free tier only sends to your account email until domain verified
+- Project on external drive (DATA1) — first compile slow, delete .next if permission errors
+- GLB files live in public/models/ — must match Supabase model_url exactly (lowercase)

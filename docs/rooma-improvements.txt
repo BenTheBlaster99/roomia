@@ -1,0 +1,112 @@
+Got it – I see the concise “what‑to‑do‑now vs. later” checklist that Claude gave you. Here’s a short plan that aligns with that priority order and ties in the items the two
+  of us just discussed:
+
+  ---
+  ✅ Immediate‑action roadmap (≈ 2 hrs total)
+
+  #: 1️⃣ 
+  Task: Deploy to Vercel (you already have a Vercel script in the repo) 
+  Why it matters: Gives you a live URL for partner demos.
+  Rough time: 10‑15 min (run vercel --prod)
+  What to do: Make sure environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, RESEND_API_KEY, NEXT_PUBLIC_BASE_URL) are set in Vercel.
+  ────────────────────────────────────────                           
+  #: 2️⃣ 
+  Task: Upload real images (Sarah → Supabase Storage)
+  Why it matters: Turns the moodboard & furniture tiles from placeholders into credible design assets.
+  Rough time: 30‑45 min (upload + update DB rows)
+  What to do: In Supabase Studio: – Open Storage → Buckets, create a furniture bucket if none exists. – Upload the JPEG/PNG files Sarah provides. – Update
+    furniture_items.image_url and moodboard_images.image_url with the public URLs (use the “public URL” toggle).
+  ────────────────────────────────────────
+  #: 3️⃣  
+  Task: Move constants to constants.ts
+  Why it matters: Eliminates the duplicate CATEGORY_DIMS / CATEGORY_COLORS definitions in the 2‑D floor‑plan and 3‑D canvas.
+  Rough time: 15‑20 min
+  What to do: 1. Create app/constants.ts (or src/constants.ts).2. Export CATEGORY_DIMS, CATEGORY_COLORS, ROOM_HEIGHT etc.3. Update imports in
+    <project>/app/room3d/Room3DCanvas.tsx and <project>/app/plan/FloorPlanCanvas.tsx.4. Run the app locally to confirm no “undefined” errors.
+  ────────────────────────────────────────
+  #: 4️⃣ 
+  Task: Service layer for Supabase calls
+  Why it matters: Centralises the three repeating queries (styles, furniture_items, budget_ranges). Future table rename or auth change is a single edit.
+  Rough time: ~30 min
+  What to do: 1. Add app/api/queries.ts (or lib/queries.ts).2. Export helpers, e.g. fetchStyles(), fetchFurniture(styleId, room, budget), fetchBudget(room) that return {data, 
+    error}.3. Replace direct supabase.from(...).select(...) calls in app/result/page.tsx, app/room3d/page.tsx, and app/configure/page.tsx with the new helpers.4. Ensure each
+    helper handles errors (throws or returns a clean object).
+  ────────────────────────────────────────
+  #: 5️⃣ 
+  Task: EmptyState UI component
+  Why it matters: Guarantees the result page (and the 2‑D/3‑D views) show a friendly message if Supabase returns an empty array. Prevents a “blank page” look during the demo.
+  Rough time: 10‑15 min
+  What to do: 1. Create components/EmptyState.tsx that takes title, description, optional cta.2. Import it wherever you map over furniture / moodboard / budgetRanges and
+    conditionally render if the array length is 0.3. Style it with the existing Tailwind palette (e.g. bg-amber-50 border border-amber-200).
+  ────────────────────────────────────────
+  #: 6️⃣ 
+  Task: URL‑builder helper
+  Why it matters: The same query‑string appears in four places (ResultPage, share‑WhatsApp link, email template, 3‑D page). One typo would break all navigation.
+  Rough time: 5‑10 min
+  What to do: 1. Add utils/url.ts with export const designParams = (room, style, budget, width, length) => new URLSearchParams({room, style, budget, width, length});2. In each
+    file replace manual string concatenation with designParams(...).toString().3. Export a getResultUrl(params) that prefixes process.env.NEXT_PUBLIC_BASE_URL.
+  ────────────────────────────────────────
+  #: Total
+  Task: ≈ 2 hrs (plus the Vercel deployment), after which you’ll have a live, partner‑ready demo.
+  Why it matters:
+  Rough time:
+  What to do:
+
+  ---
+  📦 What you’ll have after the sprint
+
+  - Live Vercel URL you can send to partners right now.
+  - Real furniture & moodboard photos stored in Supabase, shown in the UI.
+  - Single source of truth for dimensions & colours (no more copy‑pasta).
+  - One‑place Supabase queries – future schema changes are painless.
+  - Graceful empty‑state screens – the demo never looks broken.
+  - Consistent URLs across result page, email, WhatsApp share, and 3‑D view.
+
+  ---
+  🎯 Next steps after the demo
+
+  Once the partner sees the live MVP, you can then move on to the “after‑launch” items that Claude listed:
+
+  - React Context for global state (if the flow expands).
+  - Virtualisation / IntersectionObserver for the 3‑D canvas when the catalogue grows.
+  - JSDoc, linting, unit/E2E tests, accessibility tweaks, saved‑design feature, etc.
+  
+  ---
+  📁 File changes summary (for quick commit)
+
+  ┌───────────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────┐
+  │                                       File / folder                                       │                             Change                              │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/constants.ts                                                                          │ Export CATEGORY_DIMS, CATEGORY_COLORS, ROOM_HEIGHT.             │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/plan/FloorPlanCanvas.tsx                                                              │ Import constants from constants.ts.                             │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/room3d/Room3DCanvas.tsx                                                               │ Import constants from constants.ts.                             │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ lib/queries.ts (or app/api/queries.ts)                                                    │ fetchStyles, fetchFurniture, fetchBudget.                       │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/result/page.tsx                                                                       │ Use the new helpers.                                            │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/room3d/page.tsx                                                                       │ Use the new helpers.                                            │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/configure/page.tsx                                                                    │ Use the new helpers.                                            │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ components/EmptyState.tsx                                                                 │ New reusable component.                                         │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ app/result/page.tsx, app/room3d/page.tsx, app/plan/page.tsx                               │ Conditional render of <EmptyState> when arrays are empty.       │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ utils/url.ts                                                                              │ designParams + getResultUrl.                                    │
+  ├───────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ All files that built the result URL (ResultPage, EmailCapture, WhatsApp link, Room3DPage) │ Replace manual string concat with designParams(...).toString(). │
+  └───────────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────────────┘
+  
+  ---
+  ✅ Ready to go?
+
+  Just let me know which of the six items you’d like me to scaffold first (e.g., generate the constants.ts file, create the service‑layer skeleton, etc.), and I can write the
+  code for you right away. Once those files are in place you can run npm run dev to verify everything still builds, then push the changes and trigger the Vercel deploy.
+  
+  Happy to dive into any of the pieces—just point me at the one you want to start with! 🚀
+
+
+  claude --resume afaf44da-8177-417e-b912-404159fb6514
