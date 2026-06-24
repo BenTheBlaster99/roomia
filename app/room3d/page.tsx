@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { buildDesignPath, parseDesignParams } from '@/lib/design-params'
 import type { FurnitureItem } from '@/types'
 import Link from 'next/link'
 import Room3DCanvasLoader from './Room3DCanvasLoader'
@@ -13,17 +14,12 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 interface Props {
-  searchParams: Promise<{
-    room: string
-    style: string
-    budget: string
-    width: string
-    length: string
-  }>
+  searchParams: Promise<Record<string, string | undefined>>
 }
 
 export default async function Room3DPage({ searchParams }: Props) {
-  const { room, style, budget, width, length } = await searchParams
+  const design = parseDesignParams(await searchParams)
+  const { room, style, budget, width, length, height } = design
 
   const { data: furniture } = await supabase
     .from('furniture_items')
@@ -32,7 +28,7 @@ export default async function Room3DPage({ searchParams }: Props) {
     .ilike('room', `%${room}%`)
     .eq('budget_tier', budget)
 
-  const backHref = `/result?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`
+  const backHref = buildDesignPath('/result', design)
 
   return (
     <div className="min-h-screen bg-stone-50 text-zinc-900">
@@ -47,14 +43,18 @@ export default async function Room3DPage({ searchParams }: Props) {
         <div>
           <h1 className="text-xl font-bold mb-1">3D Room View</h1>
           <p className="text-sm text-zinc-500">
-            {room} · {width}m × {length}m · Orbit with mouse · Scroll to zoom
+            {room} · {width}m × {length}m × {height}m · Orbit with mouse · Scroll to zoom
           </p>
         </div>
 
         <Room3DCanvasLoader
           furniture={(furniture ?? []) as FurnitureItem[]}
+          room={room}
+          styleId={style}
+          budgetTier={budget}
           width={parseFloat(width)}
           length={parseFloat(length)}
+          height={parseFloat(height)}
         />
 
         <div className="flex flex-wrap gap-2 pt-2">
@@ -74,7 +74,7 @@ export default async function Room3DPage({ searchParams }: Props) {
         </div>
 
         <p className="text-xs text-zinc-400 text-center pb-6">
-          Furniture shown with standard dimensions. Real 3D models coming with partner catalog.
+          Walls and furniture render from the same floor plan data as the 2D view.
         </p>
       </div>
     </div>

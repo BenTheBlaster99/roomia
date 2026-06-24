@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { buildDesignPath } from '@/lib/design-params'
 import type { FurnitureItem } from '@/types'
 
 interface Props {
@@ -10,12 +11,13 @@ interface Props {
   budget: string
   width: string
   length: string
+  height: string
   furniture: FurnitureItem[]
   total: number
 }
 
 export default function EmailCapture({
-  room, styleId, styleName, budget, width, length, furniture, total,
+  room, styleId, styleName, budget, width, length, height, furniture, total,
 }: Props) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -25,7 +27,10 @@ export default function EmailCapture({
     setStatus('sending')
 
     try {
-      const resultUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/result?room=${encodeURIComponent(room)}&style=${styleId}&budget=${budget}&width=${width}&length=${length}`
+      const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '')
+      const resultUrl = `${baseUrl}${buildDesignPath('/result', {
+        room, style: styleId, budget, width, length, height,
+      })}`
 
       const res = await fetch('/api/send-design', {
         method: 'POST',
@@ -37,6 +42,7 @@ export default function EmailCapture({
           budget,
           width,
           length,
+          height,
           furniture: furniture.map(f => ({
             name: f.name,
             category: f.category,

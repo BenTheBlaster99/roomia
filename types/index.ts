@@ -1,5 +1,6 @@
 export type Room = 'Living Room' | 'Bedroom'
 export type BudgetTier = 'tight' | 'comfortable' | 'premium'
+export type * from './floor-plan'
 
 export interface Style {
   id: string
@@ -46,6 +47,7 @@ export interface ConfigState {
   room: Room | null
   width: string
   length: string
+  height: string
   styleId: string | null
   budgetTier: BudgetTier | null
 }

@@ -1,4 +1,6 @@
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { buildDesignPath, parseDesignParams } from '@/lib/design-params'
 import type { Style, FurnitureItem, MoodboardImage, BudgetRange } from '@/types'
 import EmailCapture from '@/components/EmailCapture'
 import Link from 'next/link'
@@ -13,17 +15,13 @@ const CATEGORY_EMOJI: Record<string, string> = {
 }
 
 interface Props {
-  searchParams: Promise<{
-    room: string
-    style: string
-    budget: string
-    width: string
-    length: string
-  }>
+  searchParams: Promise<Record<string, string | undefined>>
 }
 
 export default async function ResultPage({ searchParams }: Props) {
-  const { room, style, budget, width, length } = await searchParams
+  const raw = await searchParams
+  const { room, style, budget, width, length, height } = parseDesignParams(raw)
+  const design = { room, style, budget, width, length, height }
   const area = (parseFloat(width) * parseFloat(length)).toFixed(1)
 
   const [styleRes, furnitureRes, moodboardRes, budgetRes] = await Promise.all([
@@ -87,7 +85,7 @@ export default async function ResultPage({ searchParams }: Props) {
             <div className="flex flex-wrap gap-2">
               {[
                 { key: 'room', label: room },
-                { key: 'dimensions', label: `${width}m × ${length}m · ${area}m²` },
+                { key: 'dimensions', label: `${width}m × ${length}m · ${height}m high · ${area}m²` },
                 { key: 'budget', label: `${budget} budget` },
               ].map(({ key, label }) => (
                 <span key={key} className="text-xs bg-stone-100 text-zinc-600 px-3 py-1 rounded-full capitalize">
@@ -104,29 +102,40 @@ export default async function ResultPage({ searchParams }: Props) {
             Moodboard
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            {moodboard?.slice(0, 4).map((img, i) => (
+            {moodboard?.slice(0, 4).map(img => (
               <div
                 key={img.id}
-                className="aspect-square rounded-xl border border-zinc-200 flex flex-col
-                           justify-end p-4 overflow-hidden relative shadow-sm"
-                style={{
-                  background: i % 2 === 0
-                    ? `linear-gradient(135deg, ${styleData?.main_color}44, ${styleData?.accent_color}22)`
-                    : `linear-gradient(135deg, ${styleData?.accent_color}22, ${styleData?.main_color}44)`,
-                }}
+                className="aspect-square rounded-xl border border-zinc-200 overflow-hidden relative shadow-sm group"
               >
-                <p className="text-xs text-zinc-700 leading-relaxed line-clamp-3">
-                  {img.description}
-                </p>
-                <p className="text-xs text-amber-700 mt-1.5 font-medium">
-                  {img.search_keyword}
-                </p>
+                {img.image_url ? (
+                  <Image
+                    src={img.image_url}
+                    alt={img.search_keyword || img.description}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 672px) 50vw, 336px"
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: `linear-gradient(135deg, ${styleData?.main_color}44, ${styleData?.accent_color}22)`,
+                    }}
+                  />
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
+                  <p className="text-xs text-white/90 leading-relaxed line-clamp-2">
+                    {img.search_keyword}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-zinc-400 mt-3 text-center">
-            Final moodboard images coming with partner content
-          </p>
+          {!moodboard?.length && (
+            <p className="text-xs text-zinc-400 mt-3 text-center">
+              No moodboard images for this style yet.
+            </p>
+          )}
         </div>
 
         {/* ── Furniture list ── */}
@@ -211,13 +220,14 @@ export default async function ResultPage({ searchParams }: Props) {
             budget={budget}
             width={width}
             length={length}
+            height={height}
             furniture={furniture ?? []}
             total={total}
           />
 
           <a
             href={`https://wa.me/?text=${encodeURIComponent(
-              `Check out my ${styleData?.name} ${room} design on Roomia 🏠\n${process.env.NEXT_PUBLIC_BASE_URL}/result?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`
+              `Check out my ${styleData?.name} ${room} design on Roomia 🏠\n${(process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '')}${buildDesignPath('/result', design)}`
             )}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -232,7 +242,7 @@ export default async function ResultPage({ searchParams }: Props) {
           </a>
 
           <Link
-            href={`/plan?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`}
+            href={buildDesignPath('/plan', design)}
             className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
                        text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
           >
@@ -240,7 +250,7 @@ export default async function ResultPage({ searchParams }: Props) {
           </Link>
 
           <Link
-            href={`/room3d?room=${encodeURIComponent(room)}&style=${style}&budget=${budget}&width=${width}&length=${length}`}
+            href={buildDesignPath('/room3d', design)}
             className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
                        text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
           >

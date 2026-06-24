@@ -16,6 +16,7 @@ interface Body {
   budget: string
   width: string
   length: string
+  height: string
   furniture: FurnitureRow[]
   total: number
   resultUrl: string
@@ -24,13 +25,13 @@ interface Body {
 export async function POST(req: NextRequest) {
   try {
     const body: Body = await req.json()
-    const { email, styleName, room, budget, width, length, furniture, total, resultUrl } = body
+    const { email, styleName, room, budget, width, length, height, furniture, total, resultUrl } = body
 
     await resend.emails.send({
       from: 'Roomia <onboarding@resend.dev>',
       to: email,
       subject: `Your ${styleName} ${room} Design — Roomia`,
-      html: buildEmail({ styleName, room, budget, width, length, furniture, total, resultUrl }),
+      html: buildEmail({ styleName, room, budget, width, length, height, furniture, total, resultUrl }),
     })
 
     return Response.json({ success: true })
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
 }
 
 function buildEmail({
-  styleName, room, budget, width, length, furniture, total, resultUrl,
+  styleName, room, budget, width, length, height, furniture, total, resultUrl,
 }: Omit<Body, 'email'>) {
   const area = (parseFloat(width) * parseFloat(length)).toFixed(1)
   const budgetLabel = { tight: 'Tight', comfortable: 'Comfortable', premium: 'Premium' }[budget] ?? budget
@@ -92,7 +93,7 @@ function buildEmail({
               ${styleName} · ${room}
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-              ${[room, `${width}m × ${length}m · ${area}m²`, budgetLabel + ' budget'].map(tag => `
+              ${[room, `${width}m × ${length}m × ${height}m · ${area}m²`, budgetLabel + ' budget'].map(tag => `
                 <span style="background:#252525;color:#8a8480;padding:4px 12px;
                              border-radius:20px;font-size:12px;display:inline-block;
                              margin:2px 4px 2px 0;">

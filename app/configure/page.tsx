@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import RoomScanner from '@/components/RoomScanner'
+import { DEFAULT_HEIGHT } from '@/lib/design-params'
 import type { Style, BudgetRange, Room, BudgetTier, ConfigState } from '@/types'
 
 export default function ConfiguratorPage() {
@@ -13,35 +14,47 @@ export default function ConfiguratorPage() {
     room: null,
     width: '',
     length: '',
+    height: DEFAULT_HEIGHT,
     styleId: null,
     budgetTier: null,
   })
   const [styles, setStyles] = useState<Style[]>([])
   const [budgetRanges, setBudgetRanges] = useState<BudgetRange[]>([])
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (step === 2 && styles.length === 0) fetchStyles()
-    if (step === 3 && config.room) fetchBudget()
-  }, [step])
+    if (step !== 2 || styles.length > 0) return
 
-  async function fetchStyles() {
-    setLoading(true)
-    const { data } = await supabase.from('styles').select('*')
-    if (data) setStyles(data)
-    setLoading(false)
-  }
+    let ignore = false
+    supabase.from('styles').select('*').then(({ data }) => {
+      if (!ignore && data) setStyles(data)
+    })
 
-  async function fetchBudget() {
-    const { data } = await supabase
+    return () => {
+      ignore = true
+    }
+  }, [step, styles.length])
+
+  useEffect(() => {
+    if (step !== 3 || !config.room) return
+
+    let ignore = false
+    supabase
       .from('budget_ranges')
       .select('*')
       .eq('room', config.room)
-    if (data) setBudgetRanges(data)
-  }
+      .then(({ data }) => {
+        if (!ignore && data) setBudgetRanges(data)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [step, config.room])
 
   function canProceed() {
-    if (step === 1) return config.room && config.width && config.length
+    if (step === 1) {
+      return config.room && config.width && config.length && config.height
+    }
     if (step === 2) return config.styleId !== null
     if (step === 3) return config.budgetTier !== null
   }
@@ -56,6 +69,7 @@ export default function ConfiguratorPage() {
         budget: config.budgetTier!,
         width: config.width,
         length: config.length,
+        height: config.height,
       })
       router.push(`/result?${params.toString()}`)
     }
@@ -81,7 +95,7 @@ export default function ConfiguratorPage() {
       {/* Step content */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         {step === 1 && <StepRoom config={config} setConfig={setConfig} />}
-        {step === 2 && <StepStyle config={config} setConfig={setConfig} styles={styles} loading={loading} />}
+        {step === 2 && <StepStyle config={config} setConfig={setConfig} styles={styles} loading={styles.length === 0} />}
         {step === 3 && <StepBudget config={config} setConfig={setConfig} budgetRanges={budgetRanges} />}
       </div>
 
@@ -140,19 +154,21 @@ function StepRoom({
 
       {config.room && (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">
-            Dimensions of your {config.room.toLowerCase()}
+          <p className="text-sm text-zinc-500">
+            Floor dimensions of your {config.room.toLowerCase()}
           </p>
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'Width (m)', key: 'width' },
-              { label: 'Length (m)', key: 'length' },
-            ].map(({ label, key }) => (
+              { label: 'Width (m)', key: 'width', placeholder: 'e.g. 4' },
+              { label: 'Length (m)', key: 'length', placeholder: 'e.g. 5' },
+            ].map(({ label, key, placeholder }) => (
               <div key={key}>
                 <label className="text-xs text-zinc-500 mb-1.5 block">{label}</label>
                 <input
                   type="number"
-                  placeholder="e.g. 4"
+                  min="1"
+                  step="0.1"
+                  placeholder={placeholder}
                   value={config[key as keyof ConfigState] as string}
                   onChange={e =>
                     setConfig(c => ({ ...c, [key]: e.target.value }))
@@ -163,15 +179,41 @@ function StepRoom({
               </div>
             ))}
           </div>
+
+          <div>
+            <label className="text-xs text-zinc-500 mb-1.5 block">Ceiling height (m)</label>
+            <input
+              type="number"
+              min="2"
+              step="0.1"
+              placeholder="e.g. 2.8"
+              value={config.height}
+              onChange={e => setConfig(c => ({ ...c, height: e.target.value }))}
+              className="w-full bg-white border border-zinc-200 rounded-lg px-4 py-2.5
+                         text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-amber-500"
+            />
+            <p className="text-xs text-zinc-400 mt-1.5">
+              Standard Algerian apartments are around 2.7–2.8m. Used for the 3D room view.
+            </p>
+          </div>
+
           {config.width && config.length && (
             <p className="text-xs text-amber-600">
-              {(parseFloat(config.width) * parseFloat(config.length)).toFixed(1)} m²
+              Floor area: {(parseFloat(config.width) * parseFloat(config.length)).toFixed(1)} m²
+              {config.height && ` · Volume: ${(parseFloat(config.width) * parseFloat(config.length) * parseFloat(config.height)).toFixed(1)} m³`}
             </p>
           )}
 
           <RoomScanner
-            onResult={(w, l) =>
-              setConfig(c => ({ ...c, width: w, length: l }))
+            room={config.room}
+            height={config.height}
+            onResult={(w, l, h) =>
+              setConfig(c => ({
+                ...c,
+                width: w,
+                length: l,
+                ...(h ? { height: h } : {}),
+              }))
             }
           />
         </div>
@@ -277,7 +319,7 @@ function StepBudget({
       <div>
         <h1 className="text-2xl font-bold mb-1">What&apos;s your budget?</h1>
         <p className="text-zinc-400 text-sm">
-          For your {config.room?.toLowerCase()} — {config.width}m × {config.length}m
+          For your {config.room?.toLowerCase()} — {config.width}m × {config.length}m × {config.height}m
         </p>
       </div>
 
