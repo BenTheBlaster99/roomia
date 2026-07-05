@@ -1,11 +1,9 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useGLTF, Html } from '@react-three/drei'
 import * as THREE from 'three'
-import { resolvePlanForView } from '@/lib/floor-plan'
-import { loadFloorPlan } from '@/lib/floor-plan-storage'
 import {
   ROOM3D_COLORS,
   buildDoorMeshSpecs,
@@ -15,7 +13,6 @@ import {
   wallSegmentTransform,
   type WallMeshSpec,
 } from '@/lib/room3d-view'
-import type { FurnitureItem } from '@/types'
 import type { FloorPlanData, PlacedFurniture } from '@/types/floor-plan'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -235,37 +232,10 @@ function PlanRoom({ plan }: { plan: FloorPlanData }) {
 }
 
 interface Props {
-  furniture: FurnitureItem[]
-  room: string
-  styleId: string
-  budgetTier: string
-  width: number
-  length: number
-  height: number
+  plan: FloorPlanData
 }
 
-export default function Room3DCanvas({
-  furniture,
-  room,
-  styleId,
-  budgetTier,
-  width,
-  length,
-  height,
-}: Props) {
-  const [plan] = useState(() =>
-    resolvePlanForView({
-      stored: loadFloorPlan(),
-      room,
-      styleId,
-      budgetTier,
-      width,
-      length,
-      height,
-      furniture,
-    }),
-  )
-
+export default function Room3DCanvas({ plan }: Props) {
   const frame = useMemo(() => getSceneFrame(plan), [plan])
   const activeFurniture = useMemo(
     () => plan.furniture.filter(item => item.status === 'active'),
@@ -273,7 +243,7 @@ export default function Room3DCanvas({
   )
 
   return (
-    <div className="w-full h-[560px] bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+    <div className="w-full h-[560px] bg-zinc-900 overflow-hidden">
       <Canvas
         shadows
         camera={{

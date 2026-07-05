@@ -6,7 +6,8 @@
     "dev": "node node_modules/next/dist/bin/next dev",
     "build": "node node_modules/next/dist/bin/next build",
     "start": "node node_modules/next/dist/bin/next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-presets": "node --experimental-strip-types scripts/generate-room-presets.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -14,12 +15,16 @@
     "@react-three/fiber": "^9.6.1",
     "@supabase/supabase-js": "^2.107.0",
     "konva": "^10.3.0",
+    "nanoid": "^5.1.16",
     "next": "16.2.7",
+    "openai": "^6.45.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-konva": "^19.2.4",
     "resend": "^6.12.4",
-    "three": "^0.184.0"
+    "sharp": "^0.35.2",
+    "three": "^0.184.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

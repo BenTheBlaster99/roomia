@@ -210,6 +210,7 @@ function mergeFurniturePlacements(
         category: item.category,
         modelUrl: item.model_url,
         partnerLink: item.partner_link,
+        price: existing.price ?? item.price,
       },
     ]
   })
@@ -248,6 +249,7 @@ function createInitialFurniturePlacements(
       status: 'active',
       modelUrl: item.model_url,
       partnerLink: item.partner_link,
+      price: item.price,
     })
     taken.push({ ...position, dimensions })
   }

@@ -73,6 +73,7 @@ export interface PlacedFurniture {
   status: FurniturePlacementStatus
   modelUrl?: string | null
   partnerLink?: string | null
+  price?: number
 }
 
 export interface FloorPlanMetadata {

@@ -1,0 +1,20 @@
+Task,Concerned,Deadline,Status,Aditionnal notes,,Additional technical note
+Images meubles PNG,Sarah,19/06/2026,Validée,,FALSE,
+Design siteweb,Sarah,,En attente,,FALSE,
+Catalogue des produits dans site web,Aimen,,En attente,"Landing page : browse all companies. Search bar (company, furniture type). Filter furniture (price, material)",FALSE,
+AI : from 2D to floor plan,Aimen,,En attente,"Client uploads a floor plan, AI reads it and turns it into a digital 2D floor plan (They can change after the generation). When client starts choosing furniture, they start with adjusting them in the 2D. They can visualize in 3D at any given time. the walls have epaisseur . and it is visble and shown where is the door and the window etc",FALSE,
+AI : from 2D to 3D,Aimen,,En attente,"Client uploads a floor plan, AI reads it and turns it into a 3D space too. + Height specification",FALSE,
+AI : from dimensions to 2D + 3D,Aimen,,En attente,"Client specifies space dimensions (depth, width and height), AI turns it into a 2D floor plan and a 3D space.",FALSE,
+AI : Insert object into picture,Aimen,,En attente,Client takes a picture of their existing space to insert new objects.,FALSE,tasks require GPU RTX 3060 
+AI : Delete object from picture,Aimen,,En attente,Existing objects can be deleted from the uploaded picture,FALSE,tasks require GPU RTX 3060 
+Estimated budget in website,Aimen,,En attente,,FALSE,
+Buy domain name,Aimen,,En attente,roomia.com,FALSE,
+Create e-mail waitlist,Aimen,,En attente,contact@roomia.com,FALSE,
+Design website,Aimen,,En attente,,FALSE,
+"Branding (logo, colors)",Both,,En attente,"Colors : beige, green. Logo : ?",FALSE,
+Consult design with Lyna,Both,,En attente,,FALSE,
+Look into payment option,Aimen,,En attente,"Chargily, goubba",FALSE,
+Decide on pricing,Both,,En attente,,FALSE,
+Create IG account,Sarah,,En attente,@roomia,FALSE,
+List of companies,Sarah,,En attente,Specify location of each company,FALSE,
+Decide on marketing strategy,Both,,En attente,,,

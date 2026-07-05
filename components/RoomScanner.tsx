@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { DEFAULT_HEIGHT } from '@/lib/design-params'
+import { createRectangularFloorPlan } from '@/lib/floor-plan'
 import { saveFloorPlan } from '@/lib/floor-plan-storage'
 import type { FloorPlanData } from '@/types/floor-plan'
 
@@ -11,10 +13,13 @@ interface ScanResult {
   confidence: 'high' | 'medium' | 'low'
   notes: string
   floorPlan: FloorPlanData
+  modelUsed?: string
 }
 
 interface Props {
   room?: string | null
+  width?: string
+  length?: string
   height?: string
   onResult: (width: string, length: string, height?: string) => void
 }
@@ -25,7 +30,7 @@ const CONFIDENCE_COLOR = {
   low: 'text-red-500',
 }
 
-export default function RoomScanner({ room, height, onResult }: Props) {
+export default function RoomScanner({ room, width, length, height, onResult }: Props) {
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,18 +77,55 @@ export default function RoomScanner({ room, height, onResult }: Props) {
         confidence: data.confidence,
         notes: data.notes,
         floorPlan: data.floorPlan,
+        modelUsed: data.modelUsed,
       }
 
       setResult(scanResult)
 
       const detectedHeight = data.height_m ? String(data.height_m) : undefined
       onResult(String(data.width_m), String(data.length_m), detectedHeight)
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : 'Could not read the floor plan. Enter dimensions manually.'
-      setError(message)
+    } catch {
+      const fallbackWidth =
+        width && parseFloat(width) > 0 ? parseFloat(width) : 4
+      const fallbackLength =
+        length && parseFloat(length) > 0 ? parseFloat(length) : 5
+      const fallbackHeight =
+        height && parseFloat(height) > 0 ? parseFloat(height) : parseFloat(DEFAULT_HEIGHT)
+
+      const fallbackPlan = createRectangularFloorPlan({
+        room: room ?? undefined,
+        width: fallbackWidth,
+        length: fallbackLength,
+        height: fallbackHeight,
+        source: 'manual',
+      })
+
+      const planWithNote: FloorPlanData = {
+        ...fallbackPlan,
+        metadata: {
+          ...fallbackPlan.metadata,
+          scanConfidence: 'low',
+          scanNotes: 'Scan unavailable — starter layout applied.',
+        },
+      }
+
+      saveFloorPlan(planWithNote)
+
+      setResult({
+        width_m: fallbackWidth,
+        length_m: fallbackLength,
+        height_m: fallbackHeight,
+        confidence: 'low',
+        notes:
+          "We couldn't read this sketch perfectly, so we set up a starter room. Adjust walls and furniture in the Design Studio.",
+        floorPlan: planWithNote,
+      })
+
+      onResult(
+        String(fallbackWidth),
+        String(fallbackLength),
+        String(fallbackHeight),
+      )
     } finally {
       setScanning(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -142,6 +184,9 @@ export default function RoomScanner({ room, height, onResult }: Props) {
           <p className="text-xs text-zinc-600">{structureSummary}</p>
           {result.notes && (
             <p className="text-xs text-zinc-500">{result.notes}</p>
+          )}
+          {result.modelUsed && (
+            <p className="text-[10px] text-zinc-400">Scanned with {result.modelUsed}</p>
           )}
           <p className="text-xs text-zinc-400 pt-1">
             Structured plan saved for 2D/3D. Edit dimensions above if needed.

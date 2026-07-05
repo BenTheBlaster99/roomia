@@ -242,19 +242,11 @@ export default async function ResultPage({ searchParams }: Props) {
           </a>
 
           <Link
-            href={buildDesignPath('/plan', design)}
+            href={buildDesignPath('/studio', design)}
             className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
                        text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
           >
-            🗺️ Arrange furniture in my room
-          </Link>
-
-          <Link
-            href={buildDesignPath('/room3d', design)}
-            className="w-full block text-center py-3 border border-zinc-200 rounded-xl text-sm
-                       text-zinc-600 hover:border-amber-500 hover:text-amber-600 transition-all bg-white"
-          >
-            🧊 View room in 3D
+            🎨 Open Design Studio
           </Link>
 
           <a
