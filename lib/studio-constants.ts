@@ -1,7 +1,7 @@
 export const CATEGORY_DIMS: Record<string, { width: number; depth: number; height: number }> = {
   'Sofa':          { width: 2.1,  depth: 0.85, height: 0.80 },
-  'Bed':           { width: 1.6,  depth: 2.00, height: 0.50 },
-  'Chair':         { width: 0.65, depth: 0.65, height: 0.85 },
+  'Bed':           { width: 1.6,  depth: 2.00, height: 1.05 },
+  'Chair':         { width: 0.80, depth: 1.20, height: 1.10 },
   'Coffee Table':  { width: 1.10, depth: 0.60, height: 0.45 },
   'Dining Table':  { width: 1.40, depth: 0.80, height: 0.75 },
   'Light':         { width: 0.30, depth: 0.30, height: 1.80 },

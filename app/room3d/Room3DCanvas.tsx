@@ -13,6 +13,7 @@ import {
   wallSegmentTransform,
   type WallMeshSpec,
 } from '@/lib/room3d-view'
+import { normalizeGlbScene } from '@/lib/normalize-glb'
 import type { FloorPlanData, PlacedFurniture } from '@/types/floor-plan'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -37,27 +38,19 @@ function GLBModel({
 }) {
   const { scene } = useGLTF(url)
 
-  const { cloned, yOffset } = useMemo(() => {
-    const clone = scene.clone(true)
-    const box0 = new THREE.Box3().setFromObject(clone)
-    const size = new THREE.Vector3()
-    box0.getSize(size)
-
-    const sx = size.x > 0 ? targetDims[0] / size.x : 1
-    const sy = size.y > 0 ? targetDims[2] / size.y : 1
-    const sz = size.z > 0 ? targetDims[1] / size.z : 1
-    const scale = Math.min(sx, sy, sz)
-    clone.scale.setScalar(scale)
-
-    const box1 = new THREE.Box3().setFromObject(clone)
-    const yOff = -box1.min.y
-
-    return { cloned: clone, yOffset: yOff }
-  }, [scene, targetDims])
+  const cloned = useMemo(
+    () =>
+      normalizeGlbScene(scene, {
+        width: targetDims[0],
+        depth: targetDims[1],
+        height: targetDims[2],
+      }),
+    [scene, targetDims],
+  )
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <primitive object={cloned} position={[0, yOffset, 0]} castShadow />
+      <primitive object={cloned} castShadow />
     </group>
   )
 }

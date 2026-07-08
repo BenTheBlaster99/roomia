@@ -10,9 +10,14 @@ export interface CatalogItem {
   imageKeyword: string
   available: boolean
   notes?: string
+  /** Metres; overrides CATEGORY_DIMS when set (use for AI-generated items). */
+  dimensions?: { width: number; depth: number; height: number }
+  /** Loaded from Supabase furniture_items (not mock catalog). */
+  fromDatabase?: boolean
 }
 
 export const MOCK_CATALOG: CatalogItem[] = [
+  // Generated Bed / Generated Chair live in Supabase (furniture_items) — see CatalogSidebar
   // SOFAS
   { id: 'c-001', name: 'Oslo', category: 'Sofa', room: ['Living Room'], style: 'Industrial', price: 100000, color: '#6B7280', modelUrl: '/models/sofa.glb', imageKeyword: 'leather sofa metal legs', available: true, notes: 'Dark leather, metal legs' },
   { id: 'c-002', name: 'Orion', category: 'Sofa', room: ['Living Room'], style: 'Minimalism', price: 120000, color: '#D6CDBF', modelUrl: '/models/sofa.glb', imageKeyword: 'L shape beige sofa', available: true, notes: 'Beige fabric, L-shape' },

@@ -134,7 +134,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   addItemFromCatalog: catalog => {
     get().snapshot()
     const { room, items } = get()
-    const dims = CATEGORY_DIMS[catalog.category] ?? { width: 0.8, depth: 0.8, height: 0.8 }
+    const dims = catalog.dimensions ?? CATEGORY_DIMS[catalog.category] ?? { width: 0.8, depth: 0.8, height: 0.8 }
     let x = room.width / 2
     let z = room.length / 2
     let attempts = 0

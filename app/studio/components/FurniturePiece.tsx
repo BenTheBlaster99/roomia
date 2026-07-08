@@ -5,6 +5,7 @@ import { useGLTF, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useStudioStore, type PlacedItem } from '@/store/useStudioStore'
 import { CATEGORY_COLORS } from '@/lib/studio-constants'
+import { normalizeGlbScene } from '@/lib/normalize-glb'
 
 function SelectionBox({ dims }: { dims: PlacedItem['dimensions'] }) {
   const geo = useMemo(() => {
@@ -39,21 +40,10 @@ function RotationHandle({ item }: { item: PlacedItem }) {
 
 function GLBModel({ url, dims }: { url: string; dims: PlacedItem['dimensions'] }) {
   const { scene } = useGLTF(url)
-  const cloned = useMemo(() => {
-    const clone = scene.clone(true)
-    const box = new THREE.Box3().setFromObject(clone)
-    const size = new THREE.Vector3()
-    box.getSize(size)
-    const scale = Math.min(
-      size.x > 0 ? dims.width / size.x : 1,
-      size.y > 0 ? dims.height / size.y : 1,
-      size.z > 0 ? dims.depth / size.z : 1,
-    )
-    clone.scale.setScalar(scale)
-    const box2 = new THREE.Box3().setFromObject(clone)
-    clone.position.y = -box2.min.y
-    return clone
-  }, [scene, dims])
+  const cloned = useMemo(
+    () => normalizeGlbScene(scene, dims),
+    [scene, dims],
+  )
   return <primitive object={cloned} castShadow />
 }
 

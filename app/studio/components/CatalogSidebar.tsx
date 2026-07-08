@@ -1,9 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStudioStore } from '@/store/useStudioStore'
 import { MOCK_CATALOG } from '@/lib/mock-catalog'
+import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
+import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { CATEGORIES_BY_ROOM, CATEGORY_COLORS } from '@/lib/studio-constants'
+import type { CatalogItem } from '@/lib/mock-catalog'
 
 export default function CatalogSidebar() {
   const {
@@ -12,19 +15,42 @@ export default function CatalogSidebar() {
     preFilterStyle, setPreFilterStyle,
   } = useStudioStore()
 
+  const [generatedItems, setGeneratedItems] = useState<CatalogItem[]>([])
+  const [generatedStatus, setGeneratedStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+
+  useEffect(() => {
+    setGeneratedStatus('loading')
+    fetchGeneratedCatalog()
+      .then(rows => {
+        setGeneratedItems(rows.map(furnitureItemToCatalogItem))
+        setGeneratedStatus(rows.length > 0 ? 'ready' : 'error')
+      })
+      .catch(err => {
+        console.error('Generated catalog load failed:', err)
+        setGeneratedStatus('error')
+      })
+  }, [])
+
   const categories = CATEGORIES_BY_ROOM[activeRoom] ?? []
 
+  const catalog = useMemo(
+    () => [...generatedItems, ...MOCK_CATALOG],
+    [generatedItems],
+  )
+
   const filtered = useMemo(() => {
-    return MOCK_CATALOG.filter(item => {
+    return catalog.filter(item => {
       const matchRoom = item.room.includes(activeRoom)
       const matchCat = !activeCategory || item.category === activeCategory
       const matchSearch = !searchQuery ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.category.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchPreStyle = !preFilterStyle || item.style === preFilterStyle
+      // Supabase AI pieces always show — don't hide behind style preset filter
+      const matchPreStyle =
+        item.fromDatabase || !preFilterStyle || item.style === preFilterStyle
       return matchRoom && matchCat && matchSearch && matchPreStyle
     })
-  }, [activeRoom, activeCategory, searchQuery, preFilterStyle])
+  }, [catalog, activeRoom, activeCategory, searchQuery, preFilterStyle])
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -53,6 +79,22 @@ export default function CatalogSidebar() {
           >
             × clear
           </button>
+        </div>
+      )}
+
+      {generatedStatus === 'loading' && (
+        <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-100">
+          Loading Supabase models…
+        </div>
+      )}
+      {generatedStatus === 'error' && generatedItems.length === 0 && (
+        <div className="px-3 py-2 text-xs text-red-600 border-b border-red-100 bg-red-50">
+          Could not load Generated Bed/Chair from Supabase. Check browser console and RLS policies.
+        </div>
+      )}
+      {generatedItems.length > 0 && (
+        <div className="px-3 py-2 text-xs text-emerald-700 border-b border-emerald-100 bg-emerald-50">
+          {generatedItems.length} live model(s) from Supabase
         </div>
       )}
 
@@ -116,7 +158,14 @@ export default function CatalogSidebar() {
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-zinc-900 truncate">{item.name}</div>
+                <div className="text-xs font-semibold text-zinc-900 truncate flex items-center gap-1.5">
+                  {item.name}
+                  {item.fromDatabase && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      Live
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-zinc-500">{item.category}</div>
                 <div className="text-xs font-bold text-amber-700 mt-0.5">
                   {item.price.toLocaleString()} DZD
