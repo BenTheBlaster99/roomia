@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useStudioStore } from '@/store/useStudioStore'
 
 export default function TopBar() {
+  const [saveLabel, setSaveLabel] = useState('💾 Save')
   const {
     cart,
     catalogOpen,
@@ -23,6 +25,20 @@ export default function TopBar() {
 
   const btn =
     'text-xs text-zinc-600 hover:text-zinc-900 px-2.5 py-1.5 border border-zinc-200 rounded-lg hover:border-zinc-300 bg-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
+
+  function saveDesign() {
+    const { room, items } = useStudioStore.getState()
+    localStorage.setItem(
+      'roomia:studio-design',
+      JSON.stringify({
+        room,
+        items,
+        savedAt: new Date().toISOString(),
+      }),
+    )
+    setSaveLabel('✓ Saved')
+    window.setTimeout(() => setSaveLabel('💾 Save'), 1500)
+  }
 
   return (
     <div className="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-4 flex-shrink-0 z-10">
@@ -75,6 +91,10 @@ export default function TopBar() {
         <Link href="/marketplace" className={`hidden md:inline ${btn}`}>
           🛒 Shop
         </Link>
+
+        <button onClick={saveDesign} className={`hidden md:inline ${btn}`}>
+          {saveLabel}
+        </button>
 
         <a href="mailto:contact@roomia.dz" className={`hidden lg:inline ${btn}`}>
           📅 Book

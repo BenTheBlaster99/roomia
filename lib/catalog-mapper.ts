@@ -9,9 +9,15 @@ const GENERATED_DIMS: Record<string, { width: number; depth: number; height: num
   'Generated Chair': { width: 0.80, depth: 1.20, height: 1.10 },
 }
 
+const GENERATED_MODEL_URLS: Record<string, string> = {
+  'Generated Bed': '/models/generated-bed.glb',
+  'Generated Chair': '/models/generated-chair.glb',
+}
+
 export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
   const style = SLUG_TO_STYLE[item.style_id] ?? 'Industrial'
   const rooms = item.room.split(',').map(r => r.trim()).filter(Boolean)
+  const modelUrl = GENERATED_MODEL_URLS[item.name] ?? item.model_url
 
   return {
     id: item.id,
@@ -21,9 +27,9 @@ export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
     style,
     price: item.price,
     color: CATEGORY_COLORS[item.category] ?? '#888888',
-    modelUrl: item.model_url,
+    modelUrl,
     imageKeyword: item.image_keyword,
-    available: Boolean(item.model_url),
+    available: Boolean(modelUrl),
     notes: item.notes ?? undefined,
     dimensions: GENERATED_DIMS[item.name] ?? CATEGORY_DIMS[item.category],
     fromDatabase: true,

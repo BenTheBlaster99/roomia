@@ -113,7 +113,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     floorMaterial: 'wood',
     wallColor: '#F5F0EB',
   },
-  setRoom: updates => set(state => ({ room: { ...state.room, ...updates } })),
+  setRoom: updates => {
+    get().snapshot()
+    set(state => ({ room: { ...state.room, ...updates } }))
+  },
 
   loadPreset: payload => {
     const styleName = payload.styleId ? SLUG_TO_STYLE[payload.styleId] : null

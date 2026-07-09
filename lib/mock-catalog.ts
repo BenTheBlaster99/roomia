@@ -25,14 +25,13 @@ export const MOCK_CATALOG: CatalogItem[] = [
   { id: 'c-004', name: 'Coupé', category: 'Sofa', room: ['Living Room'], style: 'Traditional Algerian', price: 200000, color: '#8B4513', modelUrl: null, imageKeyword: 'carved wood sofa', available: true },
   { id: 'c-005', name: 'Riley', category: 'Sofa', room: ['Living Room'], style: 'Mediterranean Coastal', price: 65000, color: '#F5F5F0', modelUrl: '/models/sofa.glb', imageKeyword: 'white low sofa', available: true },
   // BEDS
-  { id: 'c-006', name: 'Dagger', category: 'Bed', room: ['Bedroom'], style: 'Industrial', price: 115000, color: '#374151', modelUrl: '/models/bed.glb', imageKeyword: 'metal frame bed', available: true },
-  { id: 'c-007', name: 'Lils', category: 'Bed', room: ['Bedroom'], style: 'Minimalism', price: 100000, color: '#C4A882', modelUrl: '/models/bed.glb', imageKeyword: 'light wood floating bed', available: true },
-  { id: 'c-008', name: 'Aurora', category: 'Bed', room: ['Bedroom'], style: 'Maximalism', price: 180000, color: '#7C1D3A', modelUrl: '/models/bed.glb', imageKeyword: 'velvet bed tall headboard', available: true },
+  { id: 'c-006', name: 'Dagger', category: 'Bed', room: ['Bedroom'], style: 'Industrial', price: 115000, color: '#374151', modelUrl: '/models/generated-bed.glb', imageKeyword: 'metal frame bed', available: true },
+  { id: 'c-007', name: 'Lils', category: 'Bed', room: ['Bedroom'], style: 'Minimalism', price: 100000, color: '#C4A882', modelUrl: '/models/generated-bed.glb', imageKeyword: 'light wood floating bed', available: true },
+  { id: 'c-008', name: 'Aurora', category: 'Bed', room: ['Bedroom'], style: 'Maximalism', price: 180000, color: '#7C1D3A', modelUrl: '/models/generated-bed.glb', imageKeyword: 'velvet bed tall headboard', available: true },
   { id: 'c-009', name: 'Neptune', category: 'Bed', room: ['Bedroom'], style: 'Traditional Algerian', price: 200000, color: '#5C3D1E', modelUrl: null, imageKeyword: 'carved wood bed', available: true },
-  { id: 'c-010', name: 'Saturn', category: 'Bed', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 70000, color: '#A0785A', modelUrl: '/models/bed.glb', imageKeyword: 'natural wood bed', available: true },
+  { id: 'c-010', name: 'Saturn', category: 'Bed', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 70000, color: '#A0785A', modelUrl: '/models/generated-bed.glb', imageKeyword: 'natural wood bed', available: true },
   // CHAIRS
-  { id: 'c-011', name: 'Mid-Way', category: 'Chair', room: ['Living Room', 'Bedroom'], style: 'Industrial', price: 40000, color: '#4B3832', modelUrl: '/models/chair.glb', imageKeyword: 'metal leather chair', available: true },
-  { id: 'c-012', name: 'Shine', category: 'Chair', room: ['Living Room'], style: 'Minimalism', price: 50000, color: '#E5DDD0', modelUrl: '/models/chair.glb', imageKeyword: 'beige textured chair', available: true },
+  { id: 'c-012', name: 'Shine', category: 'Chair', room: ['Living Room'], style: 'Minimalism', price: 50000, color: '#E5DDD0', modelUrl: '/models/generated-chair.glb', imageKeyword: 'beige textured chair', available: true },
   { id: 'c-013', name: 'Dorothy', category: 'Chair', room: ['Living Room', 'Bedroom'], style: 'Maximalism', price: 70000, color: '#1B4332', modelUrl: null, imageKeyword: 'throne chair green', available: true },
   // COFFEE TABLES
   { id: 'c-014', name: 'Audacious', category: 'Coffee Table', room: ['Living Room'], style: 'Industrial', price: 40000, color: '#111827', modelUrl: '/models/coffee_table.glb', imageKeyword: 'glass metal coffee table', available: true },
@@ -60,13 +59,13 @@ export const MOCK_CATALOG: CatalogItem[] = [
   { id: 'c-029', name: 'Velvet', category: 'TV Unit', room: ['Living Room'], style: 'Maximalism', price: 90000, color: '#4A0E4E', modelUrl: null, imageKeyword: 'velvet tv unit purple', available: true },
 
   // ── Traditional Algerian Living Room ────────────────────────────────────────
-  { id: 'c-030', name: 'Majlis', category: 'Chair', room: ['Living Room'], style: 'Traditional Algerian', price: 55000, color: '#8B4513', modelUrl: '/models/chair.glb', imageKeyword: 'carved wood chair', available: true },
+  { id: 'c-030', name: 'Majlis', category: 'Chair', room: ['Living Room'], style: 'Traditional Algerian', price: 55000, color: '#8B4513', modelUrl: '/models/generated-chair.glb', imageKeyword: 'carved wood chair', available: true },
   { id: 'c-031', name: 'Zellige', category: 'Coffee Table', room: ['Living Room'], style: 'Traditional Algerian', price: 35000, color: '#1F4E79', modelUrl: '/models/coffee_table.glb', imageKeyword: 'mosaic tile table', available: true },
   { id: 'c-032', name: 'Atlas', category: 'Dining Table', room: ['Living Room'], style: 'Traditional Algerian', price: 95000, color: '#5C3D1E', modelUrl: '/models/dining_table.glb', imageKeyword: 'carved wood dining table', available: true },
   { id: 'c-033', name: 'Souk', category: 'Rug', room: ['Living Room'], style: 'Traditional Algerian', price: 30000, color: '#C4822A', modelUrl: null, imageKeyword: 'handwoven rug orange', available: true },
 
   // ── Mediterranean Coastal Living Room ───────────────────────────────────────
-  { id: 'c-034', name: 'Breeze', category: 'Chair', room: ['Living Room'], style: 'Mediterranean Coastal', price: 35000, color: '#4F84A6', modelUrl: '/models/chair.glb', imageKeyword: 'white wicker chair', available: true },
+  { id: 'c-034', name: 'Breeze', category: 'Chair', room: ['Living Room'], style: 'Mediterranean Coastal', price: 35000, color: '#4F84A6', modelUrl: '/models/generated-chair.glb', imageKeyword: 'white wicker chair', available: true },
   { id: 'c-035', name: 'Harbor', category: 'Light', room: ['Living Room'], style: 'Mediterranean Coastal', price: 28000, color: '#FFFFFF', modelUrl: '/models/light.glb', imageKeyword: 'white pendant light', available: true },
   { id: 'c-036', name: 'Sand', category: 'Rug', room: ['Living Room'], style: 'Mediterranean Coastal', price: 18000, color: '#D9C3A5', modelUrl: null, imageKeyword: 'jute natural rug', available: true },
   { id: 'c-037', name: 'Coastal', category: 'TV Unit', room: ['Living Room'], style: 'Mediterranean Coastal', price: 42000, color: '#A0785A', modelUrl: null, imageKeyword: 'light wood tv stand', available: true },
@@ -91,14 +90,14 @@ export const MOCK_CATALOG: CatalogItem[] = [
   { id: 'c-048', name: 'Mosaic', category: 'Side Table', room: ['Bedroom'], style: 'Traditional Algerian', price: 22000, color: '#1F4E79', modelUrl: null, imageKeyword: 'tile side table', available: true },
   { id: 'c-049', name: 'Lantern', category: 'Light', room: ['Bedroom'], style: 'Traditional Algerian', price: 45000, color: '#B87333', modelUrl: null, imageKeyword: 'brass lantern light', available: true },
   { id: 'c-050', name: 'Kilim', category: 'Rug', room: ['Bedroom'], style: 'Traditional Algerian', price: 28000, color: '#C4822A', modelUrl: null, imageKeyword: 'kilim rug geometric', available: true },
-  { id: 'c-051', name: 'Majlis Bed', category: 'Chair', room: ['Bedroom'], style: 'Traditional Algerian', price: 48000, color: '#8B4513', modelUrl: '/models/chair.glb', imageKeyword: 'carved bedroom chair', available: true },
+  { id: 'c-051', name: 'Majlis Bed', category: 'Chair', room: ['Bedroom'], style: 'Traditional Algerian', price: 48000, color: '#8B4513', modelUrl: '/models/generated-chair.glb', imageKeyword: 'carved bedroom chair', available: true },
 
   // ── Mediterranean Coastal Bedroom ───────────────────────────────────────────
   { id: 'c-052', name: 'Driftwood', category: 'Wardrobe', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 85000, color: '#A0785A', modelUrl: null, imageKeyword: 'natural wood wardrobe', available: true },
   { id: 'c-053', name: 'Shell', category: 'Side Table', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 12000, color: '#FFFFFF', modelUrl: null, imageKeyword: 'white bedside table', available: true },
   { id: 'c-054', name: 'Seafoam', category: 'Light', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 24000, color: '#4F84A6', modelUrl: '/models/light.glb', imageKeyword: 'blue glass lamp', available: true },
   { id: 'c-055', name: 'Dune', category: 'Rug', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 16000, color: '#D9C3A5', modelUrl: null, imageKeyword: 'sand colored rug', available: true },
-  { id: 'c-056', name: 'Reed', category: 'Chair', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 30000, color: '#F5F5F0', modelUrl: '/models/chair.glb', imageKeyword: 'wicker bedroom chair', available: true },
+  { id: 'c-056', name: 'Reed', category: 'Chair', room: ['Bedroom'], style: 'Mediterranean Coastal', price: 30000, color: '#F5F5F0', modelUrl: '/models/generated-chair.glb', imageKeyword: 'wicker bedroom chair', available: true },
 
   // ── Industrial Bedroom extras ─────────────────────────────────────────────────
   { id: 'c-057', name: 'Pipe', category: 'Side Table', room: ['Bedroom'], style: 'Industrial', price: 18000, color: '#374151', modelUrl: null, imageKeyword: 'metal pipe side table', available: true },
@@ -106,7 +105,7 @@ export const MOCK_CATALOG: CatalogItem[] = [
 
   // ── Minimalism Bedroom extras ─────────────────────────────────────────────────
   { id: 'c-059', name: 'Glow', category: 'Light', room: ['Bedroom'], style: 'Minimalism', price: 20000, color: '#FFFFFF', modelUrl: '/models/light.glb', imageKeyword: 'minimal bedside lamp', available: true },
-  { id: 'c-060', name: 'Pebble', category: 'Chair', room: ['Bedroom'], style: 'Minimalism', price: 42000, color: '#E5DDD0', modelUrl: '/models/chair.glb', imageKeyword: 'minimal bedroom chair', available: true },
+  { id: 'c-060', name: 'Pebble', category: 'Chair', room: ['Bedroom'], style: 'Minimalism', price: 42000, color: '#E5DDD0', modelUrl: '/models/generated-chair.glb', imageKeyword: 'minimal bedroom chair', available: true },
 ]
 
 /** Items available for a given style + room type (used by preset generator). */

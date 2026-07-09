@@ -9,6 +9,8 @@ export interface ModelDims {
 export interface NormalizeGlbOptions {
   /** Skip uniform rescale when the model is already exported in metres. */
   preserveScale?: boolean
+  /** Extra correction for generated assets exported Z-up instead of Three.js Y-up. */
+  zUpToYUp?: boolean
 }
 
 function updateWorldMatrices(root: THREE.Object3D) {
@@ -81,6 +83,10 @@ export function normalizeGlbScene(
   options: NormalizeGlbOptions = {},
 ): THREE.Object3D {
   const root = autoCorrectOrientation(scene.clone(true))
+  if (options.zUpToYUp) {
+    root.rotation.x -= Math.PI / 2
+    root.updateMatrixWorld(true)
+  }
   configureGlbMaterials(root)
 
   if (!options.preserveScale) {
