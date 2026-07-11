@@ -30,6 +30,9 @@ export default async function LandingPage() {
           <Link href="/marketplace" className="text-zinc-500 hover:text-zinc-900 transition-colors">
             Catalog
           </Link>
+          <Link href="/photo-studio" className="text-zinc-500 hover:text-zinc-900 transition-colors">
+            AI Photo
+          </Link>
           <Link href="/studio" className="text-zinc-500 hover:text-zinc-900 transition-colors">
             Studio
           </Link>
@@ -63,7 +66,7 @@ export default async function LandingPage() {
             in the studio and request a quote.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-left max-w-5xl mx-auto">
             <EntryCard
               href="/configure"
               emoji="📐"
@@ -71,6 +74,13 @@ export default async function LandingPage() {
               desc="Enter dimensions, scan your floor plan, then open the 3D studio to place furniture."
               cta="Configure & scan →"
               featured
+            />
+            <EntryCard
+              href="/photo-studio"
+              emoji="✨"
+              title="Edit a real photo"
+              desc="Upload a room photo, select existing furniture, then remove it or replace it with catalog pieces."
+              cta="Open AI photo studio →"
             />
             <EntryCard
               href="/rooms"
@@ -257,6 +267,12 @@ export default async function LandingPage() {
             >
               Browse catalog
             </Link>
+            <Link
+              href="/photo-studio"
+              className="w-full sm:w-auto px-10 py-4 border border-amber-200 rounded-xl text-base text-amber-700 hover:border-amber-400 hover:bg-amber-50 transition-all bg-white"
+            >
+              Try AI photo studio
+            </Link>
           </div>
         </div>
       </section>
@@ -267,6 +283,7 @@ export default async function LandingPage() {
           <div className="flex flex-wrap justify-center gap-6">
             <Link href="/rooms" className="hover:text-zinc-800 transition-colors">Presets</Link>
             <Link href="/marketplace" className="hover:text-zinc-800 transition-colors">Catalog</Link>
+            <Link href="/photo-studio" className="hover:text-zinc-800 transition-colors">AI Photo</Link>
             <Link href="/studio" className="hover:text-zinc-800 transition-colors">Studio</Link>
             <Link href="/about" className="hover:text-zinc-800 transition-colors">About</Link>
             <Link href="/partners" className="hover:text-zinc-800 transition-colors">Partners</Link>

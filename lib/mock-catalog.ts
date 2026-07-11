@@ -7,6 +7,7 @@ export interface CatalogItem {
   price: number
   color: string
   modelUrl: string | null
+  imageUrl?: string | null
   imageKeyword: string
   available: boolean
   notes?: string

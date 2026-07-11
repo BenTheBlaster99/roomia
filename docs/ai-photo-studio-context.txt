@@ -1,0 +1,235 @@
+Roomia — AI Photo Studio Context (for AI assistants)
+Last updated: 2026-07-10
+
+================================================================================
+1. WHAT WE ARE TRYING TO DO
+================================================================================
+
+Feature name: 2D Photo Furniture Manipulation (Feature 1)
+
+Sarah's product ask:
+- Client uploads a photo of their real room
+- Client wants to change a specific piece of existing furniture in that photo
+- Output is a modified 2D image (preview / inspiration), not a 3D room yet
+- Must work for irregular room shapes — because we edit pixels in a flat photo,
+  room geometry does not matter for this feature
+
+Broader Roomia vision (separate, later):
+- Feature 2: multi-photo → depth / room dimensions → open in 3D studio
+- Feature 2 full 3D reconstruction (DUSt3R etc.) is NOT built; depth endpoint
+  exists as prototype in backend only
+
+Honest product split agreed in testing:
+- 2D Photo Studio = AI inspiration edit (click object + prompt or remove)
+- 3D Studio + Marketplace = real catalog furniture placement (exact products)
+
+================================================================================
+2. PROJECT STRUCTURE
+================================================================================
+
+Two separate projects:
+
+A) roomia (Next.js frontend)
+   Path: /media/jackhammer/DATA/Linux-Work/Projects/roomia
+   - Main app: configure, studio, marketplace, etc.
+   - AI photo UI: app/photo-studio/page.tsx
+   - Env: NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000 (in .env.local)
+   - Landing page links to /photo-studio
+
+B) roomia-ai-backend (Python FastAPI)
+   Path: /media/jackhammer/DATA/Linux-Work/Projects/roomia-ai-backend
+   - Entry: main.py → app/main.py
+   - Models: models/segmentation.py, models/inpainting.py, models/depth.py
+   - Run: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+Related planning docs in roomia repo:
+- added ai.txt — technical comparison Feature 1 vs Feature 2
+- backend.txt — original build blueprint (models, endpoints, frontend sketch)
+- docs/rooma-improvements.txt, docs/improvement-plan-tomorrow.txt — other work
+
+================================================================================
+3. WHAT WE BUILT (TECHNICAL)
+================================================================================
+
+User flow (current):
+1. Upload room photo on /photo-studio
+2. Click furniture → POST /segment with normalized x,y (0–1)
+3. SAM2 returns mask + red overlay preview
+4. User chooses:
+   - Remove → POST /inpaint/remove
+   - Replace from catalog grid → POST /inpaint/replace with text prompt built from MOCK_CATALOG
+   - Custom prompt → POST /inpaint/replace with user text
+5. Before/after shown; download / share
+
+Backend endpoints:
+- GET  /health
+- POST /segment          { image_base64, x, y }
+- POST /inpaint/remove   { image_base64, mask_base64 }
+- POST /inpaint/replace  { image_base64, mask_base64, prompt, negative_prompt? }
+- POST /depth            { image_base64 }  → depth visual + room_dims (Feature 2 prototype)
+
+Models (lazy-loaded on first request):
+- SAM2 (segmentation) — click point → mask
+- Stable Diffusion Inpainting (runwayml/stable-diffusion-inpainting) — remove/replace inside mask
+- Depth Anything V2 (optional) — room dimension estimate
+
+Stack:
+- FastAPI, Pillow, PyTorch, diffusers, transformers, scipy
+- SAM2 installed separately: pip install git+https://github.com/facebookresearch/sam2.git
+- Checkpoint: checkpoints/sam2_hiera_large.pt
+
+Bug fixed during testing:
+- segmentation.py: SAM2 mask was float array; using it as numpy index caused
+  "arrays used as indices must be of integer (or boolean) type"
+- Fix: threshold mask with best_mask = np.asarray(best) > 0.5 before overlay/indexing
+
+================================================================================
+4. WHAT WORKED IN REAL TESTING
+================================================================================
+
+Test photo: bedroom with wooden bed, wardrobe with mirrors, herringbone floor.
+
+Confirmed working:
+- Backend health + frontend → backend connection
+- Photo upload
+- Click-to-segment (SAM2) with red overlay on selected region only
+- Inpainting generates visible changes inside the mask
+
+Concrete results:
+- Clicking bedding/pillow area → small change (e.g. blue pillow → white)
+- Clicking wooden footboard → footboard style changed (carved wood → simpler block base)
+- Proves: segmentation + inpainting pipeline is alive
+
+Key insight from tests:
+- AI only edits INSIDE the red mask
+- If mask = footboard only, only footboard changes — not whole bed
+- Photo quality was OK; failures were mask scope + approach limits, not bad image
+
+Best demo targets on cluttered photos:
+- Single clear object: footboard, wardrobe solid door (not mirror), chair, sofa arm
+- Avoid: pillows, sheets, mirror reflections, small clutter
+
+================================================================================
+5. WHAT DID NOT WORK (AND WHY)
+================================================================================
+
+"Replace with catalog item" as real marketplace placement — DOES NOT work as Sarah might expect.
+
+What we actually did for catalog replace:
+- User picks catalog item from MOCK_CATALOG grid
+- Frontend builds TEXT prompt from item fields:
+  name, style, category, imageKeyword, notes
+  Example: "Oslo industrial sofa, leather sofa metal legs, dark leather, metal legs"
+- That text goes to Stable Diffusion inpainting with image + mask
+- Model GENERATES pixels that match the description — it does NOT insert the real product
+
+Why Sarah's example prompt fails:
+  "change the grey sofa on the left with sofa_linear_003 while keeping image colors"
+
+1. sofa_linear_003 is a Roomia SKU/ID — SD model was never trained on our catalog IDs
+2. Model has no visual memory of that product unless we pass reference image/render
+3. "Sofa on the left" needs detection — we use CLICK for location, not language-only
+4. "Keep image colors" — inpainting approximates lighting; no guarantee of exact grade/colors
+
+What catalog replace actually gives:
+- Something in the same category/style as the words — approximate, not exact SKU
+
+================================================================================
+6. PRODUCT DECISION (PENDING SARAH CONFIRMATION)
+================================================================================
+
+Likely MVP direction:
+- KEEP: upload → click → remove OR custom text prompt → result
+- DROP or de-emphasize: catalog grid on /photo-studio (misleading UX)
+- Optional: preset prompt chips ("Modern", "Minimal", "Traditional Algerian")
+
+Tell Sarah honestly:
+- Phase 1 = AI photo inspiration (describe what you want in words)
+- Real exact catalog-in-photo needs Phase 2:
+  load product photo/GLB render from DB → reference-image inpainting or compositing
+
+3D studio remains where exact marketplace furniture belongs.
+
+================================================================================
+7. HOW TO RUN (DEV)
+================================================================================
+
+Terminal 1 — AI backend:
+  cd /media/jackhammer/DATA/Linux-Work/Projects/roomia-ai-backend
+  source venv/bin/activate
+  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+Terminal 2 — Roomia frontend:
+  cd /media/jackhammer/DATA/Linux-Work/Projects/roomia
+  npm run dev
+
+Test order:
+1. http://localhost:8000/health
+2. http://localhost:3000/photo-studio
+3. Upload photo → click object → verify red mask → remove, style chip, prompt replace, or catalog replace
+
+Current replacement paths:
+- /inpaint/replace-style: stronger style/category prompt, text-only SD inpainting
+- /inpaint/replace-ip: uses product reference image when reference_base64 is sent
+- /inpaint/replace-ip fallback: if no reference_base64, text-only SD inpainting with improved prompt
+
+First model load per type (SAM2, SD, IP-Adapter when reference image exists) can take 2–5 minutes; then cached.
+
+Example replace prompt (footboard):
+  "replace the selected bed frame with a modern cream upholstered platform bed,
+   soft padded headboard, light oak legs, luxury hotel bedding, realistic shadows,
+   same camera angle, same room lighting, photorealistic interior"
+
+================================================================================
+8. NEXT STEPS (IF CONTINUING)
+================================================================================
+
+Short term (Feature 1 polish):
+- Better mask UX: confirm overlay before generate; maybe "expand selection"
+- Error messages when backend models not loaded
+
+Implemented on 2026-07-11:
+- Better prompt builder: roomia-ai-backend/models/prompt_builder.py
+- Style-chip backend endpoint: /inpaint/replace-style
+- Reference-aware backend endpoint: /inpaint/replace-ip
+- IP-Adapter wrapper: roomia-ai-backend/models/ip_adapter_inpainting.py
+- Photo Studio category chips + style chips + catalog reference flow
+- Catalog items now support optional imageUrl from Supabase furniture_items.image_url
+
+Remaining true catalog-in-photo requirement:
+- Catalog replacement only becomes exact-ish when the catalog item has imageUrl/reference_base64.
+- Current MOCK_CATALOG items mostly have modelUrl GLBs, not imageUrl; those still fall back to prompt-only.
+- For GLB-only products, generate a 2D render/image first, then send it as reference_base64.
+- Perspective match + blend may still need a dedicated compositing step for production quality.
+
+Feature 2 (separate track):
+- /room-capture page + /depth endpoint → editable dims → /studio?width=&length=&height=
+- Not the same as Sarah's 2D photo edit feature
+
+================================================================================
+9. FILES TO READ FIRST (for new AI session)
+================================================================================
+
+Frontend:
+  app/photo-studio/page.tsx
+  app/page.tsx (links to photo studio)
+  lib/mock-catalog.ts (catalog data; imageUrl optional)
+  lib/catalog-mapper.ts (maps Supabase furniture_items.image_url to imageUrl)
+  .env.local (NEXT_PUBLIC_AI_BACKEND_URL)
+
+Backend:
+  roomia-ai-backend/app/main.py
+  roomia-ai-backend/models/segmentation.py
+  roomia-ai-backend/models/inpainting.py
+  roomia-ai-backend/models/prompt_builder.py
+  roomia-ai-backend/models/ip_adapter_inpainting.py
+  roomia-ai-backend/README.md
+
+Planning:
+  added ai.txt
+  backend.txt
+  this file: docs/ai-photo-studio-context.txt
+
+================================================================================
+END
+================================================================================
