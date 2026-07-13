@@ -38,15 +38,11 @@ function RotationHandle({ item }: { item: PlacedItem }) {
   )
 }
 
-function needsGeneratedModelFix(url: string) {
-  return url.includes('/models/generated-bed.glb') || url.includes('/models/generated-chair.glb')
-}
-
 function GLBModel({ url, dims }: { url: string; dims: PlacedItem['dimensions'] }) {
   const { scene } = useGLTF(url)
   const cloned = useMemo(
-    () => normalizeGlbScene(scene, dims, { zUpToYUp: needsGeneratedModelFix(url) }),
-    [scene, dims, url],
+    () => normalizeGlbScene(scene, dims),
+    [scene, dims],
   )
   return <primitive object={cloned} castShadow />
 }

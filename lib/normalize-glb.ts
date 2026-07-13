@@ -6,13 +6,6 @@ export interface ModelDims {
   height: number
 }
 
-export interface NormalizeGlbOptions {
-  /** Skip uniform rescale when the model is already exported in metres. */
-  preserveScale?: boolean
-  /** Extra correction for generated assets exported Z-up instead of Three.js Y-up. */
-  zUpToYUp?: boolean
-}
-
 function updateWorldMatrices(root: THREE.Object3D) {
   root.updateMatrixWorld(true)
 }
@@ -25,14 +18,6 @@ function measureBox(root: THREE.Object3D) {
   const center = new THREE.Vector3()
   box.getCenter(center)
   return { box, size, center }
-}
-
-function autoCorrectOrientation(scene: THREE.Object3D) {
-  const container = new THREE.Group()
-  container.add(scene)
-  // Orientation is baked at generation time (orient_for_room_view in generate.py).
-  // Re-guessing from bounding-box ratios here double-rotates ambiguous shapes like chairs.
-  return container
 }
 
 /** Fix PBR/vertex-color materials so AI models aren't dark or untextured in Three.js. */
@@ -75,29 +60,25 @@ export function configureGlbMaterials(root: THREE.Object3D) {
 
 /**
  * Normalize a loaded GLTF scene for the Roomia studio:
- * Y-up, footprint centered on X/Z, bottom on Y=0, scaled to category dimensions.
+ * footprint centered on X/Z, bottom on Y=0, scaled to category dimensions.
+ *
+ * Orientation is baked into generated GLBs by furniture-3d-gen. Runtime
+ * rotation guessing caused double-rotation on ambiguous generated furniture.
  */
 export function normalizeGlbScene(
   scene: THREE.Object3D,
   dims: ModelDims,
-  options: NormalizeGlbOptions = {},
 ): THREE.Object3D {
-  const root = autoCorrectOrientation(scene.clone(true))
-  if (options.zUpToYUp) {
-    root.rotation.x -= Math.PI / 2
-    root.updateMatrixWorld(true)
-  }
+  const root = scene.clone(true)
   configureGlbMaterials(root)
 
-  if (!options.preserveScale) {
-    const { size } = measureBox(root)
-    const scale = Math.min(
-      size.x > 0 ? dims.width / size.x : 1,
-      size.y > 0 ? dims.height / size.y : 1,
-      size.z > 0 ? dims.depth / size.z : 1,
-    )
-    root.scale.setScalar(scale)
-  }
+  const { size } = measureBox(root)
+  const scale = Math.min(
+    size.x > 0 ? dims.width / size.x : 1,
+    size.y > 0 ? dims.height / size.y : 1,
+    size.z > 0 ? dims.depth / size.z : 1,
+  )
+  root.scale.setScalar(scale)
 
   const { box, center } = measureBox(root)
   root.position.set(-center.x, -box.min.y, -center.z)

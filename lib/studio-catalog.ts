@@ -5,7 +5,8 @@ export async function fetchGeneratedCatalog(): Promise<FurnitureItem[]> {
   const { data, error } = await supabase
     .from('furniture_items')
     .select('*')
-    .in('name', ['Generated Bed', 'Generated Chair'])
+    .not('model_url', 'is', null)
+    .order('name')
 
   if (error) {
     console.error('Failed to load generated catalog:', error.message)

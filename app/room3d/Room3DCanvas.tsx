@@ -25,10 +25,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   Light: '#E8C97A',
 }
 
-function needsGeneratedModelFix(url: string) {
-  return url.includes('/models/generated-bed.glb') || url.includes('/models/generated-chair.glb')
-}
-
 function GLBModel({
   url,
   position,
@@ -51,9 +47,8 @@ function GLBModel({
           depth: targetDims[1],
           height: targetDims[2],
         },
-        { zUpToYUp: needsGeneratedModelFix(url) },
       ),
-    [scene, targetDims, url],
+    [scene, targetDims],
   )
 
   return (

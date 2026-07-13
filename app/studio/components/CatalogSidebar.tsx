@@ -33,10 +33,11 @@ export default function CatalogSidebar() {
 
   const categories = CATEGORIES_BY_ROOM[activeRoom] ?? []
 
-  const catalog = useMemo(
-    () => [...generatedItems, ...MOCK_CATALOG],
-    [generatedItems],
-  )
+  const catalog = useMemo(() => {
+    const dbNames = new Set(generatedItems.map(item => item.name))
+    const mockOnly = MOCK_CATALOG.filter(item => !dbNames.has(item.name))
+    return [...generatedItems, ...mockOnly]
+  }, [generatedItems])
 
   const filtered = useMemo(() => {
     return catalog.filter(item => {
@@ -89,7 +90,7 @@ export default function CatalogSidebar() {
       )}
       {generatedStatus === 'error' && generatedItems.length === 0 && (
         <div className="px-3 py-2 text-xs text-red-600 border-b border-red-100 bg-red-50">
-          Could not load Generated Bed/Chair from Supabase. Check browser console and RLS policies.
+          Could not load Supabase models. Check browser console and RLS policies.
         </div>
       )}
       {generatedItems.length > 0 && (

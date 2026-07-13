@@ -1,0 +1,6 @@
+manipulation of exisitng furniture for 2d images: how i think i will do it (technically side- steps)
+
+steps pic ai geberate + floor plan
+wat steps platfrom will take to give the client to have the ability to manipulate his space (even when having irregular shapes of room)
+
+.dz

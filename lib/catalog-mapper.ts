@@ -7,6 +7,9 @@ import type { FurnitureItem } from '@/types'
 const GENERATED_DIMS: Record<string, { width: number; depth: number; height: number }> = {
   'Generated Bed': { width: 1.60, depth: 2.00, height: 1.05 },
   'Generated Chair': { width: 0.80, depth: 1.20, height: 1.10 },
+  'testing-bed2': { width: 0.54, depth: 1.10, height: 1.05 },
+  'testing-chair2': { width: 0.87, depth: 1.10, height: 1.10 },
+  'Mid-Way': { width: 0.45, depth: 0.45, height: 0.80 },
 }
 
 const GENERATED_MODEL_URLS: Record<string, string> = {
@@ -17,7 +20,7 @@ const GENERATED_MODEL_URLS: Record<string, string> = {
 export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
   const style = SLUG_TO_STYLE[item.style_id] ?? 'Industrial'
   const rooms = item.room.split(',').map(r => r.trim()).filter(Boolean)
-  const modelUrl = GENERATED_MODEL_URLS[item.name] ?? item.model_url
+  const modelUrl = item.model_url ?? GENERATED_MODEL_URLS[item.name] ?? null
 
   return {
     id: item.id,
