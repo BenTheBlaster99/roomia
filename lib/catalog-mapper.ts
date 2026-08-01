@@ -9,6 +9,10 @@ const GENERATED_DIMS: Record<string, { width: number; depth: number; height: num
   'Generated Chair': { width: 0.80, depth: 1.20, height: 1.10 },
   'testing-bed2': { width: 0.54, depth: 1.10, height: 1.05 },
   'testing-chair2': { width: 0.87, depth: 1.10, height: 1.10 },
+  'brown-chair': { width: 0.65, depth: 0.65, height: 0.90 },
+  'cozy-chair': { width: 0.70, depth: 0.70, height: 0.85 },
+  'long-chair': { width: 0.60, depth: 0.75, height: 0.90 },
+  'short-chair': { width: 0.55, depth: 0.55, height: 0.80 },
   'Mid-Way': { width: 0.45, depth: 0.45, height: 0.80 },
 }
 
@@ -31,6 +35,7 @@ export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
     price: item.price,
     color: CATEGORY_COLORS[item.category] ?? '#888888',
     modelUrl,
+    imageUrl: item.image_url ?? null,
     imageKeyword: item.image_keyword,
     available: Boolean(modelUrl),
     notes: item.notes ?? undefined,

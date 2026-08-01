@@ -17,6 +17,7 @@ export default function TopBar() {
     canRedo,
     clearRoom,
     setCartOpen,
+    setRenderPanelOpen,
   } = useStudioStore()
   const cartCount = cart.reduce((sum, c) => sum + c.quantity, 0)
   const cartTotal = useStudioStore(s => s.cartTotal())
@@ -84,8 +85,12 @@ export default function TopBar() {
           📦 Catalog
         </button>
 
+        <Link href="/room-capture" className={`hidden sm:inline ${btn}`}>
+          📷 Scan Room
+        </Link>
+
         <Link href="/configure" className={`hidden sm:inline ${btn}`}>
-          📐 Scan
+          📐 Floor plan
         </Link>
 
         <Link href="/marketplace" className={`hidden md:inline ${btn}`}>
@@ -94,6 +99,14 @@ export default function TopBar() {
 
         <button onClick={saveDesign} className={`hidden md:inline ${btn}`}>
           {saveLabel}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setRenderPanelOpen(true)}
+          className="hidden sm:inline text-xs px-3 py-1.5 border border-amber-300 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
+        >
+          ✨ Render Photo
         </button>
 
         <a href="mailto:contact@roomia.dz" className={`hidden lg:inline ${btn}`}>

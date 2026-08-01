@@ -82,6 +82,8 @@ export interface FloorPlanMetadata {
   budgetTier?: string
   scanConfidence?: 'high' | 'medium' | 'low'
   scanNotes?: string
+  /** Shape-only scan: user must enter real wall lengths in metres. */
+  needsWallDimensions?: boolean
   createdAt?: string
   updatedAt?: string
 }

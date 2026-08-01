@@ -152,10 +152,23 @@ export default function CatalogSidebar() {
               onClick={() => item.available && addItemFromCatalog(item)}
             >
               <div
-                className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center text-lg"
-                style={{ backgroundColor: (CATEGORY_COLORS[item.category] ?? '#888') + '33' }}
+                className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center text-lg overflow-hidden"
+                style={
+                  item.imageUrl
+                    ? undefined
+                    : { backgroundColor: (CATEGORY_COLORS[item.category] ?? '#888') + '33' }
+                }
               >
-                {getCategoryEmoji(item.category)}
+                {item.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  getCategoryEmoji(item.category)
+                )}
               </div>
 
               <div className="flex-1 min-w-0">

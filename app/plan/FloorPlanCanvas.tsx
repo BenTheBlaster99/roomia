@@ -560,7 +560,10 @@ export default function FloorPlanCanvas({
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-0.5 bg-[#5B8FD9]" /> Windows
         </span>
-        {plan.source === 'scanner' && (
+        {plan.metadata?.needsWallDimensions && (
+          <span className="text-amber-600 font-medium">Enter wall lengths (m)</span>
+        )}
+        {plan.source === 'scanner' && !plan.metadata?.needsWallDimensions && (
           <span className="text-amber-600 font-medium">Scanned plan</span>
         )}
         <span className="text-zinc-400">Click walls · doors · windows · furniture to edit</span>

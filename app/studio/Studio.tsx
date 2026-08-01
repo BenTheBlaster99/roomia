@@ -7,6 +7,7 @@ import CatalogSidebar from './components/CatalogSidebar'
 import ViewControls from './components/ViewControls'
 import SelectedPanel from './components/SelectedPanel'
 import RoomSettings from './components/RoomSettings'
+import RenderPanel from './components/RenderPanel'
 import StudioScene from './StudioScene'
 import CartDrawer from '@/components/CartDrawer'
 
@@ -47,6 +48,7 @@ export default function Studio() {
           <ViewControls />
           <SelectedPanel />
           <RoomSettings />
+          <RenderPanel />
         </div>
 
         {catalogOpen && (

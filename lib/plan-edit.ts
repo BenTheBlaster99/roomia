@@ -67,12 +67,16 @@ export function addDoorToPlan(
   const wall = getWallById(plan, wallId)
   if (!wall) return plan
 
-  const resolvedOffset = offset ?? suggestOpeningOffset(plan, wallId, width)
+  const wallLen = wallLengthM(wall)
+  const resolvedWidth = plan.metadata?.needsWallDimensions
+    ? relativeOpeningWidth(wallLen, 0.14, 0.04)
+    : clampOpeningWidth(width, wallLen, 0.45)
+  const resolvedOffset = offset ?? suggestOpeningOffset(plan, wallId, resolvedWidth)
   const newDoor: DoorOpening = {
     id: `door-${Date.now()}`,
     wallId,
     offset: resolvedOffset,
-    width,
+    width: resolvedWidth,
     height: 2.05,
     hinge: 'left',
     swing: 'in',
@@ -90,12 +94,16 @@ export function addWindowToPlan(
   const wall = getWallById(plan, wallId)
   if (!wall) return plan
 
-  const resolvedOffset = offset ?? suggestOpeningOffset(plan, wallId, width)
+  const wallLen = wallLengthM(wall)
+  const resolvedWidth = plan.metadata?.needsWallDimensions
+    ? relativeOpeningWidth(wallLen, 0.18, 0.05)
+    : clampOpeningWidth(width, wallLen, 0.55)
+  const resolvedOffset = offset ?? suggestOpeningOffset(plan, wallId, resolvedWidth)
   const newWindow: WindowOpening = {
     id: `window-${Date.now()}`,
     wallId,
     offset: resolvedOffset,
-    width,
+    width: resolvedWidth,
     height: 1.2,
     sillHeight: 0.9,
   }
@@ -119,12 +127,34 @@ export function updateWallInPlan(
   wallId: string,
   updates: { thickness?: number; length?: number; kind?: WallSegment['kind'] },
 ): FloorPlanData {
+  const wall = getWallById(plan, wallId)
+  if (
+    wall &&
+    plan.metadata?.needsWallDimensions &&
+    updates.length !== undefined &&
+    updates.length > 0
+  ) {
+    const currentLength = wallLengthM(wall)
+    if (currentLength > 0) {
+      const factor = updates.length / currentLength
+      const scaled = scalePlanUniform(plan, factor)
+      return touchPlan({
+        ...scaled,
+        metadata: {
+          ...scaled.metadata,
+          needsWallDimensions: false,
+          scanNotes: 'Wall lengths applied — review the plan or edit individual walls.',
+        },
+      })
+    }
+  }
+
   return touchPlan({
     ...plan,
-    walls: plan.walls.map(wall => {
-      if (wall.id !== wallId) return wall
+    walls: plan.walls.map(w => {
+      if (w.id !== wallId) return w
 
-      let next = { ...wall }
+      let next = { ...w }
       if (updates.thickness !== undefined && updates.thickness > 0) {
         next.thickness = updates.thickness
       }
@@ -137,6 +167,75 @@ export function updateWallInPlan(
       return next
     }),
   })
+}
+
+/** Scale every plan coordinate and opening size from a shape-only scan. */
+export function scalePlanUniform(plan: FloorPlanData, factor: number): FloorPlanData {
+  if (!Number.isFinite(factor) || factor <= 0) return plan
+
+  const scalePoint = (p: { x: number; z: number }) => ({
+    x: p.x * factor,
+    z: p.z * factor,
+  })
+
+  const walls = plan.walls.map(wall => ({
+    ...wall,
+    start: scalePoint(wall.start),
+    end: scalePoint(wall.end),
+    thickness: wall.thickness * factor,
+  }))
+
+  const bounds = boundsFromWallList(walls)
+  const dimensions = {
+    width: bounds.width || plan.dimensions.width * factor,
+    length: bounds.length || plan.dimensions.length * factor,
+    height: plan.dimensions.height,
+  }
+
+  return {
+    ...plan,
+    dimensions,
+    walls,
+    doors: plan.doors.map(door => ({
+      ...door,
+      offset: door.offset * factor,
+      width: door.width * factor,
+    })),
+    windows: plan.windows.map(window => ({
+      ...window,
+      offset: window.offset * factor,
+      width: window.width * factor,
+    })),
+    rooms: plan.rooms.map(room => ({
+      ...room,
+      points: room.points.map(scalePoint),
+      labelPosition: room.labelPosition ? scalePoint(room.labelPosition) : room.labelPosition,
+    })),
+    furniture: plan.furniture.map(item => ({
+      ...item,
+      position: scalePoint(item.position),
+      dimensions: {
+        width: item.dimensions.width * factor,
+        depth: item.dimensions.depth * factor,
+        height: item.dimensions.height * factor,
+      },
+    })),
+  }
+}
+
+function boundsFromWallList(walls: WallSegment[]): { width: number; length: number } {
+  if (walls.length === 0) return { width: 0, length: 0 }
+  let minX = Infinity
+  let maxX = -Infinity
+  let minZ = Infinity
+  let maxZ = -Infinity
+  for (const wall of walls) {
+    minX = Math.min(minX, wall.start.x, wall.end.x)
+    maxX = Math.max(maxX, wall.start.x, wall.end.x)
+    minZ = Math.min(minZ, wall.start.z, wall.end.z)
+    maxZ = Math.max(maxZ, wall.start.z, wall.end.z)
+  }
+  return { width: Math.max(0, maxX - minX), length: Math.max(0, maxZ - minZ) }
 }
 
 export function setWallLength(wall: WallSegment, newLength: number): WallSegment {
@@ -166,7 +265,7 @@ export function updateDoorInPlan(
       if (door.id !== doorId) return door
       const wall = getWallById(plan, door.wallId)
       const wallLen = wall ? wallLengthM(wall) : undefined
-      const width = updates.width ?? door.width
+      const width = wallLen ? clampOpeningWidth(updates.width ?? door.width, wallLen, 0.45) : updates.width ?? door.width
       const offset =
         updates.offset !== undefined && wallLen
           ? clampOffset(updates.offset, width, wallLen)
@@ -193,7 +292,7 @@ export function updateWindowInPlan(
       if (window.id !== windowId) return window
       const wall = getWallById(plan, window.wallId)
       const wallLen = wall ? wallLengthM(wall) : undefined
-      const width = updates.width ?? window.width
+      const width = wallLen ? clampOpeningWidth(updates.width ?? window.width, wallLen, 0.55) : updates.width ?? window.width
       const offset =
         updates.offset !== undefined && wallLen
           ? clampOffset(updates.offset, width, wallLen)
@@ -225,6 +324,18 @@ function clampPosition(
     x: Math.max(margin + dimensions.width / 2, Math.min(width - margin - dimensions.width / 2, x)),
     z: Math.max(margin + dimensions.depth / 2, Math.min(length - margin - dimensions.depth / 2, z)),
   }
+}
+
+function relativeOpeningWidth(wallLength: number, ratio: number, minimum: number): number {
+  if (!Number.isFinite(wallLength) || wallLength <= 0) return minimum
+  return clampOpeningWidth(wallLength * ratio, wallLength, 0.45)
+}
+
+function clampOpeningWidth(width: number, wallLength: number, maxRatio: number): number {
+  if (!Number.isFinite(width) || width <= 0) return 0.1
+  if (!Number.isFinite(wallLength) || wallLength <= 0) return width
+  const max = Math.max(0.04, wallLength * maxRatio)
+  return Math.min(width, max)
 }
 
 function furnitureOverlaps(

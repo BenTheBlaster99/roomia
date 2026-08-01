@@ -13,6 +13,7 @@ import type {
 
 const DEFAULT_HEIGHT = 2.8
 const DEFAULT_WALL_THICKNESS = 0.12
+const SHAPE_THICKNESS = 0.02
 
 export interface RawScanPayload {
   width_m?: unknown
@@ -38,6 +39,7 @@ export interface ParsedScanResult {
   height_m: number
   confidence: 'high' | 'medium' | 'low'
   notes: string
+  shapeOnly: boolean
 }
 
 export function parseScanResultToFloorPlan(
@@ -51,7 +53,8 @@ export function parseScanResultToFloorPlan(
     options.height && options.height > 0 ? options.height : DEFAULT_HEIGHT,
   )
 
-  let walls = parseWalls(raw.walls, height)
+  const shapeOnly = isShapeOnlyPayload(raw)
+  let walls = parseWalls(raw.walls, height, shapeOnly)
   const widthFromRaw = positive(raw.width_m, 0)
   const lengthFromRaw = positive(raw.length_m, 0)
 
@@ -68,14 +71,14 @@ export function parseScanResultToFloorPlan(
   }
 
   const bounds = boundsFromWalls(walls)
-  const width_m = widthFromRaw || bounds.width || 4
-  const length_m = lengthFromRaw || bounds.length || 5
+  const width_m = shapeOnly ? bounds.width || 1 : widthFromRaw || bounds.width || 4
+  const length_m = shapeOnly ? bounds.length || 1 : lengthFromRaw || bounds.length || 5
 
   const dimensions = { width: width_m, length: length_m, height }
   const wallIds = new Set(walls.map(w => w.id))
 
-  const doors = parseDoors(raw.doors, wallIds)
-  const windows = parseWindows(raw.windows, wallIds)
+  const doors = parseDoors(raw.doors, wallIds, walls, shapeOnly)
+  const windows = parseWindows(raw.windows, wallIds, walls, shapeOnly)
   const rooms = parseRooms(raw.rooms, dimensions, options.room)
 
   const now = new Date().toISOString()
@@ -93,7 +96,10 @@ export function parseScanResultToFloorPlan(
     metadata: {
       room: options.room,
       scanConfidence: confidence,
-      scanNotes: notes || undefined,
+      scanNotes: shapeOnly
+        ? notes || 'Shape traced — click each wall and enter its real length in metres.'
+        : notes || undefined,
+      needsWallDimensions: shapeOnly,
       createdAt: now,
       updatedAt: now,
     },
@@ -105,8 +111,31 @@ export function parseScanResultToFloorPlan(
     length_m,
     height_m: height,
     confidence,
-    notes,
+    notes: floorPlan.metadata?.scanNotes ?? notes,
+    shapeOnly,
   }
+}
+
+function isShapeOnlyPayload(raw: RawScanPayload): boolean {
+  if (positive(raw.width_m, 0) > 0 || positive(raw.length_m, 0) > 0) return false
+  if (!Array.isArray(raw.walls) || raw.walls.length === 0) return true
+
+  let maxCoord = 0
+  for (const item of raw.walls) {
+    if (!item || typeof item !== 'object') continue
+    const wall = item as Record<string, unknown>
+    for (const key of ['start', 'end'] as const) {
+      const point = wall[key]
+      if (!point || typeof point !== 'object') continue
+      const p = point as Record<string, unknown>
+      const x = numberOrNull(p.x)
+      const z = numberOrNull(p.z)
+      if (x !== null) maxCoord = Math.max(maxCoord, Math.abs(x))
+      if (z !== null) maxCoord = Math.max(maxCoord, Math.abs(z))
+    }
+  }
+
+  return maxCoord <= 1.05
 }
 
 function parseConfidence(value: unknown): 'high' | 'medium' | 'low' {
@@ -114,15 +143,20 @@ function parseConfidence(value: unknown): 'high' | 'medium' | 'low' {
   return 'medium'
 }
 
-function parseWalls(raw: unknown, height: number): WallSegment[] {
+function parseWalls(raw: unknown, height: number, shapeOnly: boolean): WallSegment[] {
   if (!Array.isArray(raw)) return []
 
   return raw
-    .map((item, index) => parseWall(item, index, height))
+    .map((item, index) => parseWall(item, index, height, shapeOnly))
     .filter((wall): wall is WallSegment => wall !== null)
 }
 
-function parseWall(raw: unknown, index: number, height: number): WallSegment | null {
+function parseWall(
+  raw: unknown,
+  index: number,
+  height: number,
+  shapeOnly: boolean,
+): WallSegment | null {
   if (!raw || typeof raw !== 'object') return null
   const wall = raw as Record<string, unknown>
   const start = parsePoint(wall.start)
@@ -131,7 +165,10 @@ function parseWall(raw: unknown, index: number, height: number): WallSegment | n
   if (start.x === end.x && start.z === end.z) return null
 
   const kind: WallKind = wall.kind === 'interior' ? 'interior' : 'exterior'
-  const thickness = positive(wall.thickness, DEFAULT_WALL_THICKNESS)
+  const thickness = positive(
+    wall.thickness,
+    shapeOnly ? SHAPE_THICKNESS : DEFAULT_WALL_THICKNESS,
+  )
 
   return {
     id: typeof wall.id === 'string' && wall.id ? wall.id : `wall-${index + 1}`,
@@ -143,15 +180,26 @@ function parseWall(raw: unknown, index: number, height: number): WallSegment | n
   }
 }
 
-function parseDoors(raw: unknown, wallIds: Set<string>): DoorOpening[] {
+function parseDoors(
+  raw: unknown,
+  wallIds: Set<string>,
+  walls: WallSegment[],
+  shapeOnly: boolean,
+): DoorOpening[] {
   if (!Array.isArray(raw)) return []
 
   return raw
-    .map((item, index) => parseDoor(item, index, wallIds))
+    .map((item, index) => parseDoor(item, index, wallIds, walls, shapeOnly))
     .filter((door): door is DoorOpening => door !== null)
 }
 
-function parseDoor(raw: unknown, index: number, wallIds: Set<string>): DoorOpening | null {
+function parseDoor(
+  raw: unknown,
+  index: number,
+  wallIds: Set<string>,
+  walls: WallSegment[],
+  shapeOnly: boolean,
+): DoorOpening | null {
   if (!raw || typeof raw !== 'object') return null
   const door = raw as Record<string, unknown>
   const wallId = typeof door.wallId === 'string' ? door.wallId : ''
@@ -161,39 +209,70 @@ function parseDoor(raw: unknown, index: number, wallIds: Set<string>): DoorOpeni
   const swing: DoorSwing =
     door.swing === 'out' || door.swing === 'sliding' ? door.swing : 'in'
 
+  const wall = walls.find(w => w.id === wallId)
+  const wallLen = wall ? wallLength(wall) : 1
+  const rawOffset = positive(door.offset, 0.5)
+  const rawWidth = positive(door.width, shapeOnly ? 0.08 : 0.9)
+
+  const offset = shapeOnly ? rawOffset * wallLen : rawOffset
+  const width = shapeOnly ? rawWidth * wallLen : rawWidth
+
   return {
     id: typeof door.id === 'string' && door.id ? door.id : `door-${index + 1}`,
     wallId: wallIds.has(wallId) ? wallId : wallId,
-    offset: Math.max(0, positive(door.offset, 0)),
-    width: positive(door.width, 0.9),
+    offset: Math.max(0, offset),
+    width,
     height: positive(door.height, 2.05),
     hinge,
     swing,
   }
 }
 
-function parseWindows(raw: unknown, wallIds: Set<string>): WindowOpening[] {
+function parseWindows(
+  raw: unknown,
+  wallIds: Set<string>,
+  walls: WallSegment[],
+  shapeOnly: boolean,
+): WindowOpening[] {
   if (!Array.isArray(raw)) return []
 
   return raw
-    .map((item, index) => parseWindow(item, index, wallIds))
+    .map((item, index) => parseWindow(item, index, wallIds, walls, shapeOnly))
     .filter((window): window is WindowOpening => window !== null)
 }
 
-function parseWindow(raw: unknown, index: number, wallIds: Set<string>): WindowOpening | null {
+function parseWindow(
+  raw: unknown,
+  index: number,
+  wallIds: Set<string>,
+  walls: WallSegment[],
+  shapeOnly: boolean,
+): WindowOpening | null {
   if (!raw || typeof raw !== 'object') return null
   const window = raw as Record<string, unknown>
   const wallId = typeof window.wallId === 'string' ? window.wallId : ''
   if (!wallId) return null
 
+  const wall = walls.find(w => w.id === wallId)
+  const wallLen = wall ? wallLength(wall) : 1
+  const rawOffset = positive(window.offset, 0.5)
+  const rawWidth = positive(window.width, shapeOnly ? 0.12 : 1.2)
+
+  const offset = shapeOnly ? rawOffset * wallLen : rawOffset
+  const width = shapeOnly ? rawWidth * wallLen : rawWidth
+
   return {
     id: typeof window.id === 'string' && window.id ? window.id : `window-${index + 1}`,
     wallId: wallIds.has(wallId) ? wallId : wallId,
-    offset: Math.max(0, positive(window.offset, 0)),
-    width: positive(window.width, 1.2),
+    offset: Math.max(0, offset),
+    width,
     height: positive(window.height, 1.2),
     sillHeight: positive(window.sillHeight, 0.9),
   }
+}
+
+function wallLength(wall: WallSegment): number {
+  return Math.hypot(wall.end.x - wall.start.x, wall.end.z - wall.start.z)
 }
 
 function parseRooms(

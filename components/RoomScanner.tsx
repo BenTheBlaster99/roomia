@@ -1,18 +1,17 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { DEFAULT_HEIGHT } from '@/lib/design-params'
 import { createRectangularFloorPlan } from '@/lib/floor-plan'
 import { saveFloorPlan } from '@/lib/floor-plan-storage'
 import type { FloorPlanData } from '@/types/floor-plan'
 
 interface ScanResult {
-  width_m: number
-  length_m: number
-  height_m: number
   confidence: 'high' | 'medium' | 'low'
   notes: string
   floorPlan: FloorPlanData
+  shapeOnly: boolean
   modelUsed?: string
 }
 
@@ -21,7 +20,6 @@ interface Props {
   width?: string
   length?: string
   height?: string
-  onResult: (width: string, length: string, height?: string) => void
 }
 
 const CONFIDENCE_COLOR = {
@@ -30,10 +28,10 @@ const CONFIDENCE_COLOR = {
   low: 'text-red-500',
 }
 
-export default function RoomScanner({ room, width, length, height, onResult }: Props) {
+export default function RoomScanner({ room, width, length, height }: Props) {
+  const router = useRouter()
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -41,7 +39,6 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
     if (!file) return
 
     setScanning(true)
-    setError(null)
     setResult(null)
 
     try {
@@ -70,20 +67,18 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
 
       saveFloorPlan(data.floorPlan)
 
-      const scanResult: ScanResult = {
-        width_m: data.width_m,
-        length_m: data.length_m,
-        height_m: data.height_m,
+      setResult({
         confidence: data.confidence,
         notes: data.notes,
         floorPlan: data.floorPlan,
+        shapeOnly: Boolean(data.shapeOnly),
         modelUsed: data.modelUsed,
+      })
+
+      if (data.shapeOnly || data.floorPlan?.metadata?.needsWallDimensions) {
+        router.push('/plan?dimensionWalls=1')
+        return
       }
-
-      setResult(scanResult)
-
-      const detectedHeight = data.height_m ? String(data.height_m) : undefined
-      onResult(String(data.width_m), String(data.length_m), detectedHeight)
     } catch {
       const fallbackWidth =
         width && parseFloat(width) > 0 ? parseFloat(width) : 4
@@ -100,32 +95,13 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
         source: 'manual',
       })
 
-      const planWithNote: FloorPlanData = {
-        ...fallbackPlan,
-        metadata: {
-          ...fallbackPlan.metadata,
-          scanConfidence: 'low',
-          scanNotes: 'Scan unavailable — starter layout applied.',
-        },
-      }
-
-      saveFloorPlan(planWithNote)
-
+      saveFloorPlan(fallbackPlan)
       setResult({
-        width_m: fallbackWidth,
-        length_m: fallbackLength,
-        height_m: fallbackHeight,
         confidence: 'low',
-        notes:
-          "We couldn't read this sketch perfectly, so we set up a starter room. Adjust walls and furniture in the Design Studio.",
-        floorPlan: planWithNote,
+        notes: "We couldn't read this sketch — enter dimensions manually or try another photo.",
+        floorPlan: fallbackPlan,
+        shapeOnly: false,
       })
-
-      onResult(
-        String(fallbackWidth),
-        String(fallbackLength),
-        String(fallbackHeight),
-      )
     } finally {
       setScanning(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -137,7 +113,6 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
         `${result.floorPlan.walls.length} wall${result.floorPlan.walls.length === 1 ? '' : 's'}`,
         `${result.floorPlan.doors.length} door${result.floorPlan.doors.length === 1 ? '' : 's'}`,
         `${result.floorPlan.windows.length} window${result.floorPlan.windows.length === 1 ? '' : 's'}`,
-        `${result.floorPlan.rooms.length} room zone${result.floorPlan.rooms.length === 1 ? '' : 's'}`,
       ].join(' · ')
     : ''
 
@@ -163,7 +138,7 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
           <span className="flex items-center justify-center gap-2">
             <span className="w-3 h-3 border-2 border-amber-400 border-t-transparent
                              rounded-full animate-spin" />
-            Scanning floor plan...
+            Tracing floor plan shape…
           </span>
         ) : (
           '📐 Irregular room? Scan floor plan →'
@@ -173,28 +148,23 @@ export default function RoomScanner({ room, width, length, height, onResult }: P
       {result && (
         <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-xs text-zinc-500">Detected floor plan</span>
+            <span className="text-xs text-zinc-500">Scanned floor plan</span>
             <span className={`text-xs font-medium ${CONFIDENCE_COLOR[result.confidence]}`}>
               {result.confidence} confidence
             </span>
           </div>
-          <div className="text-sm font-bold text-amber-600">
-            {result.width_m}m × {result.length_m}m × {result.height_m}m
-          </div>
+          <p className="text-sm font-medium text-amber-700">
+            {result.shapeOnly
+              ? 'Shape traced — next: click each wall and enter its length'
+              : `${result.floorPlan.dimensions.width.toFixed(1)}m × ${result.floorPlan.dimensions.length.toFixed(1)}m`}
+          </p>
           <p className="text-xs text-zinc-600">{structureSummary}</p>
-          {result.notes && (
-            <p className="text-xs text-zinc-500">{result.notes}</p>
-          )}
+          {result.notes && <p className="text-xs text-zinc-500">{result.notes}</p>}
           {result.modelUsed && (
             <p className="text-[10px] text-zinc-400">Scanned with {result.modelUsed}</p>
           )}
-          <p className="text-xs text-zinc-400 pt-1">
-            Structured plan saved for 2D/3D. Edit dimensions above if needed.
-          </p>
         </div>
       )}
-
-      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
 }

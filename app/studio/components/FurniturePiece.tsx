@@ -80,6 +80,7 @@ export default function FurniturePiece({ item }: { item: PlacedItem }) {
   const selectItem = useStudioStore(s => s.selectItem)
   const startDrag = useStudioStore(s => s.startDrag)
   const isRotating = useStudioStore(s => s.isRotating)
+  const captureMode = useStudioStore(s => s.captureMode)
   const isSelected = selectedId === item.id
 
   return (
@@ -105,20 +106,22 @@ export default function FurniturePiece({ item }: { item: PlacedItem }) {
         <BoxModel item={item} />
       )}
 
-      {isSelected && <SelectionBox dims={item.dimensions} />}
-      {isSelected && <RotationHandle item={item} />}
+      {!captureMode && isSelected && <SelectionBox dims={item.dimensions} />}
+      {!captureMode && isSelected && <RotationHandle item={item} />}
 
-      <Html position={[0, item.dimensions.height + 0.25, 0]} center distanceFactor={8} occlude>
-        <div
-          className={`text-xs px-2 py-0.5 rounded whitespace-nowrap pointer-events-none shadow-sm ${
-            isSelected
-              ? 'bg-amber-500 text-white font-bold'
-              : 'bg-white/90 text-zinc-700 border border-zinc-200'
-          }`}
-        >
-          {item.name}
-        </div>
-      </Html>
+      {!captureMode && (
+        <Html position={[0, item.dimensions.height + 0.25, 0]} center distanceFactor={8} occlude>
+          <div
+            className={`text-xs px-2 py-0.5 rounded whitespace-nowrap pointer-events-none shadow-sm ${
+              isSelected
+                ? 'bg-amber-500 text-white font-bold'
+                : 'bg-white/90 text-zinc-700 border border-zinc-200'
+            }`}
+          >
+            {item.name}
+          </div>
+        </Html>
+      )}
     </group>
   )
 }

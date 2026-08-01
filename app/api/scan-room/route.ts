@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       confidence: parsed.confidence,
       notes: parsed.notes,
       floorPlan: parsed.floorPlan,
+      shapeOnly: parsed.shapeOnly,
       modelUsed: model,
     })
   } catch (err) {

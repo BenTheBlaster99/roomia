@@ -5,7 +5,7 @@ import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
 import type { CatalogItem } from '@/lib/mock-catalog'
 import type { RoomPresetPayload } from '@/types/room-preset'
 
-export type ViewMode = 'perspective' | 'top' | 'front' | 'back' | 'left' | 'right'
+export type ViewMode = 'perspective' | 'top' | 'front' | 'back' | 'left' | 'right' | 'capture'
 export type FloorMaterial = 'wood' | 'tile' | 'concrete' | 'carpet' | 'marble'
 
 export interface RoomConfig {
@@ -94,6 +94,13 @@ interface StudioState {
 
   roomSettingsOpen: boolean
   setRoomSettingsOpen: (open: boolean) => void
+
+  canvasRef: HTMLCanvasElement | null
+  setCanvasRef: (canvas: HTMLCanvasElement | null) => void
+  renderPanelOpen: boolean
+  setRenderPanelOpen: (open: boolean) => void
+  captureMode: boolean
+  setCaptureMode: (v: boolean) => void
 
   cart: CartItem[]
   cartOpen: boolean
@@ -338,6 +345,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   roomSettingsOpen: false,
   setRoomSettingsOpen: open => set({ roomSettingsOpen: open }),
+
+  canvasRef: null,
+  setCanvasRef: canvas => set({ canvasRef: canvas }),
+  renderPanelOpen: false,
+  setRenderPanelOpen: open => set({ renderPanelOpen: open }),
+  captureMode: false,
+  setCaptureMode: v => set({ captureMode: v }),
 
   cart: [],
   cartOpen: false,

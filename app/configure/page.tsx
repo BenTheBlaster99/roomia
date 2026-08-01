@@ -123,17 +123,10 @@ function StepSpace({
         )}
 
         <RoomScanner
+          room={config.room}
           width={config.width}
           length={config.length}
           height={config.height}
-          onResult={(w, l, h) =>
-            setConfig(c => ({
-              ...c,
-              width: w,
-              length: l,
-              ...(h ? { height: h } : {}),
-            }))
-          }
         />
       </div>
     </div>

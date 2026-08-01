@@ -1,10 +1,16 @@
-import { redirect } from 'next/navigation'
-import { buildDesignPath, parseDesignParams } from '@/lib/design-params'
+import { Suspense } from 'react'
+import PlanEditor from './PlanEditor'
 
-interface Props {
-  searchParams: Promise<Record<string, string | undefined>>
-}
-
-export default async function PlanPage({ searchParams }: Props) {
-  redirect(buildDesignPath('/studio', parseDesignParams(await searchParams)))
+export default function PlanPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-stone-50 text-zinc-500">
+          Loading floor plan…
+        </div>
+      }
+    >
+      <PlanEditor />
+    </Suspense>
+  )
 }

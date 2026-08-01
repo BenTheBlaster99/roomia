@@ -22,6 +22,7 @@ export interface FurnitureItem {
   budget_tier: string
   image_keyword: string
   model_url: string | null
+  image_url: string | null
   partner_link: string | null
   notes: string | null
 }

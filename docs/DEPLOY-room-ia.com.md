@@ -1,6 +1,6 @@
 # Roomia Post-Deploy Checklist
 
-Last updated: July 12, 2026
+Last updated: July 14, 2026
 
 Live site: `https://www.room-ia.com`
 
@@ -184,31 +184,20 @@ CORS_ORIGINS=http://localhost:3000,https://www.room-ia.com,https://room-ia.com
 
 ## Generated 3D Models
 
-### Current Problems
+### Status (July 14)
 
-- [ ] Generated GLBs sometimes float above the floor.
-- [ ] Generated GLBs are uploaded/stored with wrong orientation.
-- [ ] In Studio they appear upside down or rotated incorrectly.
-- [~] Frontend currently compensates with `normalizeGlbScene()`, but this should be a safety net, not the main fix.
+- [x] Orientation fixed — InstantMesh fixed `rx=-90°` before export; validated in Studio.
+- [~] Scale — uniform height scaling; use `--exact-dimensions` when W×D×H must match exactly.
+- [x] Frontend `normalizeGlbScene()` is scale + floor only (no runtime rotation).
 
-### Fix Plan
+### Legacy checklist (pre-fix)
 
-- [x] 3D generation pipeline lives in side project `furniture-3d-gen` (see section below).
-- [ ] Fix orientation before upload:
-  - [ ] Convert generated model to Three.js-friendly Y-up.
-  - [ ] Center model footprint on X/Z.
-  - [ ] Snap bottom of bounding box to Y=0.
-  - [ ] Apply transforms before exporting/uploading GLB.
-- [ ] Fix scale before upload:
-  - [ ] Category dimensions should match Roomia meters.
-  - [ ] Bed, chair, sofa, table should not be tiny/huge.
-- [ ] Keep frontend `normalizeGlbScene()` as backup only.
-- [ ] Add a small generated model QA checklist:
-  - [ ] Opens upright in Studio.
-  - [ ] Bottom touches floor.
-  - [ ] Faces expected direction.
-  - [ ] Material not too dark.
-  - [ ] Bounding box matches category dimensions.
+- [x] Convert generated model to Three.js-friendly Y-up.
+- [x] Center model footprint on X/Z.
+- [x] Snap bottom of bounding box to Y=0.
+- [x] Apply transforms before exporting/uploading GLB.
+- [ ] Fix scale before upload for every Sarah product (category dims table + `--exact-dimensions`).
+- [ ] QA checklist per upload: upright, floor contact, facing, material brightness, bounding box.
 
 ### Needs GPU?
 
@@ -248,12 +237,19 @@ Purpose: Local pipeline to generate furniture GLB models from photos, normalize 
 
 ### Current Problems
 
-- [ ] Generated GLBs still float or appear upside down/rotated in Studio for some items.
-- [ ] `orient_for_room_view()` logic may not cover all InstantMesh/TripoSR output orientations.
-- [ ] Scale can be off per category (tiny/huge relative to room).
+- [x] Generated GLBs upside down / wrong rotation in Studio — **fixed** (InstantMesh fixed `rx=-90°` in `furniture-3d-gen`; validated on bed + chair-set).
+- [~] Scale can still be off per category (uniform height scaling; width/depth may not match target metres).
 - [ ] Textures sometimes too dark or noisy.
 - [ ] `NAME_MAP` in `upload.py` is manual — easy to mismatch filename vs DB product name.
 - [ ] Photogrammetry (`meshroom`) needs 3–4 good photos; not all Sarah products have them yet.
+
+### Fix Plan (orientation — done July 14)
+
+- [x] Fix orientation before upload: InstantMesh → fixed `-90°` X pitch → Y-up, footprint align, floor at Y=0.
+- [x] Remove runtime rotation guessing in Roomia (`normalizeGlbScene` scale + floor only).
+- [x] Validate in Studio: `testing-bed2`, `brown-chair`, `cozy-chair`, `long-chair`, `short-chair`.
+- [ ] Use `--exact-dimensions` when width/depth must match Sarah's measurements exactly.
+- [ ] Keep frontend `normalizeGlbScene()` as backup only.
 
 ### Not Done
 
@@ -381,27 +377,49 @@ Direct model URL example (Mid-Way):
 
 Client uploads a floor plan image. AI reads it and creates a digital 2D floor plan:
 
-- Walls
+- Walls (shape / topology)
 - Wall thickness
 - Doors
 - Windows
-- Dimensions
+- **User-provided dimensions** (Sarah's workflow — see below)
 - Editable after generation
 
-### Current / Near-Term Approach
+### Sarah's Workflow (preferred)
 
-- [~] Existing floor plan scanner started with Gemini/OpenAI vision style flow.
-- [ ] Improve extraction prompt/schema.
-- [ ] Output structured JSON:
-  - [ ] room size
-  - [ ] walls
-  - [ ] doors
-  - [ ] windows
-  - [ ] labels/dimensions
-- [ ] Render generated floor plan in 2D editor.
-- [ ] Allow user to edit generated plan.
-- [ ] Show walls with thickness.
-- [ ] Show doors/windows visually.
+> AI gives **only the form/shape** of the plan from the picture. The user then **clicks each wall** and enters its **length in metres**.
+
+Why: reading dimension labels from photos is unreliable (scale, blur, handwriting). Shape extraction is easier; the user knows their real measurements.
+
+**Target flow:**
+
+1. Upload floor plan photo on `/configure` (or `/plan`).
+2. AI returns **wall topology only** — connected segments, corners, door/window *positions* — in **normalized coordinates** (unitless 0–1 or relative), **not** guessed metres.
+3. Redirect user to **2D plan editor** (`/plan`) with a prompt: *"Click each wall and enter its real length."*
+4. User clicks wall → enters length (m) → plan scales that segment (already supported in `ArchitectureToolbar` + `setWallLength()`).
+5. After all walls dimensioned (or at least exterior loop), compute room `width` × `length` → open Studio.
+
+### Current vs Target
+
+| Piece | Status |
+|-------|--------|
+| Gemini/OpenAI scan API (`/api/scan-room`) | [x] Exists |
+| Scan prompt asks AI to read dimension labels + output metres | [~] **Wrong approach** — causes bad scale |
+| Parse walls/doors/windows JSON → `FloorPlanData` | [x] Exists |
+| 2D editor `/plan` — click wall, edit length/thickness | [x] Exists |
+| Post-scan UX: guide user to dimension each wall | [ ] **Not done** |
+| Shape-only scan prompt (no metric guessing) | [ ] **Not done** |
+| Scale normalized topology → real metres from user wall lengths | [ ] **Not done** |
+| End-to-end test with Sarah's real plan photos | [ ] **Not done** |
+
+### Tasks
+
+- [ ] **Rewrite `lib/scan-prompt.ts`**: extract shape only; output normalized wall graph; omit or null out `width_m`/`length_m` unless clearly labeled on drawing.
+- [ ] **Update `parse-scan-result.ts`**: accept unitless coords; flag walls as `needsDimension: true` until user sets length.
+- [ ] **Post-scan UI** on `/configure` or `/plan`: checklist — "Wall 1 of N — click wall, enter length".
+- [ ] **Verify** click-wall → length input → plan updates → Studio dimensions match (manual QA with 2–3 Sarah plans).
+- [ ] Render generated floor plan in 2D editor (already on `/plan`).
+- [ ] Show walls with thickness, doors/windows visually (partially done on `/plan`).
+- [ ] Later: optional AI suggestion when a dimension label *is* clearly visible (helper, not source of truth).
 
 ### Needs GPU?
 
@@ -514,13 +532,13 @@ Client uploads 1 or more real room photos. AI estimates room dimensions and open
 
 - [ ] Real Supabase furniture in Studio + Marketplace.
 - [ ] Sarah product images to result/marketplace/studio.
-- [ ] Fix generated GLB floating/upside-down in `furniture-3d-gen` (`orient_for_room_view` + `fix_glb.py` on existing uploads).
+- [ ] Fix generated GLB floating/upside-down in `furniture-3d-gen` — **done** (fixed rotation); optional: re-upload older models.
 
 ### AI Work After That
 
 - [ ] Photo Studio backend public deployment or GPU server plan.
 - [ ] IP-Adapter test with real reference product image.
-- [ ] Floor plan AI -> editable 2D plan.
+- [ ] Floor plan AI → **shape-only scan** + user clicks each wall to enter length (Sarah workflow).
 - [ ] 2D plan -> 3D extrusion.
 - [ ] Room capture depth -> Studio dimensions.
 
@@ -534,3 +552,190 @@ Client uploads 1 or more real room photos. AI estimates room dimensions and open
 - Exact catalog-in-photo is not solved by text prompts alone.
 - Procedural 2D → 3D does not need GPU.
 - Local 3D generation, SD inpainting, IP-Adapter, SAM2, and local depth do need GPU.
+
+
+//
+
+Product & Business
+Concept & Team
+
+Interior design configurator targeting Algeria — first mover, no real competitor exists
+Team: Jack (dev) + Sarah (architect/designer) + Lyna (graphic designer for branding)
+Name: Roomia (Room + AI) under parent brand Archivalve
+Second product planned: Sketchvault (sketchvault.com)
+Domains registered: room-ia.com, sketchvault.com, archivalve.com via Hostinger
+
+Marketing Strategy
+
+Instagram-first organic growth (Sarah's account)
+WhatsApp share built into product
+Facebook group seeding for Algeria
+Email waitlist on domain
+Partner pitch: furniture stores — "multiply your business" framing
+Commission model: direct with furniture partners, no intermediary
+Goubba discussed and deprioritised — commission-on-commission not good enough
+
+Hardware
+
+Upgraded to RTX 3060 12GB (3-fan), new ASUS H310M-K R2.0 motherboard, 256GB SSD for Ubuntu 22.04 LTS
+Old RX 570 4GB removed
+PSU upgraded (450W was too tight for 3060)
+
+
+Roomia — Frontend (Next.js + Supabase)
+Phase 1 — Original MVP Configurator
+
+Multi-step configurator: room dimensions + AI scan → style picker → budget
+Result page: style header, moodboard grid, furniture list, budget summary
+Email capture wired to Resend (real emails sending)
+WhatsApp share button on result page
+Landing page /, /about, /partners
+AI floor plan scanner (Gemini 2.5 Flash) in Step 1 — upload photo → auto-fills width × length
+
+Database (Supabase)
+
+styles table — 5 styles (Maximalism, Minimalism, Industrial, Traditional Algerian, Mediterranean Coastal)
+furniture_items table — Sarah's 36 items with prices, categories, rooms, style tags
+moodboard_images table — 20 direct Pinterest image URLs from Sarah
+budget_ranges table — DZD ranges per room per tier
+room_presets table — 10 generated presets (5 styles × 2 rooms)
+RLS public read policies on all tables
+
+Phase 2 — IKEA-Style 3D Studio (full rebuild)
+Zustand store (useStudioStore):
+
+Room config (width, length, height, floor material, wall color)
+Placed items with position, rotation, dimensions, color, price
+Undo/redo (50-step history with snapshots)
+Drag-to-move with room bounds clamping
+Drag rotation via torus ring handle
+Camera view state
+Catalog filters (room, category, search, style pre-filter)
+Cart with quantity and total
+Cart drawer open/close
+
+Studio (/studio):
+
+Full 3D room — floor, 3 walls, ceiling, baseboard
+Measurement labels on all edges
+6 camera views (perspective, top, front, back, left, right) with smooth animation
+Floor material picker (wood, tile, concrete, carpet, marble)
+Wall color picker (presets + custom hex)
+Room dimensions live edit
+Grid overlay (1m squares)
+Environment lighting + shadows
+Drag furniture from catalog into room
+Gold selection bounding box
+Rotation handle (torus ring, drag to rotate freely)
+Selection panel: rotate buttons, copy, remove, add to cart, dimensions display
+Catalog sidebar: room tabs, category chips, search, available/unavailable state
+Top bar: undo, redo, clear room, room settings, catalog toggle, scan, save, book, cart
+Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y redo, Delete removes selected
+Preset loading via ?preset=id URL param
+Style pre-filter from configure via ?style= URL param
+GLB model loading with auto-scale + floor snap + material fix
+Box fallback when no GLB exists
+
+Phase 2 — Room Presets
+
+lib/preset-layout.ts — role-based furniture placement algorithm (sofa against wall, coffee table in front, chairs flanking, lights in corners)
+lib/style-room-presentation.ts — floor material + wall color defaults per style
+lib/studio-constants.ts — all category dimensions, colors, floor materials, wall presets
+lib/mock-catalog.ts — 60 items across 5 styles × 2 rooms
+scripts/generate-room-presets.ts — seeds 10 presets to Supabase in one command
+/rooms gallery page — grid of preset cards by room type, click → studio
+
+Phase 3 — Marketplace
+
+/marketplace page — full catalog browse
+Filters: room, style, category, budget tier, in-stock toggle, search
+Product cards with emoji placeholder, price, budget badge, availability
+"Add to Cart" → shared cart drawer
+"Add to Studio" → drops item into studio and navigates there
+CartDrawer component — shared across studio and marketplace, mailto quote request
+
+Other Pages
+
+/configure — simplified to dimensions + AI scan only, style/budget moved to studio sidebar
+/result — style header, moodboard, furniture list, budget summary, email capture, WhatsApp share, book consultation
+/photo-studio — full AI photo manipulation UI
+/room-capture — depth estimation → studio dimensions
+/plan — 2D Konva floor plan with draggable furniture
+/about, /partners
+
+Deployment
+
+Vercel deployment — live at https://www.room-ia.com
+NEXT_PUBLIC_BASE_URL set on Vercel
+Hostinger domain connected
+
+
+roomia-ai-backend (Python FastAPI)
+Endpoints
+
+GET /health
+POST /segment — SAM2 click → mask + red overlay
+POST /inpaint/remove — SD inpainting removes selected object
+POST /inpaint/replace — text prompt replacement
+POST /inpaint/replace-style — style chip prompts (Minimalism, Industrial etc.)
+POST /inpaint/replace-ip — IP-Adapter with optional reference image, falls back to text
+POST /depth — Depth Anything V2 → room dimensions estimate
+
+Model wrappers
+
+models/segmentation.py — SAM2 hiera large, click point → best mask, fixed float-indexing bug
+models/inpainting.py — SD inpainting pipeline, dilate mask, remove + replace modes
+models/ip_adapter_inpainting.py — IP-Adapter on SD inpainting, scale 0.7, text fallback when no reference
+models/prompt_builder.py — structured prompts from catalog item fields + style descriptors + quality suffix
+models/depth.py — Depth Anything V2 Small, normalised depth → room width/length/height estimate
+
+Validated locally
+
+SAM2 segmentation with red overlay confirmed working
+Remove furniture confirmed working
+Style prompt replacement confirmed working on sofa photo
+First model load slow, cached after
+
+Not deployed publicly yet — GPU server needed, ai.room-ia.com planned
+
+furniture-3d-gen (Python CLI)
+Pipeline
+
+generate.py — three modes: TripoSR (simple items), InstantMesh (medium items), Meshroom (complex multi-photo)
+Background removal with rembg + isnet-general-use model (better than default u2net)
+Tight alpha crop + square canvas + 512×512 resize before inference
+--preview-only mode — runs rembg only, saves .input.png, skips GPU generation
+Texture export (--export-texmap) — UV maps instead of vertex colors
+Quality tiers: low/medium (works on 3060), base/large (OOM on 12GB)
+orient_for_room_view() — applies known correction per model type, then floor-snap + center
+scale_and_position() — scales mesh to exact real-world dimensions in metres
+export_glb() — baked GLB output
+Manual rotation override: --fix-rx, --fix-ry, --fix-rz
+fix_glb.py — re-normalize existing GLBs without regenerating
+upload.py — uploads to Supabase Storage, updates model_url in furniture_items
+batch.py — process multiple items in sequence
+scale_existing.py — scale downloaded CC0 GLBs to Roomia dimensions
+
+Results so far
+
+TripoSR tested — bad on wardrobes/mirrors, OK on simple small objects
+InstantMesh tested — better results, confirmed working on 3060 12GB at medium quality
+chair2_textured.glb + chair-set (brown/cozy/long/short) uploaded to Supabase, load upright in Studio
+GLB orientation fixed — fixed InstantMesh rx=-90° (July 14); no more normal/Euler guessing
+
+
+What's Still Broken / Not Done
+Item | Status
+GLB models floating/upside-down | **Fixed** (July 14)
+Real Supabase data in studio + marketplace | Not done
+Sarah's furniture photos in DB | Not done
+Live smoke test on phone + desktop | Not done
+AI backend public deployment | Not done
+IP-Adapter tested with real reference image | Not done
+Floor plan → shape-only scan + user wall dimensions | **Next** (Sarah workflow; partial infra exists)
+2D floor plan → 3D extrusion | Not done
+Room capture depth → studio | Partial
+Branding (logo from Lyna, final colors) | Not done
+Slow compile (project on external drive) | Not fixed
+
+That's everything. You've built a lot more than it feels like when you're in the middle of it. The site is live, three separate projects are running, and the core product works. The GLB orientation fix is the immediate task, then real data, then deploy the AI backend.

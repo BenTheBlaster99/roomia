@@ -33,6 +33,12 @@ export default async function LandingPage() {
           <Link href="/photo-studio" className="text-zinc-500 hover:text-zinc-900 transition-colors">
             AI Photo
           </Link>
+          <Link href="/room-composer" className="text-zinc-500 hover:text-zinc-900 transition-colors">
+            Compose
+          </Link>
+          <Link href="/room-capture" className="text-zinc-500 hover:text-zinc-900 transition-colors">
+            Scan Room
+          </Link>
           <Link href="/studio" className="text-zinc-500 hover:text-zinc-900 transition-colors">
             Studio
           </Link>
@@ -66,14 +72,21 @@ export default async function LandingPage() {
             in the studio and request a quote.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-left max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-left max-w-6xl mx-auto">
+            <EntryCard
+              href="/room-capture"
+              emoji="📷"
+              title="Scan your room"
+              desc="Upload 1–3 photos. AI estimates dimensions and opens your space in the 3D studio."
+              cta="Scan room →"
+              featured
+            />
             <EntryCard
               href="/configure"
               emoji="📐"
-              title="Design your room"
-              desc="Enter dimensions, scan your floor plan, then open the 3D studio to place furniture."
-              cta="Configure & scan →"
-              featured
+              title="Floor plan scan"
+              desc="AI extracts the room shape from a floor plan photo — then you enter each wall length."
+              cta="Scan floor plan →"
             />
             <EntryCard
               href="/photo-studio"
@@ -81,6 +94,14 @@ export default async function LandingPage() {
               title="Edit a real photo"
               desc="Upload a room photo, select existing furniture, then remove it or replace it with catalog pieces."
               cta="Open AI photo studio →"
+            />
+            <EntryCard
+              href="/room-composer"
+              emoji="🛋️"
+              title="Furnish a photo"
+              desc="Tap up to 3 spots, pick catalog items, get 3 AI variations — pick the best for your client."
+              cta="Open room composer →"
+              featured
             />
             <EntryCard
               href="/rooms"

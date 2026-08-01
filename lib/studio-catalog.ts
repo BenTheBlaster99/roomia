@@ -5,7 +5,7 @@ export async function fetchGeneratedCatalog(): Promise<FurnitureItem[]> {
   const { data, error } = await supabase
     .from('furniture_items')
     .select('*')
-    .not('model_url', 'is', null)
+    .or('model_url.not.is.null,image_url.not.is.null')
     .order('name')
 
   if (error) {

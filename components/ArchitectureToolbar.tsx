@@ -63,12 +63,14 @@ function Field({
 
 function WallToolbar({
   wall,
+  needsWallDimensions,
   onClearSelection,
   onAddDoor,
   onAddWindow,
   onUpdateWall,
 }: {
   wall: WallSegment
+  needsWallDimensions?: boolean
   onClearSelection: () => void
   onAddDoor: (wallId: string, offset?: number, width?: number) => void
   onAddWindow: (wallId: string, offset?: number, width?: number) => void
@@ -90,6 +92,20 @@ function WallToolbar({
         </button>
       </div>
 
+      {needsWallDimensions && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+          Enter this wall&apos;s real length in metres, then Apply.
+        </p>
+      )}
+
+      <Field
+        label={needsWallDimensions ? 'Length (m) — real measurement' : 'Length (m)'}
+        value={length}
+        onChange={setLength}
+        step={0.1}
+        min={0.5}
+      />
+
       <Field
         label="Thickness (m)"
         value={thickness}
@@ -97,7 +113,6 @@ function WallToolbar({
         step={0.01}
         min={0.05}
       />
-      <Field label="Length (m)" value={length} onChange={setLength} step={0.1} min={0.5} />
 
       <label className="flex flex-col gap-1 text-xs text-zinc-500">
         Type
@@ -306,6 +321,7 @@ export default function ArchitectureToolbar({
       <WallToolbar
         key={selected.id}
         wall={wall}
+        needsWallDimensions={plan.metadata?.needsWallDimensions}
         onClearSelection={onClearSelection}
         onAddDoor={onAddDoor}
         onAddWindow={onAddWindow}

@@ -29,6 +29,8 @@ function CameraController() {
       back: [cx, height * 0.5, cz - pad * 1.8, cx, height * 0.5, cz],
       left: [cx - pad * 1.8, height * 0.5, cz, cx, height * 0.5, cz],
       right: [cx + pad * 1.8, height * 0.5, cz, cx, height * 0.5, cz],
+      // Eye-level interior photo framing (closer, looking into the room)
+      capture: [cx - pad * 0.35, 1.55, cz + pad * 0.55, cx + pad * 0.15, 1.2, cz - pad * 0.1],
     }
     const v = views[viewMode]
     if (v) cc.setLookAt(v[0], v[1], v[2], v[3], v[4], v[5], true)
@@ -98,6 +100,7 @@ export default function StudioScene() {
   const room = useStudioStore(s => s.room)
   const items = useStudioStore(s => s.items)
   const selectItem = useStudioStore(s => s.selectItem)
+  const captureMode = useStudioStore(s => s.captureMode)
   const { width, length, height } = room
 
   return (
@@ -105,7 +108,14 @@ export default function StudioScene() {
       <Canvas
         shadows
         camera={{ position: [width * 0.7, height * 1.4, length * 1.1], fov: 50 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+        gl={{
+          antialias: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          preserveDrawingBuffer: true,
+        }}
+        onCreated={({ gl }) => {
+          useStudioStore.getState().setCanvasRef(gl.domElement)
+        }}
         onPointerMissed={() => selectItem(null)}
       >
         <Suspense fallback={null}>
@@ -131,17 +141,19 @@ export default function StudioScene() {
 
           <Room />
 
-          <Grid
-            position={[width / 2, 0.002, length / 2]}
-            args={[width, length]}
-            cellSize={1}
-            cellThickness={0.5}
-            cellColor="#bbb"
-            sectionSize={0}
-            fadeDistance={40}
-            fadeStrength={1}
-            infiniteGrid={false}
-          />
+          {!captureMode && (
+            <Grid
+              position={[width / 2, 0.002, length / 2]}
+              args={[width, length]}
+              cellSize={1}
+              cellThickness={0.5}
+              cellColor="#bbb"
+              sectionSize={0}
+              fadeDistance={40}
+              fadeStrength={1}
+              infiniteGrid={false}
+            />
+          )}
 
           {items.map(item => (
             <FurniturePiece key={item.id} item={item} />

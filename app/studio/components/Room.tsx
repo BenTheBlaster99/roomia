@@ -5,6 +5,7 @@ import { FLOOR_MATERIALS } from '@/lib/studio-constants'
 
 export default function Room() {
   const { width, length, height, floorMaterial, wallColor } = useStudioStore(s => s.room)
+  const captureMode = useStudioStore(s => s.captureMode)
   const floorColor = FLOOR_MATERIALS[floorMaterial]?.color ?? '#A0785A'
   const cx = width / 2, cz = length / 2
 
@@ -54,22 +55,26 @@ export default function Room() {
         <meshStandardMaterial color="#D4CFC8" />
       </mesh>
 
-      {/* Measurement labels */}
-      <Html position={[cx, -0.3, length + 0.1]} center>
-        <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
-          {width.toFixed(1)} m
-        </div>
-      </Html>
-      <Html position={[-0.4, height / 2, cz]} center>
-        <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
-          {length.toFixed(1)} m
-        </div>
-      </Html>
-      <Html position={[width + 0.3, height / 2, 0]} center>
-        <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
-          {height.toFixed(1)} m ↕
-        </div>
-      </Html>
+      {/* Measurement labels — hidden during photoreal capture */}
+      {!captureMode && (
+        <>
+          <Html position={[cx, -0.3, length + 0.1]} center>
+            <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
+              {width.toFixed(1)} m
+            </div>
+          </Html>
+          <Html position={[-0.4, height / 2, cz]} center>
+            <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
+              {length.toFixed(1)} m
+            </div>
+          </Html>
+          <Html position={[width + 0.3, height / 2, 0]} center>
+            <div className="text-xs font-bold text-amber-400 bg-zinc-900/80 px-2 py-0.5 rounded whitespace-nowrap">
+              {height.toFixed(1)} m ↕
+            </div>
+          </Html>
+        </>
+      )}
     </group>
   )
 }

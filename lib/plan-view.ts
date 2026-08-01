@@ -224,7 +224,8 @@ export function doorLeafPoints(
   wall: WallSegment,
 ): { hinge: PlanPoint; leafEnd: PlanPoint } {
   const length = wallLengthM(wall)
-  const half = door.width / 2
+  const width = clampOpeningWidthForWall(door.width, length, 0.45)
+  const half = width / 2
 
   const openingStart = pointOnWall(wall, Math.max(0, door.offset - half))
   const openingEnd = pointOnWall(wall, Math.min(length, door.offset + half))
@@ -240,9 +241,16 @@ export function windowMarkPoints(
   wall: WallSegment,
 ): { start: PlanPoint; end: PlanPoint } {
   const length = wallLengthM(wall)
-  const start = pointOnWall(wall, Math.max(0, window.offset - window.width / 2))
-  const end = pointOnWall(wall, Math.min(length, window.offset + window.width / 2))
+  const width = clampOpeningWidthForWall(window.width, length, 0.55)
+  const start = pointOnWall(wall, Math.max(0, window.offset - width / 2))
+  const end = pointOnWall(wall, Math.min(length, window.offset + width / 2))
   return { start, end }
+}
+
+function clampOpeningWidthForWall(width: number, wallLength: number, maxRatio: number): number {
+  if (!Number.isFinite(width) || width <= 0) return 0
+  if (!Number.isFinite(wallLength) || wallLength <= 0) return width
+  return Math.min(width, Math.max(0.04, wallLength * maxRatio))
 }
 
 export const PLAN_COLORS = {
