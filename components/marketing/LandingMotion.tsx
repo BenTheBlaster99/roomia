@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import ScrollPhotoCompanion from './ScrollPhotoCompanion'
 
 const HERO_PHOTO =
   'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=2400&q=80'
@@ -65,7 +64,7 @@ export function PhotoSettleSection() {
   return (
     <section className="relative overflow-hidden border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-24 md:px-6">
       <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
-        <div className="order-2 lg:order-1">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
             Studio → photo
           </p>
@@ -76,15 +75,21 @@ export function PhotoSettleSection() {
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-[var(--rm-muted)]">
             Arrange furniture in 3D, then hit Render Photo — ControlNet keeps the layout, AI paints
-            the light and materials. That floating frame is a real Roomia render.
+            the light and materials. Below is a real Roomia render.
           </p>
           <Link href="/studio" className="rm-btn-primary mt-8 px-8 py-3.5">
             Open studio
           </Link>
         </div>
 
-        <div className="order-1 lg:order-2">
-          <ScrollPhotoCompanion src="/marketing/float-dining.png" />
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[1.25rem] shadow-[0_30px_80px_-30px_rgba(14,23,20,0.45)] ring-1 ring-[var(--rm-text)]/10">
+          <Image
+            src="/marketing/float-dining.png"
+            alt="Roomia photorealistic dining room render"
+            fill
+            className="object-cover"
+            sizes="(max-width: 1024px) 100vw, 512px"
+          />
         </div>
       </div>
     </section>

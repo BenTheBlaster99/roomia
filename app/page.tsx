@@ -28,10 +28,6 @@ export default async function LandingPage() {
     <div className="min-h-screen overflow-x-hidden bg-[var(--rm-bg)] text-[var(--rm-text)]">
       <SiteNav />
       <PhotoHero />
-
-      {/* Spacer so the floating photo has runway before it docks */}
-      <div className="h-[12vh] bg-[var(--rm-bg)]" aria-hidden />
-
       <PhotoSettleSection />
       <PhotoPaths />
 

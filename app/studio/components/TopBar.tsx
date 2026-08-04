@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useStudioStore } from '@/store/useStudioStore'
 
 export default function TopBar() {
-  const [saveLabel, setSaveLabel] = useState('💾 Save')
+  const [saveLabel, setSaveLabel] = useState('Save')
   const {
     cart,
     catalogOpen,
@@ -25,7 +25,7 @@ export default function TopBar() {
   const isRedoable = canRedo()
 
   const btn =
-    'text-xs text-zinc-600 hover:text-zinc-900 px-2.5 py-1.5 border border-zinc-200 rounded-lg hover:border-zinc-300 bg-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
+    'text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)] px-2.5 py-1.5 border border-[var(--rm-text)]/12 rounded-lg hover:border-[var(--rm-primary)]/35 bg-[var(--rm-surface)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
 
   function saveDesign() {
     const { room, items } = useStudioStore.getState()
@@ -37,39 +37,42 @@ export default function TopBar() {
         savedAt: new Date().toISOString(),
       }),
     )
-    setSaveLabel('✓ Saved')
-    window.setTimeout(() => setSaveLabel('💾 Save'), 1500)
+    setSaveLabel('Saved')
+    window.setTimeout(() => setSaveLabel('Save'), 1500)
   }
 
   return (
-    <div className="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-4 flex-shrink-0 z-10">
+    <div className="h-14 bg-[var(--rm-bg)]/90 backdrop-blur-xl border-b border-[var(--rm-text)]/8 flex items-center justify-between px-4 flex-shrink-0 z-10">
       <div className="flex items-center gap-2 sm:gap-3">
-        <Link href="/" className="text-lg font-bold text-amber-600 tracking-tight">
+        <Link
+          href="/"
+          className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight text-[var(--rm-primary)]"
+        >
           roomia
         </Link>
 
-        <div className="hidden sm:block w-px h-5 bg-zinc-200" />
+        <div className="hidden sm:block w-px h-5 bg-[var(--rm-text)]/12" />
 
         <button onClick={undo} disabled={!isUndoable} title="Undo (Ctrl+Z)" className={btn}>
-          ↩ Undo
+          Undo
         </button>
         <button onClick={redo} disabled={!isRedoable} title="Redo (Ctrl+Y)" className={btn}>
-          ↪ Redo
+          Redo
         </button>
 
-        <div className="hidden sm:block w-px h-5 bg-zinc-200" />
+        <div className="hidden sm:block w-px h-5 bg-[var(--rm-text)]/12" />
 
         <button onClick={() => setRoomSettingsOpen(true)} className={btn}>
-          ⚙ Room
+          Room
         </button>
 
         <button
           onClick={() => {
             if (window.confirm('Clear all furniture from the room?')) clearRoom()
           }}
-          className={`${btn} hover:border-red-300 hover:text-red-600`}
+          className={`${btn} hover:border-red-300 hover:text-red-700`}
         >
-          🗑 Clear
+          Clear
         </button>
       </div>
 
@@ -78,23 +81,23 @@ export default function TopBar() {
           onClick={toggleCatalog}
           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
             catalogOpen
-              ? 'border-amber-500 text-amber-700 bg-amber-50'
+              ? 'border-[var(--rm-primary)] text-[var(--rm-primary)] bg-[var(--rm-secondary)]'
               : btn
           }`}
         >
-          📦 Catalog
+          Catalog
         </button>
 
-        <Link href="/room-capture" className={`hidden sm:inline ${btn}`}>
-          📷 Scan Room
+        <Link href="/room-composer" className={`hidden sm:inline ${btn}`}>
+          Compose
         </Link>
 
         <Link href="/configure" className={`hidden sm:inline ${btn}`}>
-          📐 Floor plan
+          Floor plan
         </Link>
 
         <Link href="/marketplace" className={`hidden md:inline ${btn}`}>
-          🛒 Shop
+          Shop
         </Link>
 
         <button onClick={saveDesign} className={`hidden md:inline ${btn}`}>
@@ -104,22 +107,18 @@ export default function TopBar() {
         <button
           type="button"
           onClick={() => setRenderPanelOpen(true)}
-          className="hidden sm:inline text-xs px-3 py-1.5 border border-amber-300 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
+          className="hidden sm:inline text-xs px-3 py-1.5 border border-[var(--rm-accent)]/40 rounded-lg text-[var(--rm-ink)] bg-[var(--rm-accent)]/20 hover:bg-[var(--rm-accent)]/35 transition-colors font-semibold"
         >
-          ✨ Render Photo
+          Render Photo
         </button>
-
-        <a href="mailto:contact@roomia.dz" className={`hidden lg:inline ${btn}`}>
-          📅 Book
-        </a>
 
         <button
           onClick={() => setCartOpen(true)}
-          className="flex items-center gap-2 text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors"
+          className="flex items-center gap-2 text-xs px-3 py-1.5 bg-[var(--rm-primary)] text-[var(--rm-surface)] rounded-lg font-bold hover:brightness-110 transition-colors"
         >
-          🛒
+          Cart
           {cartCount > 0 && (
-            <span className="bg-white text-amber-600 text-xs px-1.5 py-0.5 rounded-full font-bold">
+            <span className="bg-[var(--rm-surface)] text-[var(--rm-primary)] text-xs px-1.5 py-0.5 rounded font-bold">
               {cartCount}
             </span>
           )}

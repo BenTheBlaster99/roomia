@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
+import SiteNav from '@/components/marketing/SiteNav'
+import SiteFooter from '@/components/marketing/SiteFooter'
 
 const AI_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL ?? 'http://localhost:8000'
 const MAX_ZONES = 3
@@ -210,30 +211,25 @@ export default function RoomComposerPage() {
   const readyCount = zones.filter(z => z.item).length
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-20">
-        <Link href="/" className="text-xl font-bold text-amber-400 tracking-tight">
-          roomia
-        </Link>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/photo-studio" className="text-zinc-400 hover:text-white transition-colors">
-            AI Photo
-          </Link>
-          <span className="text-zinc-600">Room Composer</span>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
+      <SiteNav ctaHref="/studio" ctaLabel="Open studio" />
 
-      <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+      <div className="max-w-3xl mx-auto px-5 py-10 space-y-6 md:px-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1">Furnish your room photo</h1>
-          <p className="text-sm text-zinc-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--rm-accent)]">
+            Feature A
+          </p>
+          <h1 className="rm-display mt-2 text-3xl font-bold tracking-tight md:text-4xl">
+            Furnish your room photo
+          </h1>
+          <p className="mt-2 text-sm text-[var(--rm-muted)] leading-relaxed">
             Upload your room, tap up to {MAX_ZONES} spots to furnish, and get 3 AI-generated
             variations to choose from.
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-sm text-red-300">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}
@@ -241,12 +237,11 @@ export default function RoomComposerPage() {
         {stage === 'idle' && (
           <div className="space-y-5">
             <div
-              className="border-2 border-dashed border-zinc-700 rounded-2xl p-12 flex flex-col items-center gap-4 hover:border-amber-400 transition-colors cursor-pointer"
+              className="rm-panel border-dashed p-12 flex flex-col items-center gap-4 hover:border-[var(--rm-primary)]/40 transition-colors cursor-pointer"
               onClick={() => fileRef.current?.click()}
             >
-              <div className="text-4xl">🏠</div>
-              <div className="text-sm font-medium text-zinc-300">Upload a room photo</div>
-              <div className="text-xs text-zinc-600">JPG, PNG — any room angle works</div>
+              <div className="rm-display text-sm font-bold text-[var(--rm-primary)]">Upload a room photo</div>
+              <div className="text-xs text-[var(--rm-muted)]">JPG, PNG — any room angle works</div>
               <input
                 ref={fileRef}
                 type="file"
@@ -256,14 +251,14 @@ export default function RoomComposerPage() {
               />
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+            <div className="rm-panel p-5">
+              <p className="text-xs font-semibold text-[var(--rm-muted)] uppercase tracking-widest mb-3">
                 Tips for best results
               </p>
               <ul className="space-y-1.5">
                 {PHOTO_TIPS.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-zinc-500">
-                    <span className="text-amber-400 flex-shrink-0">·</span>
+                  <li key={i} className="flex items-start gap-2 text-xs text-[var(--rm-muted)]">
+                    <span className="text-[var(--rm-accent)] flex-shrink-0">·</span>
                     {tip}
                   </li>
                 ))}
@@ -275,15 +270,15 @@ export default function RoomComposerPage() {
         {(stage === 'placing' || stage === 'catalog') && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-[var(--rm-muted)]">
                 {zones.length < MAX_ZONES
-                  ? `👆 Tap furniture to change (${zones.length}/${MAX_ZONES} selected)`
+                  ? `Tap furniture to change (${zones.length}/${MAX_ZONES} selected)`
                   : `Maximum ${MAX_ZONES} zones selected`}
               </p>
               <button
                 type="button"
                 onClick={reset}
-                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)] transition-colors"
               >
                 Start over
               </button>
@@ -293,13 +288,13 @@ export default function RoomComposerPage() {
               <img
                 src={originalSrc}
                 alt="Your room"
-                className="w-full rounded-2xl border border-zinc-800 block cursor-crosshair"
+                className="w-full rounded-[1.25rem] border border-[var(--rm-text)]/10 block cursor-crosshair"
                 onClick={handlePhotoClick}
               />
               {zones.map((zone, i) => (
                 <div
                   key={zone.id}
-                  className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-400 bg-amber-400/20 flex items-center justify-center text-xs font-bold text-amber-400 backdrop-blur-sm pointer-events-none"
+                  className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--rm-accent)] bg-[var(--rm-accent)]/25 flex items-center justify-center text-xs font-bold text-[var(--rm-ink)] backdrop-blur-sm pointer-events-none"
                   style={{ left: `${zone.x * 100}%`, top: `${zone.y * 100}%` }}
                 >
                   {i + 1}
@@ -312,21 +307,21 @@ export default function RoomComposerPage() {
                 {zones.map((zone, i) => (
                   <div
                     key={zone.id}
-                    className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5"
+                    className="flex items-center justify-between rm-panel px-4 py-2.5"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-amber-400 text-zinc-950 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-[var(--rm-primary)] text-[var(--rm-surface)] text-xs font-bold flex items-center justify-center flex-shrink-0">
                         {i + 1}
                       </span>
                       {zone.item ? (
                         <div className="min-w-0">
                           <div className="text-xs font-semibold truncate">{zone.item.name}</div>
-                          <div className="text-xs text-zinc-500">
+                          <div className="text-xs text-[var(--rm-muted)]">
                             {zone.item.category} · {zone.item.style}
                           </div>
                         </div>
                       ) : (
-                        <span className="text-xs text-zinc-500">No item selected</span>
+                        <span className="text-xs text-[var(--rm-muted)]">No item selected</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -336,16 +331,16 @@ export default function RoomComposerPage() {
                           setActiveZoneId(zone.id)
                           setStage('catalog')
                         }}
-                        className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                        className="text-xs font-semibold text-[var(--rm-primary)] hover:underline"
                       >
                         {zone.item ? 'Change' : 'Pick item'}
                       </button>
                       <button
                         type="button"
                         onClick={() => removeZone(zone.id)}
-                        className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
+                        className="text-xs text-[var(--rm-muted)] hover:text-red-600 transition-colors"
                       >
-                        ✕
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -354,9 +349,9 @@ export default function RoomComposerPage() {
             )}
 
             {stage === 'catalog' && activeZoneId && (
-              <div className="bg-zinc-900 border border-amber-400/30 rounded-2xl p-4 space-y-3">
+              <div className="rm-panel border-[var(--rm-primary)]/25 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-amber-400">
+                  <p className="text-xs font-semibold text-[var(--rm-primary)]">
                     Pick an item for spot #{zones.findIndex(z => z.id === activeZoneId) + 1}
                   </p>
                   <button
@@ -365,9 +360,9 @@ export default function RoomComposerPage() {
                       setActiveZoneId(null)
                       setStage('placing')
                     }}
-                    className="text-xs text-zinc-500 hover:text-white transition-colors"
+                    className="text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)] transition-colors"
                   >
-                    ← Back
+                    Back
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
@@ -376,27 +371,27 @@ export default function RoomComposerPage() {
                       key={item.id}
                       type="button"
                       onClick={() => pickItemForZone(item)}
-                      className="bg-zinc-800 border border-zinc-700 rounded-xl p-2.5 text-left hover:border-amber-400/50 transition-all"
+                      className="bg-[var(--rm-surface)] border border-[var(--rm-text)]/10 rounded-xl p-2.5 text-left hover:border-[var(--rm-primary)]/40 transition-all"
                     >
                       {item.imageUrl ? (
                         <img
                           src={item.imageUrl}
                           alt=""
-                          className="w-full h-16 object-cover rounded-lg mb-1.5 bg-zinc-700"
+                          className="w-full h-16 object-cover rounded-lg mb-1.5 bg-[var(--rm-secondary)]"
                         />
                       ) : (
-                        <div className="w-full h-16 rounded-lg mb-1.5 bg-zinc-700 flex items-center justify-center text-[10px] text-zinc-500">
+                        <div className="w-full h-16 rounded-lg mb-1.5 bg-[var(--rm-secondary)] flex items-center justify-center text-[10px] text-[var(--rm-muted)]">
                           No product photo
                         </div>
                       )}
                       <div className="text-xs font-semibold truncate">{item.name}</div>
-                      <div className="text-xs text-zinc-500">{item.category}</div>
+                      <div className="text-xs text-[var(--rm-muted)]">{item.category}</div>
                       {item.imageUrl ? (
-                        <div className="text-[10px] text-green-500 mt-0.5">📷 IP-Adapter ready</div>
+                        <div className="text-[10px] text-[var(--rm-primary)] mt-0.5">IP-Adapter ready</div>
                       ) : (
-                        <div className="text-[10px] text-zinc-500 mt-0.5">text-only (weaker)</div>
+                        <div className="text-[10px] text-[var(--rm-muted)] mt-0.5">text-only</div>
                       )}
-                      <div className="text-xs text-amber-400 font-bold mt-0.5">
+                      <div className="text-xs text-[var(--rm-accent)] font-bold mt-0.5">
                         {item.price.toLocaleString()} DZD
                       </div>
                     </button>
@@ -409,9 +404,9 @@ export default function RoomComposerPage() {
               <button
                 type="button"
                 onClick={handleGenerate}
-                className="w-full py-3.5 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
+                className="w-full rm-btn-primary py-3.5 text-sm"
               >
-                ✨ Generate {readyCount} zone{readyCount > 1 ? 's' : ''} → 3 Results
+                Generate {readyCount} zone{readyCount > 1 ? 's' : ''} → 3 results
               </button>
             )}
           </div>
@@ -422,12 +417,12 @@ export default function RoomComposerPage() {
             <img
               src={originalSrc}
               alt="Processing"
-              className="w-full rounded-2xl border border-zinc-800 opacity-40"
+              className="w-full rounded-[1.25rem] border border-[var(--rm-text)]/10 opacity-40"
             />
             <div className="flex flex-col items-center gap-3 py-6">
-              <span className="w-10 h-10 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-amber-400 font-medium">Generating 3 variations...</p>
-              <p className="text-xs text-zinc-600">
+              <span className="w-10 h-10 border-2 border-[var(--rm-primary)] border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-[var(--rm-primary)] font-medium">Generating 3 variations...</p>
+              <p className="text-xs text-[var(--rm-muted)] text-center max-w-sm">
                 This can take 1–3 minutes with multiple furniture pieces. Start with 1 zone to
                 smoke-test.
               </p>
@@ -437,7 +432,7 @@ export default function RoomComposerPage() {
 
         {stage === 'results' && (
           <div className="space-y-5">
-            <p className="text-xs text-zinc-400">✓ Pick your favorite</p>
+            <p className="text-xs text-[var(--rm-muted)]">Pick your favorite</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {variations.map((src, i) => (
                 <button
@@ -446,16 +441,16 @@ export default function RoomComposerPage() {
                   onClick={() => setSelectedVariation(i)}
                   className={`relative rounded-xl overflow-hidden border-2 transition-all ${
                     selectedVariation === i
-                      ? 'border-amber-400'
-                      : 'border-zinc-800 hover:border-zinc-600'
+                      ? 'border-[var(--rm-primary)]'
+                      : 'border-[var(--rm-text)]/10 hover:border-[var(--rm-primary)]/35'
                   }`}
                 >
                   <img src={src} alt={`Variation ${i + 1}`} className="w-full" />
-                  <div className="absolute top-2 left-2 bg-zinc-950/80 text-xs px-2 py-0.5 rounded-full">
+                  <div className="absolute top-2 left-2 bg-[var(--rm-ink)]/80 text-[var(--rm-surface)] text-xs px-2 py-0.5 rounded">
                     Option {i + 1}
                   </div>
                   {selectedVariation === i && (
-                    <div className="absolute top-2 right-2 bg-amber-400 text-zinc-950 text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold">
+                    <div className="absolute top-2 right-2 bg-[var(--rm-primary)] text-[var(--rm-surface)] text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold">
                       ✓
                     </div>
                   )}
@@ -468,15 +463,15 @@ export default function RoomComposerPage() {
                 <a
                   href={variations[selectedVariation]}
                   download="roomia-design.jpg"
-                  className="flex-1 text-center py-2.5 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
+                  className="flex-1 text-center rm-btn-primary py-2.5 text-sm"
                 >
-                  ⬇ Download
+                  Download
                 </a>
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent('Check out my room design from Roomia! 🏠')}`}
+                  href={`https://wa.me/?text=${encodeURIComponent('Check out my room design from Roomia!')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 text-center py-2.5 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-green-500 hover:text-green-400 transition-colors"
+                  className="flex-1 text-center rm-btn-secondary py-2.5 text-sm"
                 >
                   Share on WhatsApp
                 </a>
@@ -486,7 +481,7 @@ export default function RoomComposerPage() {
             <button
               type="button"
               onClick={reset}
-              className="w-full py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+              className="w-full py-2 text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)] transition-colors"
             >
               Try with another photo
             </button>
@@ -497,12 +492,14 @@ export default function RoomComposerPage() {
           <button
             type="button"
             onClick={() => setStage('placing')}
-            className="w-full py-3 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
+            className="w-full rm-btn-primary py-3 text-sm"
           >
             Try Again
           </button>
         )}
       </div>
+
+      <SiteFooter />
     </div>
   )
 }
