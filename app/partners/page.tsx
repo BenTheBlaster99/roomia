@@ -1,86 +1,81 @@
 import Link from 'next/link'
+import SiteNav from '@/components/marketing/SiteNav'
+import SiteFooter from '@/components/marketing/SiteFooter'
+import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
 
 export default function PartnersPage() {
   return (
-    <div className="min-h-screen bg-stone-50 text-zinc-900">
+    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
+      <SiteNav ctaHref="mailto:partners@roomia.dz?subject=Partnership Inquiry" ctaLabel="Partner with us" />
 
-      <nav className="flex items-center justify-between px-6 py-5 border-b border-zinc-200 bg-white">
-        <Link href="/" className="text-xl font-bold text-amber-600 tracking-tight">roomia</Link>
-        <Link
-          href="/configure"
-          className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold
-                     hover:bg-amber-600 transition-all"
-        >
-          Start Designing
-        </Link>
-      </nav>
-
-      <div className="max-w-2xl mx-auto px-6 py-20 space-y-16">
-
-        <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200
-                          rounded-full px-4 py-1.5 text-xs text-amber-700 font-medium">
-            ✦ For furniture brands & retailers
-          </div>
-          <h1 className="text-4xl font-bold leading-tight">
+      <section className="relative min-h-[70svh] overflow-hidden">
+        <HaikeiBackdrop variant="hero" />
+        <div className="relative mx-auto flex min-h-[70svh] max-w-4xl flex-col justify-end px-5 pb-16 pt-24 md:justify-center md:px-6">
+          <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
+            For furniture brands & retailers
+          </p>
+          <h1 className="rm-rise rm-rise-delay-1 rm-display mt-5 text-4xl font-bold leading-[1.1] tracking-tight text-[var(--rm-ink)] md:text-6xl">
             Put your products
             <br />
             in front of ready buyers.
           </h1>
-          <p className="text-zinc-600 leading-relaxed">
-            Roomia connects Algerians designing their homes with the furniture
-            they need to make it real. When a user picks a style and budget,
-            your products appear as the recommended choice. They click. They buy.
-            You pay a commission — only on results.
+          <p className="rm-rise rm-rise-delay-2 mt-6 max-w-xl text-base leading-relaxed text-[var(--rm-muted)] md:text-lg">
+            When someone designs their home on Roomia, your catalog can be the recommendation.
+            They click through. You pay commission — only on results.
           </p>
+          <div className="rm-rise rm-rise-delay-3 mt-9">
+            <a
+              href="mailto:partners@roomia.dz?subject=Partnership Inquiry"
+              className="rm-btn-accent px-8 py-3.5 text-base"
+            >
+              Contact partners
+            </a>
+          </div>
         </div>
+      </section>
 
-        <div className="space-y-5">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-            How the partnership works
-          </h2>
-          <div className="space-y-3">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-20 md:px-6">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="rm-display text-3xl font-bold tracking-tight">How it works</h2>
+          <ol className="mt-12 space-y-0 divide-y divide-[var(--rm-text)]/10">
             {[
               {
                 n: '01',
                 title: 'We list your products',
-                desc: 'Your catalog gets added to our configurator — matched to the right styles, rooms, and budgets.',
+                desc: 'Your catalog gets matched to the right styles, rooms, and budgets inside the configurator.',
               },
               {
                 n: '02',
                 title: 'Users discover them naturally',
-                desc: 'When someone designs their living room in a minimalist style with a comfortable budget, your sofa appears as the recommendation.',
+                desc: 'A living-room design in a traditional style with a comfortable budget surfaces your sofa as the pick.',
               },
               {
                 n: '03',
                 title: 'They click through to your store',
-                desc: 'Every product links directly to your website or product page. The buyer lands on you, ready to purchase.',
+                desc: 'Every product links to your site. The buyer lands on you, ready to purchase.',
               },
               {
                 n: '04',
-                title: 'You pay commission on sales only',
-                desc: 'No upfront fees. No monthly subscriptions. We take a small commission on purchases driven through Roomia.',
+                title: 'You pay on sales only',
+                desc: 'No upfront fees. No monthly subscription. Commission only when Roomia drives a purchase.',
               },
             ].map(({ n, title, desc }) => (
-              <div
-                key={n}
-                className="flex gap-4 bg-white rounded-xl p-5 border border-zinc-200 shadow-sm"
-              >
-                <span className="text-xs font-mono text-zinc-400 mt-0.5 flex-shrink-0">{n}</span>
+              <li key={n} className="grid gap-3 py-8 sm:grid-cols-[4rem_1fr] sm:gap-8">
+                <span className="font-mono text-sm text-[var(--rm-accent)]">{n}</span>
                 <div>
-                  <div className="font-semibold text-sm mb-1">{title}</div>
-                  <div className="text-sm text-zinc-600 leading-relaxed">{desc}</div>
+                  <h3 className="rm-display text-xl font-bold">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--rm-muted)]">{desc}</p>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
+      </section>
 
-        <div className="space-y-5">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-            Why it works for you
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <section className="px-5 py-20 md:px-6">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="rm-display text-3xl font-bold tracking-tight">Why it works for you</h2>
+          <div className="mt-12 grid gap-10 sm:grid-cols-3">
             {[
               {
                 title: 'Qualified traffic',
@@ -95,23 +90,20 @@ export default function PartnersPage() {
                 desc: 'No other platform like this exists in Algeria. Early partners get the best placement.',
               },
             ].map(({ title, desc }) => (
-              <div
-                key={title}
-                className="bg-white rounded-xl p-5 border border-zinc-200 space-y-2 shadow-sm"
-              >
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <div className="font-semibold text-sm">{title}</div>
-                <div className="text-xs text-zinc-600 leading-relaxed">{desc}</div>
+              <div key={title}>
+                <div className="mb-3 h-1 w-10 bg-[var(--rm-primary)]" />
+                <h3 className="rm-display text-lg font-bold">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--rm-muted)]">{desc}</p>
               </div>
             ))}
           </div>
         </div>
+      </section>
 
-        <div className="space-y-4">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-            Who we work with
-          </h2>
-          <div className="flex flex-wrap gap-2">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-primary)] px-5 py-16 text-[var(--rm-surface)] md:px-6">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="rm-display text-2xl font-bold">Who we work with</h2>
+          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[var(--rm-surface)]/80">
             {[
               'Furniture stores',
               'Lighting brands',
@@ -121,49 +113,40 @@ export default function PartnersPage() {
               'Local manufacturers',
               'Online furniture shops',
             ].map(tag => (
-              <span
-                key={tag}
-                className="text-sm bg-white border border-zinc-200 text-zinc-600
-                           px-4 py-2 rounded-full"
-              >
+              <span key={tag} className="border-b border-[var(--rm-surface)]/25 pb-0.5">
                 {tag}
               </span>
             ))}
           </div>
         </div>
+      </section>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8
-                        text-center space-y-5">
-          <h2 className="text-xl font-bold">Interested in partnering?</h2>
-          <p className="text-sm text-zinc-600">
-            Send us a message. We&apos;ll get back to you within 24 hours to walk
-            you through the details and set up your catalog.
+      <section className="relative overflow-hidden px-5 py-24 md:px-6">
+        <HaikeiBackdrop variant="band" />
+        <div className="relative mx-auto max-w-xl text-center">
+          <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
+            Interested in partnering?
+          </h2>
+          <p className="mt-4 text-[var(--rm-muted)]">
+            Send a message. We&apos;ll reply within 24 hours to walk through details and set up your
+            catalog.
           </p>
           <a
             href="mailto:partners@roomia.dz?subject=Partnership Inquiry"
-            className="inline-block px-10 py-3.5 bg-amber-500 text-white rounded-xl
-                       text-sm font-bold hover:bg-amber-600 transition-all"
+            className="rm-btn-primary mt-8 px-10 py-3.5"
           >
-            Contact Us →
+            Contact us
           </a>
-          <p className="text-xs text-zinc-500">partners@roomia.dz</p>
+          <p className="mt-4 text-xs text-[var(--rm-muted)]">partners@roomia.dz</p>
+          <p className="mt-8 text-sm">
+            <Link href="/" className="font-semibold text-[var(--rm-primary)] hover:underline">
+              ← Back home
+            </Link>
+          </p>
         </div>
+      </section>
 
-      </div>
-
-      <footer className="border-t border-zinc-200 px-6 py-8 mt-10 bg-white">
-        <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center
-                        justify-between gap-4 text-xs text-zinc-500">
-          <span className="font-bold text-zinc-700">roomia</span>
-          <div className="flex gap-6">
-            <Link href="/" className="hover:text-zinc-800 transition-colors">Home</Link>
-            <Link href="/about" className="hover:text-zinc-800 transition-colors">About</Link>
-            <a href="mailto:contact@roomia.dz" className="hover:text-zinc-800 transition-colors">Contact</a>
-          </div>
-          <span>© 2025 Roomia. Algeria.</span>
-        </div>
-      </footer>
-
+      <SiteFooter />
     </div>
   )
 }

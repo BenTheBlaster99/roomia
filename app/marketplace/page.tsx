@@ -2,11 +2,12 @@
 
 import { useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useStudioStore } from '@/store/useStudioStore'
 import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { CATEGORIES_BY_ROOM, CATEGORY_COLORS } from '@/lib/studio-constants'
 import CartDrawer from '@/components/CartDrawer'
+import SiteNav from '@/components/marketing/SiteNav'
+import SiteFooter from '@/components/marketing/SiteFooter'
 
 const ROOM_FILTERS = ['All', 'Living Room', 'Bedroom']
 const STYLE_FILTERS = [
@@ -81,45 +82,25 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-zinc-900">
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 sticky top-0 bg-white z-20">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-xl font-bold text-amber-600 tracking-tight">
-            roomia
-          </Link>
-          <div className="hidden sm:flex items-center gap-4 text-sm">
-            <Link href="/rooms" className="text-zinc-500 hover:text-zinc-900 transition-colors">
-              Presets
-            </Link>
-            <span className="text-amber-700 font-medium">Catalog</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
+      <SiteNav
+        ctaHref="/studio"
+        ctaLabel="Open studio"
+        trailing={
           <button
             onClick={toggleCart}
-            className="flex items-center gap-2 text-xs px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors"
+            className="rm-btn-secondary text-xs"
           >
-            🛒 Cart
-            {cartCount > 0 && (
-              <span className="bg-white text-amber-600 text-xs px-1.5 py-0.5 rounded-full font-bold">
-                {cartCount}
-              </span>
-            )}
+            Cart{cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
-          <Link
-            href="/studio"
-            className="px-4 py-2 border border-zinc-200 rounded-lg text-xs text-zinc-700 hover:border-amber-400 hover:text-amber-700 transition-all bg-white"
-          >
-            Open Studio →
-          </Link>
-        </div>
-      </nav>
+        }
+      />
 
       <div className="max-w-6xl mx-auto px-6 py-8 flex gap-8">
         <aside className="w-56 flex-shrink-0 space-y-6 hidden md:block">
           <div>
-            <h1 className="text-xl font-bold mb-1">Marketplace</h1>
-            <p className="text-xs text-zinc-500">{filtered.length} pieces found</p>
+            <h1 className="rm-display text-xl font-bold mb-1">Marketplace</h1>
+            <p className="text-xs text-[var(--rm-muted)]">{filtered.length} pieces found</p>
           </div>
 
           <input
@@ -127,8 +108,8 @@ export default function MarketplacePage() {
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-xs
-                       text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-amber-400"
+            className="w-full bg-[var(--rm-surface)] border border-[var(--rm-text)]/12 rounded-lg px-3 py-2 text-xs
+                       text-[var(--rm-text)] placeholder-[var(--rm-muted)] focus:outline-none focus:border-[var(--rm-primary)]"
           />
 
           <FilterGroup title="Room">
@@ -229,6 +210,7 @@ export default function MarketplacePage() {
       </div>
 
       <CartDrawer />
+      <SiteFooter />
     </div>
   )
 }
@@ -236,7 +218,7 @@ export default function MarketplacePage() {
 function FilterGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <div className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">
+      <div className="text-xs font-semibold text-[var(--rm-muted)] uppercase tracking-widest mb-2">
         {title}
       </div>
       <div className="flex flex-wrap gap-1.5">{children}</div>
@@ -256,10 +238,10 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
+      className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
         active
-          ? 'bg-amber-500 text-white font-bold'
-          : 'bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:text-zinc-900'
+          ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)] font-bold'
+          : 'bg-[var(--rm-surface)] border border-[var(--rm-text)]/12 text-[var(--rm-muted)] hover:border-[var(--rm-primary)]/40 hover:text-[var(--rm-text)]'
       }`}
     >
       {children}
@@ -281,8 +263,7 @@ function ProductCard({
 
   return (
     <div
-      className={`bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm
-                  hover:border-amber-200 hover:shadow transition-all ${!item.available ? 'opacity-60' : ''}`}
+      className={`rm-panel overflow-hidden transition-transform hover:-translate-y-0.5 ${!item.available ? 'opacity-60' : ''}`}
     >
       <div
         className="h-36 flex items-center justify-center text-4xl relative"
@@ -290,11 +271,11 @@ function ProductCard({
       >
         {getCategoryEmoji(item.category)}
         {!item.available && (
-          <span className="absolute top-2 right-2 text-xs bg-white/90 text-zinc-500 px-2 py-0.5 rounded-full border border-zinc-200">
+          <span className="absolute top-2 right-2 text-xs bg-[var(--rm-surface)]/90 text-[var(--rm-muted)] px-2 py-0.5 rounded border border-[var(--rm-text)]/10">
             Out of stock
           </span>
         )}
-        <span className="absolute top-2 left-2 text-xs bg-white/90 text-amber-700 px-2 py-0.5 rounded-full capitalize border border-zinc-200">
+        <span className="absolute top-2 left-2 text-xs bg-[var(--rm-surface)]/90 text-[var(--rm-primary)] px-2 py-0.5 rounded capitalize border border-[var(--rm-text)]/10">
           {tier}
         </span>
       </div>
@@ -302,27 +283,27 @@ function ProductCard({
       <div className="p-4 space-y-2">
         <div>
           <div className="font-bold text-sm">{item.name}</div>
-          <div className="text-xs text-zinc-500">
+          <div className="text-xs text-[var(--rm-muted)]">
             {item.category} · {item.style}
           </div>
         </div>
-        <div className="text-sm font-bold text-amber-700">{item.price.toLocaleString()} DZD</div>
-        {item.notes && <p className="text-xs text-zinc-500 line-clamp-2">{item.notes}</p>}
+        <div className="text-sm font-bold text-[var(--rm-accent)]">{item.price.toLocaleString()} DZD</div>
+        {item.notes && <p className="text-xs text-[var(--rm-muted)] line-clamp-2">{item.notes}</p>}
 
         <div className="flex gap-2 pt-1">
           <button
             onClick={onAddToCart}
             disabled={!item.available}
-            className="flex-1 py-2 bg-stone-100 hover:bg-stone-200 disabled:opacity-30
-                       disabled:cursor-not-allowed rounded-lg text-xs text-zinc-700 transition-colors"
+            className="flex-1 py-2 bg-[var(--rm-secondary)] hover:brightness-95 disabled:opacity-30
+                       disabled:cursor-not-allowed rounded-lg text-xs text-[var(--rm-text)] transition-colors"
           >
             + Cart
           </button>
           <button
             onClick={onAddToStudio}
             disabled={!item.available}
-            className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-30
-                       disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-colors"
+            className="flex-1 py-2 bg-[var(--rm-primary)] hover:brightness-110 disabled:opacity-30
+                       disabled:cursor-not-allowed text-[var(--rm-surface)] rounded-lg text-xs font-bold transition-colors"
           >
             Add to Studio
           </button>
