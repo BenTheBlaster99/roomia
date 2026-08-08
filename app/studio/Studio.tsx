@@ -8,6 +8,7 @@ import ViewControls from './components/ViewControls'
 import SelectedPanel from './components/SelectedPanel'
 import RoomSettings from './components/RoomSettings'
 import RenderPanel from './components/RenderPanel'
+import StudioEntryGate from './components/StudioEntryGate'
 import StudioScene from './StudioScene'
 import CartDrawer from '@/components/CartDrawer'
 
@@ -39,7 +40,8 @@ export default function Studio() {
   }, [])
 
   return (
-    <div className="h-screen w-screen bg-stone-50 flex flex-col overflow-hidden">
+    <div className="h-screen w-screen bg-[var(--rm-bg)] flex flex-col overflow-hidden relative">
+      <StudioEntryGate onEnterBlank={() => {}} />
       <TopBar />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -52,7 +54,7 @@ export default function Studio() {
         </div>
 
         {catalogOpen && (
-          <div className="w-80 flex-shrink-0 border-l border-zinc-200 overflow-hidden">
+          <div className="w-80 flex-shrink-0 border-l border-[var(--rm-text)]/10 overflow-hidden">
             <CatalogSidebar />
           </div>
         )}

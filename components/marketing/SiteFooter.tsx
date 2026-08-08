@@ -1,7 +1,12 @@
-import Link from 'next/link'
+'use client'
+
+import { useTranslations } from 'next-intl'
+import { Link } from '@/i18n/navigation'
 import HaikeiBackdrop from './HaikeiBackdrop'
 
 export default function SiteFooter() {
+  const t = useTranslations('footer')
+
   return (
     <footer className="relative overflow-hidden border-t border-[var(--rm-text)]/10 bg-[var(--rm-ink)] text-[var(--rm-bg)]">
       <HaikeiBackdrop variant="footer" />
@@ -10,22 +15,20 @@ export default function SiteFooter() {
           <div className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">
             roomia
           </div>
-          <p className="mt-2 max-w-xs text-sm text-[var(--rm-bg)]/65">
-            Interior design for Algeria — scan, compose, and shop the look.
-          </p>
+          <p className="mt-2 max-w-xs text-sm text-[var(--rm-bg)]/65">{t('tagline')}</p>
         </div>
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--rm-bg)]/70">
-          <Link href="/rooms" className="hover:text-[var(--rm-bg)]">Presets</Link>
-          <Link href="/marketplace" className="hover:text-[var(--rm-bg)]">Catalog</Link>
-          <Link href="/room-composer" className="hover:text-[var(--rm-bg)]">Compose</Link>
-          <Link href="/studio" className="hover:text-[var(--rm-bg)]">Studio</Link>
-          <Link href="/about" className="hover:text-[var(--rm-bg)]">About</Link>
-          <Link href="/partners" className="hover:text-[var(--rm-bg)]">Partners</Link>
-          <a href="mailto:contact@roomia.dz" className="hover:text-[var(--rm-bg)]">Contact</a>
+          <Link href="/rooms" className="hover:text-[var(--rm-bg)]">{t('presets')}</Link>
+          <Link href="/marketplace" className="hover:text-[var(--rm-bg)]">{t('catalog')}</Link>
+          <Link href="/generateur" className="hover:text-[var(--rm-bg)]">{t('ai')}</Link>
+          <a href="/studio" className="hover:text-[var(--rm-bg)]">{t('studio')}</a>
+          <Link href="/about" className="hover:text-[var(--rm-bg)]">{t('about')}</Link>
+          <Link href="/partners" className="hover:text-[var(--rm-bg)]">{t('partners')}</Link>
+          <a href="mailto:contact@roomia.dz" className="hover:text-[var(--rm-bg)]">{t('contact')}</a>
         </div>
 
-        <p className="text-xs text-[var(--rm-bg)]/45">© 2026 Roomia · Algeria</p>
+        <p className="text-xs text-[var(--rm-bg)]/45">{t('rights')}</p>
       </div>
     </footer>
   )

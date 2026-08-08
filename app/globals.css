@@ -200,13 +200,27 @@ body {
   animation: rm-path-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes rm-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.rm-marquee {
+  animation: rm-marquee 38s linear infinite;
+}
+
+.rm-stack-panel {
+  /* each panel sits above previous while sticky */
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rm-kenburns,
   .rm-scroll-pulse,
   .rm-wave-drift,
   .rm-wave-drift-slow,
   .rm-float,
-  .rm-path-reveal {
+  .rm-path-reveal,
+  .rm-marquee {
     animation: none !important;
     opacity: 1;
   }

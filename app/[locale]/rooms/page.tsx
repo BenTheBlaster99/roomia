@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { supabase } from '@/lib/supabase'
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import type { RoomPresetRow } from '@/types/room-preset'
@@ -6,11 +7,16 @@ import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
 
-export const metadata = {
-  title: 'Room Presets — Roomia',
-}
+export default async function RoomsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  setRequestLocale(locale)
+  const t = await getTranslations('rooms')
+  const tNav = await getTranslations('nav')
 
-export default async function RoomsPage() {
   const { data: presets, error } = await supabase
     .from('room_presets')
     .select('id, name, room_type, style_id, budget_tier, thumbnail_url, room_config')
@@ -22,17 +28,9 @@ export default async function RoomsPage() {
       <div className="min-h-screen bg-[var(--rm-bg)] px-6 py-16 text-[var(--rm-text)]">
         <SiteNav />
         <div className="mx-auto max-w-2xl text-center pt-16">
-          <h1 className="rm-display text-2xl font-bold mb-4">Room presets</h1>
-          <p className="text-[var(--rm-muted)] mb-6">
-            Could not load presets. Run{' '}
-            <code className="text-sm bg-[var(--rm-secondary)] px-1 rounded">supabase/room_presets.sql</code>{' '}
-            in Supabase, then{' '}
-            <code className="text-sm bg-[var(--rm-secondary)] px-1 rounded">npm run generate-presets</code>.
-          </p>
+          <h1 className="rm-display text-2xl font-bold mb-4">{t('title')}</h1>
+          <p className="text-[var(--rm-muted)] mb-6">{t('error')}</p>
           <p className="text-sm text-red-700">{error.message}</p>
-          <Link href="/configure" className="inline-block mt-8 font-semibold text-[var(--rm-primary)] hover:underline">
-            ← Start from scratch
-          </Link>
         </div>
       </div>
     )
@@ -45,28 +43,25 @@ export default async function RoomsPage() {
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav ctaHref="/configure" ctaLabel="Custom room" />
+      <SiteNav ctaHref="/studio?create=1" ctaLabel={tNav('ctaCustom')} />
 
       <section className="relative overflow-hidden border-b border-[var(--rm-text)]/8">
         <HaikeiBackdrop variant="band" />
         <div className="relative mx-auto max-w-6xl px-5 py-14 md:px-6">
-          <h1 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">
-            Curated room presets
-          </h1>
-          <p className="mt-3 max-w-xl text-[var(--rm-muted)]">
-            Pick a styled living room or bedroom — open it in the 3D studio and customize from there.
-          </p>
+          <h1 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">{t('title')}</h1>
+          <p className="mt-3 max-w-xl text-[var(--rm-muted)]">{t('sub')}</p>
+          <div className="mt-6">
+            <a href="/studio?create=1" className="rm-btn-primary text-sm">
+              {t('custom')}
+            </a>
+          </div>
         </div>
       </section>
 
       <main className="mx-auto max-w-6xl px-5 py-12 md:px-6">
         {rows.length === 0 ? (
           <div className="rm-panel border-dashed p-12 text-center">
-            <p className="text-[var(--rm-muted)] mb-4">No presets yet.</p>
-            <p className="text-sm text-[var(--rm-muted)]">
-              Run <code className="bg-[var(--rm-secondary)] px-1 rounded">npm run generate-presets</code> after
-              applying <code className="bg-[var(--rm-secondary)] px-1 rounded">supabase/room_presets.sql</code>.
-            </p>
+            <p className="text-[var(--rm-muted)]">{t('empty')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -78,7 +73,7 @@ export default async function RoomsPage() {
               const wall = preset.room_config?.wallColor ?? colors.main
 
               return (
-                <Link
+                <a
                   key={preset.id}
                   href={`/studio?preset=${preset.id}`}
                   className="group rm-panel block overflow-hidden transition-transform hover:-translate-y-1"
@@ -100,10 +95,10 @@ export default async function RoomsPage() {
                       {preset.name}
                     </h2>
                     <p className="text-sm text-[var(--rm-muted)] mt-1 capitalize">
-                      {preset.budget_tier} · Open in studio →
+                      {preset.budget_tier} · {t('open')}
                     </p>
                   </div>
-                </Link>
+                </a>
               )
             })}
           </div>

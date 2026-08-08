@@ -1,17 +1,27 @@
-import Link from 'next/link'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { supabase } from '@/lib/supabase'
 import { MOCK_CATALOG } from '@/lib/mock-catalog'
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
+import CatalogMarquee from '@/components/marketing/CatalogMarquee'
 import {
   PhotoHero,
-  PhotoPaths,
   PhotoSettleSection,
+  StackedPaths,
 } from '@/components/marketing/LandingMotion'
 
-export default async function LandingPage() {
+export default async function LandingPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  setRequestLocale(locale)
+  const t = await getTranslations('home')
+
   const [{ data: styles }, { data: presets, count: presetCount }] = await Promise.all([
     supabase.from('styles').select('id, name, tagline, main_color, accent_color'),
     supabase
@@ -28,16 +38,17 @@ export default async function LandingPage() {
     <div className="min-h-screen overflow-x-hidden bg-[var(--rm-bg)] text-[var(--rm-text)]">
       <SiteNav />
       <PhotoHero />
+      <StackedPaths />
+      <CatalogMarquee />
       <PhotoSettleSection />
-      <PhotoPaths />
 
       <section className="border-y border-[var(--rm-text)]/8 bg-[var(--rm-primary)] px-5 py-10 text-[var(--rm-surface)] md:px-6">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 md:grid-cols-4">
           {[
-            { value: String(styles?.length ?? 5), label: 'Design styles' },
-            { value: String(presetCount ?? 10), label: 'Room presets' },
-            { value: String(catalogCount), label: 'Catalog pieces' },
-            { value: 'AI', label: 'Photo + 3D render' },
+            { value: String(styles?.length ?? 5), label: t('statsStyles') },
+            { value: String(presetCount ?? 10), label: t('statsPresets') },
+            { value: String(catalogCount), label: t('statsCatalog') },
+            { value: 'AI', label: t('statsAi') },
           ].map(({ value, label }) => (
             <div key={label}>
               <div className="rm-display text-3xl font-bold tracking-tight md:text-4xl">{value}</div>
@@ -55,15 +66,15 @@ export default async function LandingPage() {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
-                  Start from a preset
+                  {t('presetsTitle')}
                 </h2>
-                <p className="mt-2 text-[var(--rm-muted)]">Architect-curated rooms, ready in studio.</p>
+                <p className="mt-2 text-[var(--rm-muted)]">{t('presetsSub')}</p>
               </div>
               <Link
                 href="/rooms"
                 className="shrink-0 text-sm font-semibold text-[var(--rm-primary)] hover:underline"
               >
-                View all →
+                {t('presetsAll')}
               </Link>
             </div>
 
@@ -76,7 +87,7 @@ export default async function LandingPage() {
                 const wall = preset.room_config?.wallColor ?? colors.main
 
                 return (
-                  <Link
+                  <a
                     key={preset.id}
                     href={`/studio?preset=${preset.id}`}
                     className="group overflow-hidden rm-panel transition-transform hover:-translate-y-1"
@@ -95,9 +106,9 @@ export default async function LandingPage() {
                       <div className="truncate text-sm font-bold group-hover:text-[var(--rm-primary)]">
                         {preset.name}
                       </div>
-                      <div className="mt-0.5 text-xs text-[var(--rm-muted)]">Open in studio →</div>
+                      <div className="mt-0.5 text-xs text-[var(--rm-muted)]">{t('presetsOpen')}</div>
                     </div>
-                  </Link>
+                  </a>
                 )
               })}
             </div>
@@ -108,17 +119,15 @@ export default async function LandingPage() {
       <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-20 md:px-6">
         <div className="mx-auto max-w-6xl">
           <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
-            Styles with a point of view
+            {t('stylesTitle')}
           </h2>
-          <p className="mt-3 max-w-lg text-[var(--rm-muted)]">
-            Five curated directions — every preset and catalog piece is tagged.
-          </p>
+          <p className="mt-3 max-w-lg text-[var(--rm-muted)]">{t('stylesSub')}</p>
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {styles?.map(style => (
               <Link
                 key={style.id}
-                href="/rooms"
+                href="/styles"
                 className="group rm-panel p-5 transition-colors hover:border-[var(--rm-primary)]/30"
               >
                 <div className="mb-4 flex h-10 overflow-hidden rounded-lg">
@@ -139,19 +148,17 @@ export default async function LandingPage() {
         <HaikeiBackdrop variant="band" />
         <div className="relative mx-auto max-w-3xl text-center">
           <h2 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">
-            Your space.
+            {t('ctaTitle1')}
             <br />
-            Your rules.
+            {t('ctaTitle2')}
           </h2>
-          <p className="mx-auto mt-5 max-w-md text-[var(--rm-muted)]">
-            Free to explore. No account needed. Design today — quote when you&apos;re ready.
-          </p>
+          <p className="mx-auto mt-5 max-w-md text-[var(--rm-muted)]">{t('ctaBody')}</p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/configure" className="rm-btn-primary px-10 py-3.5 text-base">
-              Start designing
+            <Link href="/generateur" className="rm-btn-primary px-10 py-3.5 text-base">
+              {t('ctaDesign')}
             </Link>
             <Link href="/marketplace" className="rm-btn-secondary px-10 py-3.5 text-base">
-              Browse catalog
+              {t('ctaShop')}
             </Link>
           </div>
         </div>

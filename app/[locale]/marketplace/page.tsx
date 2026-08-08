@@ -8,6 +8,7 @@ import { CATEGORIES_BY_ROOM, CATEGORY_COLORS } from '@/lib/studio-constants'
 import CartDrawer from '@/components/CartDrawer'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
+import { useTranslations } from 'next-intl'
 
 const ROOM_FILTERS = ['All', 'Living Room', 'Bedroom']
 const STYLE_FILTERS = [
@@ -37,6 +38,8 @@ function getCategoryEmoji(cat: string) {
 }
 
 export default function MarketplacePage() {
+  const t = useTranslations('marketplace')
+  const tNav = useTranslations('nav')
   const router = useRouter()
   const addItemFromCatalog = useStudioStore(s => s.addItemFromCatalog)
   const addToCart = useStudioStore(s => s.addToCart)
@@ -85,13 +88,13 @@ export default function MarketplacePage() {
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
       <SiteNav
         ctaHref="/studio"
-        ctaLabel="Open studio"
+        ctaLabel={tNav('ctaStudio')}
         trailing={
           <button
             onClick={toggleCart}
             className="rm-btn-secondary text-xs"
           >
-            Cart{cartCount > 0 ? ` (${cartCount})` : ''}
+            {t('cart')}{cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
         }
       />
@@ -99,13 +102,13 @@ export default function MarketplacePage() {
       <div className="max-w-6xl mx-auto px-6 py-8 flex gap-8">
         <aside className="w-56 flex-shrink-0 space-y-6 hidden md:block">
           <div>
-            <h1 className="rm-display text-xl font-bold mb-1">Marketplace</h1>
-            <p className="text-xs text-[var(--rm-muted)]">{filtered.length} pieces found</p>
+            <h1 className="rm-display text-xl font-bold mb-1">{t('title')}</h1>
+            <p className="text-xs text-[var(--rm-muted)]">{filtered.length} {t('found')}</p>
           </div>
 
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full bg-[var(--rm-surface)] border border-[var(--rm-text)]/12 rounded-lg px-3 py-2 text-xs
