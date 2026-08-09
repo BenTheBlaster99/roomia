@@ -3,21 +3,26 @@
 import { useState } from 'react'
 import { useStudioStore } from '@/store/useStudioStore'
 import { FLOOR_MATERIALS } from '@/lib/studio-constants'
+import ImageLightbox from '@/components/ImageLightbox'
 
 const AI_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL ?? 'http://localhost:8000'
 
 export default function RenderPanel() {
-  const { renderPanelOpen, setRenderPanelOpen, canvasRef, room, activeRoom } = useStudioStore()
+  const { renderPanelOpen, setRenderPanelOpen, canvasRef, room, activeRoom, setViewMode } =
+    useStudioStore()
   const [stage, setStage] = useState<'idle' | 'rendering' | 'done' | 'error'>('idle')
   const [beforeSrc, setBeforeSrc] = useState('')
   const [afterSrc, setAfterSrc] = useState('')
   const [error, setError] = useState<string | null>(null)
+  /** If true, jump to eye-level capture preset before shooting. Else use whatever view the user framed. */
+  const [useEyeLevel, setUseEyeLevel] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
 
   if (!renderPanelOpen) return null
 
   async function handleRender() {
     if (!canvasRef) {
-      setError('Could not capture the 3D view. Try reopening the panel.')
+      setError('Impossible de capturer la vue 3D. Réessayez.')
       setStage('error')
       return
     }
@@ -29,15 +34,22 @@ export default function RenderPanel() {
     const previousView = store.viewMode
 
     try {
-      // Eye-level framing + hide editor chrome, then wait for camera settle
-      store.setViewMode('capture')
       store.setCaptureMode(true)
       store.selectItem(null)
-      await new Promise(r => setTimeout(r, 900))
+
+      if (useEyeLevel) {
+        store.setViewMode('capture')
+        await new Promise(r => setTimeout(r, 900))
+      } else {
+        // Keep user's framed view; short settle for chrome hide
+        await new Promise(r => setTimeout(r, 350))
+      }
 
       const dataUrl = canvasRef.toDataURL('image/jpeg', 0.95)
       store.setCaptureMode(false)
-      store.setViewMode(previousView === 'capture' ? 'perspective' : previousView)
+      if (useEyeLevel) {
+        store.setViewMode(previousView === 'capture' ? 'perspective' : previousView)
+      }
 
       setBeforeSrc(dataUrl)
 
@@ -63,12 +75,16 @@ export default function RenderPanel() {
       setStage('done')
     } catch (err: unknown) {
       useStudioStore.getState().setCaptureMode(false)
-      useStudioStore.getState().setViewMode(previousView === 'capture' ? 'perspective' : previousView)
+      if (useEyeLevel) {
+        useStudioStore
+          .getState()
+          .setViewMode(previousView === 'capture' ? 'perspective' : previousView)
+      }
 
       const message = err instanceof Error ? err.message : 'Something went wrong'
       setError(
         message.toLowerCase().includes('fetch')
-          ? 'Could not reach AI backend. Make sure it is running on port 8000.'
+          ? 'Backend IA inaccessible. Vérifiez que le serveur tourne.'
           : message,
       )
       setStage('error')
@@ -84,124 +100,167 @@ export default function RenderPanel() {
     setBeforeSrc('')
     setAfterSrc('')
     setError(null)
+    setLightboxSrc(null)
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={close}
-    >
+    <>
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5"
-        onClick={e => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+        onClick={close}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-white">Photorealistic Render</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Turn your 3D design into a realistic photo
-            </p>
+        <div
+          className="max-h-[90vh] w-full max-w-2xl space-y-5 overflow-y-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-6"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-white">Rendu photoréaliste</h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Cadrez la vue 3D comme vous voulez, puis générez
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={close}
+              className="text-xl leading-none text-zinc-500 hover:text-white"
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={close}
-            className="text-zinc-500 hover:text-white text-xl leading-none"
-          >
-            ×
-          </button>
-        </div>
 
-        {error && (
-          <div className="bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-sm text-red-300">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="rounded-xl border border-red-700/50 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
 
-        {stage === 'idle' && (
-          <div className="space-y-4">
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              We&apos;ll move to an eye-level camera, hide the editor grid/labels, capture your room,
-              then generate a photorealistic version with realistic materials and lighting.
-            </p>
+          {stage === 'idle' && (
+            <div className="space-y-4">
+              <p className="text-sm leading-relaxed text-zinc-400">
+                Orbitez et zoomez dans le studio pour choisir l&apos;angle. Le rendu utilise{' '}
+                <strong className="text-zinc-200">la vue actuelle</strong> (grille et labels
+                masqués). Ou activez la vue photo niveau des yeux.
+              </p>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={useEyeLevel}
+                  onChange={e => setUseEyeLevel(e.target.checked)}
+                  className="mt-1 accent-amber-400"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-zinc-200">
+                    Vue photo (niveau des yeux)
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    Ignore votre cadrage et utilise le preset Photo
+                  </span>
+                </span>
+              </label>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('capture')
+                  }}
+                  className="flex-1 rounded-xl border border-zinc-600 py-2.5 text-sm text-zinc-300 hover:border-amber-400 hover:text-amber-400"
+                >
+                  Prévisualiser vue Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRender}
+                  className="flex-1 rounded-xl bg-amber-400 py-3 text-sm font-bold text-zinc-950 hover:bg-amber-300"
+                >
+                  Générer le rendu
+                </button>
+              </div>
+            </div>
+          )}
+
+          {stage === 'rendering' && (
+            <div className="space-y-4">
+              {beforeSrc && (
+                <img
+                  src={beforeSrc}
+                  alt="Capture"
+                  className="w-full rounded-xl border border-zinc-800 opacity-50"
+                />
+              )}
+              <div className="flex items-center justify-center gap-3 py-4">
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                <span className="text-sm text-amber-400">
+                  {beforeSrc ? 'Rendu en cours… (20–40 s)' : 'Capture de la vue…'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {stage === 'done' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  className="text-left"
+                  onClick={() => setLightboxSrc(beforeSrc)}
+                >
+                  <p className="mb-1.5 text-xs text-zinc-500">Vue 3D (capture)</p>
+                  <img
+                    src={beforeSrc}
+                    alt="Avant"
+                    className="w-full cursor-zoom-in rounded-xl border border-zinc-800 transition hover:border-zinc-500"
+                  />
+                  <p className="mt-1 text-[10px] text-zinc-600">Cliquer pour agrandir</p>
+                </button>
+                <button
+                  type="button"
+                  className="text-left"
+                  onClick={() => setLightboxSrc(afterSrc)}
+                >
+                  <p className="mb-1.5 text-xs text-zinc-500">Photoréaliste</p>
+                  <img
+                    src={afterSrc}
+                    alt="Après"
+                    className="w-full cursor-zoom-in rounded-xl border border-amber-400/50 transition hover:border-amber-300"
+                  />
+                  <p className="mt-1 text-[10px] text-zinc-600">Cliquer pour agrandir</p>
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <a
+                  href={afterSrc}
+                  download="roomia-render.jpg"
+                  className="flex-1 rounded-xl bg-amber-400 py-2.5 text-center text-sm font-bold text-zinc-950 hover:bg-amber-300"
+                >
+                  Télécharger
+                </a>
+                <button
+                  type="button"
+                  onClick={handleRender}
+                  className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-300 hover:border-amber-400 hover:text-amber-400"
+                >
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {stage === 'error' && (
             <button
               type="button"
               onClick={handleRender}
-              className="w-full py-3 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
+              className="w-full rounded-xl bg-amber-400 py-3 text-sm font-bold text-zinc-950 hover:bg-amber-300"
             >
-              ✨ Generate Photorealistic Render
+              Réessayer
             </button>
-          </div>
-        )}
-
-        {stage === 'rendering' && (
-          <div className="space-y-4">
-            {beforeSrc && (
-              <img
-                src={beforeSrc}
-                alt="Capturing"
-                className="w-full rounded-xl border border-zinc-800 opacity-50"
-              />
-            )}
-            <div className="flex items-center justify-center gap-3 py-4">
-              <span className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-amber-400">
-                {beforeSrc
-                  ? 'Rendering... (20–40 seconds)'
-                  : 'Framing camera & capturing...'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {stage === 'done' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs text-zinc-500 mb-1.5">3D View (clean capture)</p>
-                <img
-                  src={beforeSrc}
-                  alt="Before"
-                  className="w-full rounded-xl border border-zinc-800"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1.5">Photorealistic</p>
-                <img
-                  src={afterSrc}
-                  alt="After"
-                  className="w-full rounded-xl border border-amber-400/50"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <a
-                href={afterSrc}
-                download="roomia-render.jpg"
-                className="flex-1 text-center py-2.5 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
-              >
-                ⬇ Download
-              </a>
-              <button
-                type="button"
-                onClick={handleRender}
-                className="flex-1 py-2.5 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
-              >
-                🔄 Try Again
-              </button>
-            </div>
-          </div>
-        )}
-
-        {stage === 'error' && (
-          <button
-            type="button"
-            onClick={handleRender}
-            className="w-full py-3 bg-amber-400 text-zinc-950 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors"
-          >
-            Try Again
-          </button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      <ImageLightbox src={lightboxSrc} alt="Rendu Roomia" onClose={() => setLightboxSrc(null)} />
+    </>
   )
 }

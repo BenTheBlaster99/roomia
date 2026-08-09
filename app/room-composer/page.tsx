@@ -6,6 +6,7 @@ import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
+import ImageLightbox from '@/components/ImageLightbox'
 
 const AI_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL ?? 'http://localhost:8000'
 const MAX_ZONES = 3
@@ -44,6 +45,7 @@ export default function RoomComposerPage() {
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
   const [variations, setVariations] = useState<string[]>([])
   const [selectedVariation, setSelectedVariation] = useState<number | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [catalog, setCatalog] = useState<CatalogItem[]>(MOCK_CATALOG.filter(c => c.available))
 
@@ -432,34 +434,60 @@ export default function RoomComposerPage() {
 
         {stage === 'results' && (
           <div className="space-y-5">
-            <p className="text-xs text-[var(--rm-muted)]">Pick your favorite</p>
+            <p className="text-xs text-[var(--rm-muted)]">
+              Cliquez pour sélectionner · double-clic ou « Agrandir » pour zoomer
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {variations.map((src, i) => (
-                <button
+                <div
                   key={i}
-                  type="button"
-                  onClick={() => setSelectedVariation(i)}
-                  className={`relative rounded-xl overflow-hidden border-2 transition-all ${
+                  className={`relative overflow-hidden rounded-xl border-2 transition-all ${
                     selectedVariation === i
                       ? 'border-[var(--rm-primary)]'
                       : 'border-[var(--rm-text)]/10 hover:border-[var(--rm-primary)]/35'
                   }`}
                 >
-                  <img src={src} alt={`Variation ${i + 1}`} className="w-full" />
-                  <div className="absolute top-2 left-2 bg-[var(--rm-ink)]/80 text-[var(--rm-surface)] text-xs px-2 py-0.5 rounded">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVariation(i)}
+                    onDoubleClick={() => setLightboxSrc(src)}
+                    className="block w-full text-left"
+                  >
+                    <img
+                      src={src}
+                      alt={`Variation ${i + 1}`}
+                      className="w-full cursor-zoom-in"
+                    />
+                  </button>
+                  <div className="pointer-events-none absolute top-2 left-2 rounded bg-[var(--rm-ink)]/80 px-2 py-0.5 text-xs text-[var(--rm-surface)]">
                     Option {i + 1}
                   </div>
                   {selectedVariation === i && (
-                    <div className="absolute top-2 right-2 bg-[var(--rm-primary)] text-[var(--rm-surface)] text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold">
+                    <div className="pointer-events-none absolute top-2 right-10 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--rm-primary)] text-xs font-bold text-[var(--rm-surface)]">
                       ✓
                     </div>
                   )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxSrc(src)}
+                    title="Agrandir"
+                    className="absolute top-2 right-2 rounded-md bg-[var(--rm-ink)]/75 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--rm-surface)] hover:bg-[var(--rm-ink)]"
+                  >
+                    Zoom
+                  </button>
+                </div>
               ))}
             </div>
 
             {selectedVariation !== null && (
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setLightboxSrc(variations[selectedVariation])}
+                  className="flex-1 text-center rm-btn-secondary py-2.5 text-sm"
+                >
+                  Voir en grand
+                </button>
                 <a
                   href={variations[selectedVariation]}
                   download="roomia-design.jpg"
@@ -485,6 +513,12 @@ export default function RoomComposerPage() {
             >
               Try with another photo
             </button>
+
+            <ImageLightbox
+              src={lightboxSrc}
+              alt="Variation Roomia"
+              onClose={() => setLightboxSrc(null)}
+            />
           </div>
         )}
 

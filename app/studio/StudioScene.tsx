@@ -3,7 +3,10 @@
 import { useRef, useEffect, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { CameraControls, Grid } from '@react-three/drei'
+import CameraControlsImpl from 'camera-controls'
 import * as THREE from 'three'
+
+const { ACTION } = CameraControlsImpl
 import { useStudioStore } from '@/store/useStudioStore'
 import Room from './components/Room'
 import FurniturePiece from './components/FurniturePiece'
@@ -36,12 +39,34 @@ function CameraController() {
     if (v) cc.setLookAt(v[0], v[1], v[2], v[3], v[4], v[5], true)
   }, [viewMode, width, length, height, cx, cz, pad])
 
+  // Free look in 3D / photo modes; orthographic-ish presets stay constrained
+  const lockedTop = viewMode === 'top'
+  const freeLook = viewMode === 'perspective' || viewMode === 'capture'
+
   return (
     <CameraControls
       ref={ccRef}
       enabled={!draggingId && !isRotating}
-      maxPolarAngle={viewMode === 'top' ? 0.01 : Math.PI / 2 - 0.02}
       makeDefault
+      minDistance={0.8}
+      maxDistance={pad * 6}
+      dollySpeed={0.85}
+      truckSpeed={1.2}
+      polarRotateSpeed={freeLook ? 0.9 : 0.35}
+      azimuthRotateSpeed={freeLook ? 0.9 : 0.5}
+      maxPolarAngle={lockedTop ? 0.01 : Math.PI * 0.92}
+      minPolarAngle={lockedTop ? 0 : 0.08}
+      mouseButtons={{
+        left: ACTION.ROTATE,
+        middle: ACTION.TRUCK,
+        right: ACTION.TRUCK,
+        wheel: ACTION.DOLLY,
+      }}
+      touches={{
+        one: ACTION.TOUCH_ROTATE,
+        two: ACTION.TOUCH_DOLLY_TRUCK,
+        three: ACTION.TOUCH_TRUCK,
+      }}
     />
   )
 }
@@ -115,6 +140,8 @@ export default function StudioScene() {
         }}
         onCreated={({ gl }) => {
           useStudioStore.getState().setCanvasRef(gl.domElement)
+          // Allow right-drag pan without the browser context menu
+          gl.domElement.addEventListener('contextmenu', e => e.preventDefault())
         }}
         onPointerMissed={() => selectItem(null)}
       >
