@@ -135,14 +135,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   loadPreset: payload => {
     const styleName = payload.styleId ? SLUG_TO_STYLE[payload.styleId] : null
     const furniture = Array.isArray(payload.furniture) ? payload.furniture : []
-    const room: RoomConfig = {
+    const defaults: RoomConfig = {
       width: 5,
       length: 6,
       height: 2.8,
       floorMaterial: 'wood',
       wallColor: '#F5F0EB',
-      ...payload.room,
     }
+    const room: RoomConfig = { ...defaults, ...payload.room }
     set({
       room,
       items: furniture.map(item => ({

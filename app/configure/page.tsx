@@ -123,11 +123,9 @@ export default function ConfiguratorPage() {
             </p>
             <div className="mt-4">
               <RoomScanner
-                onResult={result => {
-                  if (result.width_m) setConfig(c => ({ ...c, width: String(result.width_m) }))
-                  if (result.length_m) setConfig(c => ({ ...c, length: String(result.length_m) }))
-                  if (result.height_m) setConfig(c => ({ ...c, height: String(result.height_m) }))
-                }}
+                width={config.width}
+                length={config.length}
+                height={config.height}
               />
             </div>
           </div>

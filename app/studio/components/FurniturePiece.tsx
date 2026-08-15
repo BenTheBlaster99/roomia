@@ -30,7 +30,8 @@ function RotationHandle({ item }: { item: PlacedItem }) {
         rotation={[Math.PI / 2, 0, 0]}
         onPointerDown={e => {
           e.stopPropagation()
-          ;(e.target as THREE.Mesh).setPointerCapture?.(e.pointerId)
+          const el = e.nativeEvent.target
+          if (el instanceof Element) el.setPointerCapture(e.pointerId)
           startRotationMode(item.id, e.point.x, e.point.z)
         }}
       >
