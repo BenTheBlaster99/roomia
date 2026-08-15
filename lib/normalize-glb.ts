@@ -26,19 +26,12 @@ export function configureGlbMaterials(root: THREE.Object3D) {
     const mesh = child as THREE.Mesh
     if (!mesh.isMesh || !mesh.geometry) return
 
-    if (mesh.geometry.attributes.COLOR_0) {
-      mesh.material = new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        roughness: 0.72,
-        metalness: 0.04,
-      })
-      return
-    }
-
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-    for (const mat of materials) {
-      if (!mat) continue
+    const applyPbr = (mat: THREE.Material) => {
       const standard = mat as THREE.MeshStandardMaterial
+      // InstantMesh iso-surfaces are single-sided Swiss cheese; DoubleSide
+      // hides the floor showing through backfaces on fabric.
+      standard.side = THREE.DoubleSide
+      standard.shadowSide = THREE.DoubleSide
       if (standard.map) {
         standard.map.colorSpace = THREE.SRGBColorSpace
         standard.map.needsUpdate = true
@@ -54,6 +47,26 @@ export function configureGlbMaterials(root: THREE.Object3D) {
         standard.roughness = 0.72
       }
       standard.needsUpdate = true
+    }
+
+    if (mesh.geometry.attributes.COLOR_0) {
+      const existing = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+      const keepMap = (existing as THREE.MeshStandardMaterial | undefined)?.map
+      mesh.material = new THREE.MeshStandardMaterial({
+        vertexColors: !keepMap,
+        map: keepMap ?? null,
+        roughness: 0.72,
+        metalness: 0.04,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+      })
+      applyPbr(mesh.material)
+      return
+    }
+
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const mat of materials) {
+      if (mat) applyPbr(mat)
     }
   })
 }

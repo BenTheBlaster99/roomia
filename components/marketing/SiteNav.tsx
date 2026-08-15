@@ -1,8 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
+import { supabase } from '@/lib/supabase'
 import LanguageToggle from './LanguageToggle'
 
 export default function SiteNav({
@@ -15,13 +17,27 @@ export default function SiteNav({
   trailing?: ReactNode
 }) {
   const t = useTranslations('nav')
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setLoggedIn(Boolean(data.session))
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setLoggedIn(Boolean(session))
+    })
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
+  }, [])
 
   const links = [
     { href: '/styles', label: t('styles') },
     { href: '/marketplace', label: t('catalog') },
     { href: '/generateur', label: t('ai') },
     { href: '/studio', label: t('studio'), external: true },
-    { href: '/partners', label: t('partners') },
   ] as const
 
   return (
@@ -58,11 +74,27 @@ export default function SiteNav({
 
         <div className="flex items-center gap-2">
           <LanguageToggle />
+          {loggedIn ? (
+            <a
+              href="/dashboard"
+              className="hidden text-sm font-semibold text-[var(--rm-primary)] transition-opacity hover:opacity-80 sm:inline"
+            >
+              {t('dashboard')}
+            </a>
+          ) : (
+            <a
+              href="/dashboard/login"
+              className="hidden rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)] transition-opacity hover:opacity-80 sm:inline"
+            >
+              {t('pro')}
+            </a>
+          )}
           {trailing}
           {ctaHref.startsWith('/') &&
           !ctaHref.startsWith('/studio') &&
           !ctaHref.startsWith('/configure') &&
-          !ctaHref.startsWith('/room') ? (
+          !ctaHref.startsWith('/room') &&
+          !ctaHref.startsWith('/dashboard') ? (
             <Link href={ctaHref} className="rm-btn-primary text-sm">
               {ctaLabel ?? t('cta')}
             </Link>

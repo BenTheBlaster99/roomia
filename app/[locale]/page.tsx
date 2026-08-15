@@ -118,16 +118,26 @@ export default async function LandingPage({
 
       <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-20 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
-            {t('stylesTitle')}
-          </h2>
-          <p className="mt-3 max-w-lg text-[var(--rm-muted)]">{t('stylesSub')}</p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
+                {t('stylesTitle')}
+              </h2>
+              <p className="mt-3 max-w-lg text-[var(--rm-muted)]">{t('stylesSub')}</p>
+            </div>
+            <Link
+              href="/quiz"
+              className="shrink-0 text-sm font-semibold text-[var(--rm-primary)] hover:underline"
+            >
+              {t('stylesQuiz')}
+            </Link>
+          </div>
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {styles?.map(style => (
               <Link
                 key={style.id}
-                href="/styles"
+                href={`/styles#${style.id}`}
                 className="group rm-panel p-5 transition-colors hover:border-[var(--rm-primary)]/30"
               >
                 <div className="mb-4 flex h-10 overflow-hidden rounded-lg">
@@ -156,6 +166,9 @@ export default async function LandingPage({
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/generateur" className="rm-btn-primary px-10 py-3.5 text-base">
               {t('ctaDesign')}
+            </Link>
+            <Link href="/quiz" className="rm-btn-accent px-10 py-3.5 text-base">
+              {t('ctaQuiz')}
             </Link>
             <Link href="/marketplace" className="rm-btn-secondary px-10 py-3.5 text-base">
               {t('ctaShop')}

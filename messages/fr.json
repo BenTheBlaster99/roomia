@@ -9,11 +9,21 @@
     "ai": "Générateur IA",
     "studio": "Studio 3D",
     "partners": "Partenaires",
+    "pro": "Pro",
+    "dashboard": "Tableau de bord",
     "cta": "Commencer",
     "ctaStudio": "Ouvrir le studio",
     "ctaCustom": "Créer le vôtre",
     "langFr": "FR",
     "langEn": "EN"
+  },
+  "dashboard": {
+    "title": "Tableau de bord Pro",
+    "workspace": "Espace de travail",
+    "generate": "Générer",
+    "onboardTitle": "Upload → Épingler → Générer",
+    "login": "Connexion",
+    "signup": "Créer un compte"
   },
   "footer": {
     "tagline": "Design d'intérieur pour l'Algérie — scannez, composez et achetez le look.",
@@ -66,27 +76,71 @@
     "ctaTitle2": "Vos règles.",
     "ctaBody": "Gratuit pour explorer. Pas de compte requis. Concevez aujourd'hui — devis quand vous êtes prêt.",
     "ctaDesign": "Commencer",
-    "ctaShop": "Parcourir le catalogue"
+    "ctaShop": "Parcourir le catalogue",
+    "ctaQuiz": "Trouver mon style",
+    "stylesQuiz": "Pas sûr ? Faites le quiz →"
   },
   "generateur": {
     "eyebrow": "Générateur IA",
     "title": "Transformez une photo de pièce",
-    "sub": "Deux outils IA — meublez par zones, ou éditez un meuble existant.",
+    "sub": "Deux outils IA — restylez une photo, ou éditez un meuble existant.",
     "composerTitle": "Composer une pièce",
-    "composerDesc": "Touchez jusqu'à 3 zones, choisissez dans le catalogue, recevez 3 variations IA.",
+    "composerDesc": "Peignez les murs, ajoutez un lustre ou un lampadaire, changez le mobilier — 3 restyles photoréalistes à partir d'une photo.",
     "composerCta": "Ouvrir le compositeur",
     "photoTitle": "Studio photo IA",
     "photoDesc": "Sélectionnez un meuble sur une photo, retirez-le ou remplacez-le par un article du catalogue.",
-    "photoCta": "Ouvrir le studio photo"
+    "photoCta": "Ouvrir le studio photo",
+    "quizTitle": "Pas encore de direction ?",
+    "quizDesc": "Trois questions pour trouver un style — puis ouvrez le studio ou le compositeur.",
+    "quizCta": "Lancer le quiz"
   },
+
   "stylesPage": {
     "eyebrow": "Styles",
     "title": "Cinq univers, une direction claire",
-    "sub": "Chaque style guide les presets, le catalogue et l'ambiance de votre pièce.",
+    "sub": "Chaque style guide les presets, le catalogue et l'ambiance de votre pièce. Parcourez la page — le mini-menu suit votre lecture.",
     "explore": "Explorer les presets",
     "studio": "Ouvrir le studio",
+    "quiz": "Trouver mon style",
+    "miniNavLabel": "Styles sur cette page",
     "empty": "Aucun style pour le moment."
   },
+  "quiz": {
+    "eyebrow": "Quiz style",
+    "title": "Trouvez votre direction",
+    "sub": "Trois questions courtes — on vous oriente vers un style Roomia.",
+    "navStudio": "Ouvrir le studio",
+    "stepOf": "Question {current} / {total}",
+    "roomTitle": "Quelle pièce meublez-vous ?",
+    "roomLiving": "Salon",
+    "roomBedroom": "Chambre",
+    "budgetTitle": "Quel budget mobilier (DA) ?",
+    "budgetHint": "Estimation pour les pièces principales — pas le total maison.",
+    "budgetTight": "Moins de 200 000 DA",
+    "budgetMid": "200 000 – 500 000 DA",
+    "budgetPremium": "Plus de 500 000 DA",
+    "vibeTitle": "Quelle ambiance vous attire ?",
+    "vibeIndustrial": "Brute, métal, loft",
+    "vibeMaximalism": "Audacieuse, colorée, riche",
+    "vibeMinimalism": "Calme, épurée, spacieuse",
+    "vibeTraditional": "Chaleureuse, artisanale, algérienne",
+    "vibeCoastal": "Lumineuse, naturelle, marine",
+    "back": "Retour",
+    "resultEyebrow": "Votre match",
+    "resultTitle": "Voici votre style",
+    "resultSub": "Explorez la fiche, ou ouvrez le studio déjà filtré.",
+    "ctaStyles": "Voir le style",
+    "ctaStudio": "Créer dans le studio",
+    "restart": "Refaire le quiz",
+    "styleBlurb": {
+      "industrial": "Textures brutes, lignes utiles, contraste fort.",
+      "maximalism": "Couches, motifs et couleur — avec intention.",
+      "minimalism": "Peu d'éléments, beaucoup d'air et de clarté.",
+      "traditional_algerian": "Artisanat, hospitalité et détails décoratifs.",
+      "mediterranean_coastal": "Lumière, matières naturelles, détente."
+    }
+  },
+
   "rooms": {
     "title": "Presets de pièces",
     "sub": "Choisissez un salon ou une chambre stylée — ouvrez-la dans le studio 3D.",

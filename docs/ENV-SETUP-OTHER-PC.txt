@@ -1,0 +1,195 @@
+ROOMIA — ENV SETUP (other PC + production)
+Date: 15 August 2026
+
+Do NOT commit .env.local. It is gitignored on purpose.
+Do NOT paste keys in a public Discord channel, a GitHub issue, or a commit.
+DM yourself / Jack the file, then delete the Discord message after the other
+PC works. Treat Discord as a courier, not storage.
+
+
+================================================================================
+1. WHAT THE TOKENS ARE FOR
+================================================================================
+
+Composer restyle + Studio photoreal talk to GPT Image 2 through an
+OpenAI-compatible gateway. The Next.js SERVER reads:
+
+  OPENAI_API_KEY     = the secret token (never NEXT_PUBLIC_*)
+  OPENAI_BASE_URL    = the gateway, including /v1
+                       example shape: https://YOUR-GATEWAY/v1
+                       leave EMPTY only if you use real api.openai.com
+
+Code: lib/openai-client.ts
+  getOpenAIClient() uses those two vars.
+  Model id is hardcoded: gpt-image-2
+
+If OPENAI_API_KEY is missing:
+  Composer generate and Studio photoreal fail with
+  "OPENAI_API_KEY is not configured"
+
+Composer ALSO needs SAM2 for click masks (walls / lights / furniture):
+
+  AI_BACKEND_URL               = server-side, Vercel/Node uses this
+  NEXT_PUBLIC_AI_BACKEND_URL   = browser (legacy photo-studio / room-capture)
+
+Local: both = http://localhost:8000
+Start backend: npm run back
+
+Production: localhost:8000 on Vercel does NOTHING. Composer on
+https://www.room-ia.com will fail masking until a PUBLIC SAM2 URL exists.
+Studio photoreal does NOT need SAM2 — only the OpenAI key + base URL.
+
+
+================================================================================
+2. OTHER PC — LOCAL .env.local
+================================================================================
+
+On the other machine:
+
+  git clone git@github.com:BenTheBlaster99/roomia.git
+  cd roomia
+  npm install
+  cp .env.example .env.local
+
+Then paste real values (from Discord DM / this PC's .env.local).
+
+Minimum for Composer + Studio photoreal locally:
+
+  OPENAI_API_KEY=sk-...
+  OPENAI_BASE_URL=https://YOUR-GATEWAY/v1
+  NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+  NEXT_PUBLIC_BASE_URL=http://localhost:3000
+  AI_BACKEND_URL=http://localhost:8000
+  NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000
+
+Also copy if you have them (same names as .env.example):
+
+  GEMINI_API_KEY=          floor-plan scan fallback
+  RESEND_API_KEY=          email capture
+  R2_*                     Pro Dashboard file storage (optional;
+                           falls back to Supabase Storage bucket `workspace`)
+
+Do NOT copy VERCEL_OIDC_TOKEN. That is this machine's Vercel CLI session.
+The other PC logs into Vercel itself if needed: npx vercel login
+
+Then:
+
+  npm run back     # SAM2, other terminal, GPU machine
+  npm run dev      # Next.js
+
+Composer:  http://localhost:3000/room-composer
+Studio:    http://localhost:3000/studio
+
+If you only copied OpenAI + Supabase and skip SAM2:
+  Studio 3D + photoreal can still work.
+  Composer generate will error until :8000 is up.
+
+
+================================================================================
+3. DISCORD PASTE TEMPLATE (fill from THIS PC, send in DM)
+================================================================================
+
+Copy .env.local locally, strip VERCEL_OIDC_TOKEN, send that.
+Or fill this skeleton (no real secrets in git — fill on your machine):
+
+----- begin discord paste -----
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+GEMINI_API_KEY=
+RESEND_API_KEY=
+
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+AI_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000
+----- end discord paste -----
+
+On the other PC: save as .env.local in the repo root (same folder as package.json).
+Restart `npm run dev` after any env change. Next does not hot-reload env.
+
+
+================================================================================
+4. PRODUCTION (Vercel → https://www.room-ia.com)
+================================================================================
+
+Git push to main auto-deploys IF the GitHub repo is connected to the
+Vercel project `roomia`. Env vars do NOT come from .env.local.
+Set them in Vercel:
+
+  https://vercel.com → roomia → Settings → Environment Variables
+  Environment: Production (and Preview if you want PR deploys)
+
+MUST have for live photoreal / Composer GPT:
+
+  OPENAI_API_KEY     = same token as local
+  OPENAI_BASE_URL    = same gateway /v1 as local
+
+Already expected from earlier deploys (do not wipe):
+
+  NEXT_PUBLIC_SUPABASE_URL
+  NEXT_PUBLIC_SUPABASE_ANON_KEY
+  NEXT_PUBLIC_BASE_URL=https://www.room-ia.com
+  GEMINI_API_KEY
+  RESEND_API_KEY
+
+Do NOT set on Vercel until SAM2 has a public URL:
+
+  NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000   ← never, Vercel cannot reach your PC
+  AI_BACKEND_URL=http://localhost:8000               ← same, useless in production
+
+When you have a public GPU backend later:
+
+  AI_BACKEND_URL=https://ai.room-ia.com
+  (and CORS on that backend must allow https://www.room-ia.com)
+
+After adding/changing OPENAI_* on Vercel: Redeploy (Deployments → … → Redeploy)
+or push an empty commit. Env changes do not apply to an already-built deployment.
+
+CLI (if logged in on this PC):
+
+  npx vercel env add OPENAI_API_KEY production
+  npx vercel env add OPENAI_BASE_URL production
+  npx vercel env ls
+
+
+================================================================================
+5. QUICK FAILURE CHEAT SHEET
+================================================================================
+
+"OPENAI_API_KEY is not configured"
+  → missing in .env.local (local) or Vercel env (production)
+
+Image API 502 / gateway error
+  → OPENAI_BASE_URL wrong, missing /v1, or token rejected
+  → check the key still works on the coconut / OpenAI dashboard
+
+"Could not reach SAM2 backend"
+  → npm run back not running (local)
+  → or production has no public AI_BACKEND_URL (expected today)
+
+Supabase catalog empty / login fails
+  → NEXT_PUBLIC_SUPABASE_* mismatch or trailing issues
+  → URL should be https://….supabase.co  (no trailing slash is fine;
+     lib/supabase.ts strips slashes)
+
+Dashboard files
+  → R2_* all five set, OR Supabase Storage bucket `workspace` exists
+    (migration supabase/migrations/20260814_workspace_files.sql)
+
+
+================================================================================
+6. TELL THE OTHER-PC CURSOR AGENT
+================================================================================
+
+Paste this after .env.local exists:
+
+  Roomia uses GPT Image 2 via OPENAI_API_KEY + OPENAI_BASE_URL in .env.local
+  (see lib/openai-client.ts). Composer also needs SAM2 on AI_BACKEND_URL
+  (npm run back → :8000). Do not commit .env.local. Do not put secrets in
+  git. Production OpenAI vars live on Vercel, not in the repo.
+  Recap: docs/STATUS-RECAP.txt
+  Sarah test URLs: docs/SARAH-TEST.txt

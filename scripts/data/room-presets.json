@@ -1,0 +1,1245 @@
+[
+  {
+    "name": "Industrial Living Room",
+    "room_type": "Living Room",
+    "style_id": "industrial",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 5,
+      "length": 6,
+      "height": 2.8,
+      "floorMaterial": "concrete",
+      "wallColor": "#2F2F2F"
+    },
+    "furniture": [
+      {
+        "furnitureId": "992c5388-80da-44f9-835a-4872d1881749",
+        "name": "Oslo",
+        "category": "Sofa",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/cream-boucle-sectional.glb",
+        "position": {
+          "x": 1.5,
+          "z": 1.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.7,
+          "depth": 2.6,
+          "height": 0.78
+        },
+        "color": "#4F84A6",
+        "price": 100000,
+        "notes": "dims:1.70x2.60x0.78m · InstantMesh from cream-boucle-sectional"
+      },
+      {
+        "furnitureId": "c-038",
+        "name": "Forge",
+        "category": "TV Unit",
+        "modelUrl": null,
+        "position": {
+          "x": 3.45,
+          "z": 0.525
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 0.45,
+          "height": 0.55
+        },
+        "color": "#1F2937",
+        "price": 55000,
+        "notes": null
+      },
+      {
+        "furnitureId": "4b67b6c0-3506-4060-9254-8633b39a1508",
+        "name": "Audacious",
+        "category": "Coffee Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/glass-top-coffee-table.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.2,
+          "depth": 0.6,
+          "height": 0.42
+        },
+        "color": "#C9A84C",
+        "price": 40000,
+        "notes": "dims:1.20x0.60x0.42m · InstantMesh from glass-top-coffee-table"
+      },
+      {
+        "furnitureId": "8bc05fac-1782-4686-b1dd-5713786fcc3a",
+        "name": "Mid-Way",
+        "category": "Chair",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/long-lounge-chair.glb",
+        "position": {
+          "x": 1.1,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.72,
+          "depth": 0.95,
+          "height": 0.92
+        },
+        "color": "#4CAF7D",
+        "price": 40000,
+        "notes": "dims:0.72x0.95x0.92m · InstantMesh long-lounge-chair"
+      },
+      {
+        "furnitureId": "c-039",
+        "name": "Steel",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2.5,
+          "z": 2.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#374151",
+        "price": 15000,
+        "notes": null
+      },
+      {
+        "furnitureId": "e1166865-c783-45f6-8bea-6c9dabe03287",
+        "name": "Accent",
+        "category": "Light",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/bronze-wall-sconce.glb",
+        "position": {
+          "x": 0.6,
+          "z": 5.4
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.4,
+          "depth": 0.4,
+          "height": 0.45
+        },
+        "color": "#E8C97A",
+        "price": 35000,
+        "notes": "dims:0.40x0.40x0.45m · InstantMesh bronze-wall-sconce"
+      }
+    ]
+  },
+  {
+    "name": "Industrial Bedroom",
+    "room_type": "Bedroom",
+    "style_id": "industrial",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 4,
+      "length": 4.5,
+      "height": 2.8,
+      "floorMaterial": "concrete",
+      "wallColor": "#2F2F2F"
+    },
+    "furniture": [
+      {
+        "furnitureId": "77b18c9e-9439-4469-b754-72a4ec772bec",
+        "name": "Dagger",
+        "category": "Bed",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/dark-wood-bed.glb",
+        "position": {
+          "x": 1.1,
+          "z": 1.3
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2,
+          "height": 1.1
+        },
+        "color": "#7C5C8A",
+        "price": 115000,
+        "notes": "dims:1.60x2.00x1.10m · InstantMesh from dark-wood-bed"
+      },
+      {
+        "furnitureId": "c-022",
+        "name": "Dark Oak",
+        "category": "Wardrobe",
+        "modelUrl": null,
+        "position": {
+          "x": 2.8000000000000003,
+          "z": 0.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.6,
+          "height": 2.1
+        },
+        "color": "#3D2B1F",
+        "price": 120000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-057",
+        "name": "Pipe",
+        "category": "Side Table",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.5,
+          "depth": 0.5,
+          "height": 0.55
+        },
+        "color": "#374151",
+        "price": 18000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-058",
+        "name": "Concrete",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#6B7280",
+        "price": 14000,
+        "notes": null
+      }
+    ]
+  },
+  {
+    "name": "Maximalism Living Room",
+    "room_type": "Living Room",
+    "style_id": "maximalism",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 5,
+      "length": 6,
+      "height": 2.8,
+      "floorMaterial": "wood",
+      "wallColor": "#7C1D3A"
+    },
+    "furniture": [
+      {
+        "furnitureId": "4e621cb4-e2b2-4e93-95d0-cd024f7f9130",
+        "name": "Ruffle",
+        "category": "Sofa",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/mustard-curved-sofa.glb",
+        "position": {
+          "x": 1.4000000000000001,
+          "z": 0.7749999999999999
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2.2,
+          "depth": 0.95,
+          "height": 0.82
+        },
+        "color": "#4F84A6",
+        "price": 150000,
+        "notes": "dims:2.20x0.95x0.82m · InstantMesh from mustard-curved-sofa"
+      },
+      {
+        "furnitureId": "c-029",
+        "name": "Velvet",
+        "category": "TV Unit",
+        "modelUrl": null,
+        "position": {
+          "x": 3.45,
+          "z": 0.525
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 0.45,
+          "height": 0.55
+        },
+        "color": "#4A0E4E",
+        "price": 90000,
+        "notes": null
+      },
+      {
+        "furnitureId": "b5dd1977-c690-4574-b2dc-e1ed916b5d52",
+        "name": "All Curve",
+        "category": "Coffee Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/marble-nesting-tables.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.7,
+          "depth": 0.8,
+          "height": 0.4
+        },
+        "color": "#C9A84C",
+        "price": 100000,
+        "notes": "dims:0.50x0.80x0.40m · InstantMesh from marble-nesting-tables"
+      },
+      {
+        "furnitureId": "c7dfb399-289d-43be-9c6e-28df71196b2a",
+        "name": "Dorothy",
+        "category": "Chair",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/cozy-upholstered-chair.glb",
+        "position": {
+          "x": 1.1,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.8,
+          "depth": 0.85,
+          "height": 0.92
+        },
+        "color": "#4CAF7D",
+        "price": 70000,
+        "notes": "dims:0.80x0.85x0.92m · InstantMesh medium cozy-upholstered-chair"
+      },
+      {
+        "furnitureId": "c-028",
+        "name": "Persian",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2.5,
+          "z": 2.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#8B0000",
+        "price": 45000,
+        "notes": null
+      },
+      {
+        "furnitureId": "480e45c1-0709-4c1a-b3f3-50acaa0092fd",
+        "name": "A Hundred Tails",
+        "category": "Light",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/arc-floor-lamp.glb",
+        "position": {
+          "x": 0.75,
+          "z": 5.25
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.9,
+          "depth": 0.9,
+          "height": 0.8
+        },
+        "color": "#E8C97A",
+        "price": 250000,
+        "notes": "dims:0.90x0.90x0.80m · InstantMesh arc-floor-lamp"
+      }
+    ]
+  },
+  {
+    "name": "Maximalism Bedroom",
+    "room_type": "Bedroom",
+    "style_id": "maximalism",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 4,
+      "length": 4.5,
+      "height": 2.8,
+      "floorMaterial": "wood",
+      "wallColor": "#7C1D3A"
+    },
+    "furniture": [
+      {
+        "furnitureId": "0a3473a5-0cae-4bd2-bb04-75f224576c6d",
+        "name": "Aurora",
+        "category": "Bed",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/grey-upholstered-bed.glb",
+        "position": {
+          "x": 1.1,
+          "z": 1.35
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2.1,
+          "height": 1.2
+        },
+        "color": "#7C5C8A",
+        "price": 180000,
+        "notes": "dims:1.60x2.10x1.20m · InstantMesh from grey-upholstered-bed"
+      },
+      {
+        "furnitureId": "c-043",
+        "name": "Baroque",
+        "category": "Wardrobe",
+        "modelUrl": null,
+        "position": {
+          "x": 2.8000000000000003,
+          "z": 0.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.6,
+          "height": 2.1
+        },
+        "color": "#4A0E4E",
+        "price": 160000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-044",
+        "name": "Gilded Night",
+        "category": "Side Table",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.5,
+          "depth": 0.5,
+          "height": 0.55
+        },
+        "color": "#D4A017",
+        "price": 35000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-046",
+        "name": "Royal",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#7C1D3A",
+        "price": 38000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-045",
+        "name": "Opulent",
+        "category": "Light",
+        "modelUrl": null,
+        "position": {
+          "x": 0.6,
+          "z": 3.9000000000000004
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.4,
+          "depth": 0.4,
+          "height": 0.55
+        },
+        "color": "#FFD700",
+        "price": 65000,
+        "notes": null
+      }
+    ]
+  },
+  {
+    "name": "Minimalism Living Room",
+    "room_type": "Living Room",
+    "style_id": "minimalism",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 5,
+      "length": 6,
+      "height": 2.8,
+      "floorMaterial": "wood",
+      "wallColor": "#F5F0EB"
+    },
+    "furniture": [
+      {
+        "furnitureId": "da20ee6f-1c20-41e7-b60b-34f96a6f13d3",
+        "name": "Orion",
+        "category": "Sofa",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/terracotta-modular-sectional.glb",
+        "position": {
+          "x": 1.5499999999999998,
+          "z": 1.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2.8,
+          "height": 0.75
+        },
+        "color": "#4F84A6",
+        "price": 120000,
+        "notes": "dims:1.60x2.80x0.75m · InstantMesh from terracotta-modular-sectional"
+      },
+      {
+        "furnitureId": "c-042",
+        "name": "Line",
+        "category": "TV Unit",
+        "modelUrl": null,
+        "position": {
+          "x": 3.45,
+          "z": 0.525
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 0.45,
+          "height": 0.55
+        },
+        "color": "#FFFFFF",
+        "price": 48000,
+        "notes": null
+      },
+      {
+        "furnitureId": "9228f971-fc80-47ff-9438-ac3eea5232e6",
+        "name": "Aladdin",
+        "category": "Coffee Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/tiled-slab-coffee-table.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.7,
+          "depth": 1.2,
+          "height": 0.38
+        },
+        "color": "#C9A84C",
+        "price": 12000,
+        "notes": "dims:0.70x1.20x0.38m · InstantMesh from tiled-slab-coffee-table"
+      },
+      {
+        "furnitureId": "2b1776e6-1bc2-4ea0-a3e0-9786cdc52463",
+        "name": "Pure",
+        "category": "Chair",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/grey-dining-chair.glb",
+        "position": {
+          "x": 1.1,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.7,
+          "depth": 0.75,
+          "height": 1
+        },
+        "color": "#4CAF7D",
+        "price": 5000,
+        "notes": "dims:0.70x0.75x1.00m · InstantMesh grey-dining-chair"
+      },
+      {
+        "furnitureId": "c-024",
+        "name": "Grey Flat",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2.5,
+          "z": 2.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#9CA3AF",
+        "price": 12000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c743b5ee-4759-4ba6-ba21-a4bf391b0ff5",
+        "name": "Ghost",
+        "category": "Light",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/pendant-globe-light.glb",
+        "position": {
+          "x": 0.6,
+          "z": 5.4
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.42,
+          "depth": 0.42,
+          "height": 0.55
+        },
+        "color": "#E8C97A",
+        "price": 40000,
+        "notes": "dims:0.42x0.42x0.55m · InstantMesh pendant-globe-light"
+      }
+    ]
+  },
+  {
+    "name": "Minimalism Bedroom",
+    "room_type": "Bedroom",
+    "style_id": "minimalism",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 4,
+      "length": 4.5,
+      "height": 2.8,
+      "floorMaterial": "wood",
+      "wallColor": "#F5F0EB"
+    },
+    "furniture": [
+      {
+        "furnitureId": "dda2947b-2da9-48af-ad25-79571ead9cda",
+        "name": "Lils",
+        "category": "Bed",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/tufted-platform-bed.glb",
+        "position": {
+          "x": 1.1,
+          "z": 1.35
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2.1,
+          "height": 1.15
+        },
+        "color": "#7C5C8A",
+        "price": 100000,
+        "notes": "dims:1.60x2.10x1.15m · InstantMesh from tufted-platform-bed"
+      },
+      {
+        "furnitureId": "c-021",
+        "name": "Vault",
+        "category": "Wardrobe",
+        "modelUrl": null,
+        "position": {
+          "x": 2.8000000000000003,
+          "z": 0.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.6,
+          "height": 2.1
+        },
+        "color": "#FFFFFF",
+        "price": 95000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-025",
+        "name": "Orbit",
+        "category": "Side Table",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.5,
+          "depth": 0.5,
+          "height": 0.55
+        },
+        "color": "#C4A882",
+        "price": 15000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-060",
+        "name": "Pebble",
+        "category": "Chair",
+        "modelUrl": "/models/generated-chair.glb",
+        "position": {
+          "x": 0.88,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.7,
+          "depth": 0.75,
+          "height": 1
+        },
+        "color": "#E5DDD0",
+        "price": 42000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-024",
+        "name": "Grey Flat",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#9CA3AF",
+        "price": 12000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-059",
+        "name": "Glow",
+        "category": "Light",
+        "modelUrl": null,
+        "position": {
+          "x": 0.6,
+          "z": 3.9000000000000004
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.4,
+          "depth": 0.4,
+          "height": 0.55
+        },
+        "color": "#FFFFFF",
+        "price": 20000,
+        "notes": null
+      }
+    ]
+  },
+  {
+    "name": "Traditional Algerian Living Room",
+    "room_type": "Living Room",
+    "style_id": "traditional_algerian",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 5,
+      "length": 6,
+      "height": 2.8,
+      "floorMaterial": "marble",
+      "wallColor": "#C9A07A"
+    },
+    "furniture": [
+      {
+        "furnitureId": "f56dd568-a23f-4f4f-be8f-721484e490a6",
+        "name": "Coupé",
+        "category": "Sofa",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/grey-l-shape-sofa.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.125
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2.7,
+          "depth": 1.65,
+          "height": 0.78
+        },
+        "color": "#4F84A6",
+        "price": 200000,
+        "notes": "dims:2.70x1.65x0.78m · InstantMesh grey-l-shape-sofa"
+      },
+      {
+        "furnitureId": "57e8abc8-a28d-49e1-b45d-927aaa415c2b",
+        "name": "Meida",
+        "category": "Coffee Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/black-metal-coffee-table.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.1,
+          "depth": 0.55,
+          "height": 0.45
+        },
+        "color": "#C9A84C",
+        "price": 80000,
+        "notes": "dims:1.10x0.55x0.45m · InstantMesh black-metal-coffee-table"
+      },
+      {
+        "furnitureId": "6f6b832a-c112-4cb0-b038-736f7ab6ac06",
+        "name": "Walima",
+        "category": "Dining Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/rustic-wood-dining-table.glb",
+        "position": {
+          "x": 3.8000000000000003,
+          "z": 0.8
+        },
+        "rotationY": -1.5707963267948966,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.9,
+          "height": 0.76
+        },
+        "color": "#C9A84C",
+        "price": 550000,
+        "notes": "dims:1.80x0.90x0.76m · InstantMesh rustic-wood-dining-table"
+      },
+      {
+        "furnitureId": "091dda8d-c314-4909-aee2-e6af1754d821",
+        "name": "Forest",
+        "category": "Chair",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/green-accent-chair.glb",
+        "position": {
+          "x": 1.1,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.68,
+          "depth": 0.62,
+          "height": 0.88
+        },
+        "color": "#4CAF7D",
+        "price": 120000,
+        "notes": "dims:0.68x0.62x0.88m · InstantMesh from green-accent-chair"
+      },
+      {
+        "furnitureId": "c-023",
+        "name": "Sahara",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2.5,
+          "z": 2.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#C4822A",
+        "price": 25000,
+        "notes": null
+      },
+      {
+        "furnitureId": "b547c2ba-013c-41d9-add5-632054fe0fa0",
+        "name": "Leila",
+        "category": "Light",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/rattan-pendant-light.glb",
+        "position": {
+          "x": 0.6,
+          "z": 5.4
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.45,
+          "depth": 0.45,
+          "height": 0.55
+        },
+        "color": "#E8C97A",
+        "price": 600000,
+        "notes": "dims:0.45x0.45x0.55m · InstantMesh rattan-pendant-light"
+      }
+    ]
+  },
+  {
+    "name": "Traditional Algerian Bedroom",
+    "room_type": "Bedroom",
+    "style_id": "traditional_algerian",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 4,
+      "length": 4.5,
+      "height": 2.8,
+      "floorMaterial": "marble",
+      "wallColor": "#C9A07A"
+    },
+    "furniture": [
+      {
+        "furnitureId": "46ff2d58-53a7-4075-b3c9-e141e80b09a5",
+        "name": "Neptune",
+        "category": "Bed",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/wood-frame-bed.glb",
+        "position": {
+          "x": 1.1,
+          "z": 1.3
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2,
+          "height": 1.1
+        },
+        "color": "#7C5C8A",
+        "price": 200000,
+        "notes": "dims:1.60x2.00x1.10m · InstantMesh from wood-frame-bed"
+      },
+      {
+        "furnitureId": "c-047",
+        "name": "Ksar",
+        "category": "Wardrobe",
+        "modelUrl": null,
+        "position": {
+          "x": 2.8000000000000003,
+          "z": 0.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.6,
+          "height": 2.1
+        },
+        "color": "#5C3D1E",
+        "price": 140000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-048",
+        "name": "Mosaic",
+        "category": "Side Table",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.5,
+          "depth": 0.5,
+          "height": 0.55
+        },
+        "color": "#1F4E79",
+        "price": 22000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-023",
+        "name": "Sahara",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#C4822A",
+        "price": 25000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-050",
+        "name": "Kilim",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#C4822A",
+        "price": 28000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-049",
+        "name": "Lantern",
+        "category": "Light",
+        "modelUrl": null,
+        "position": {
+          "x": 0.6,
+          "z": 3.9000000000000004
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.4,
+          "depth": 0.4,
+          "height": 0.55
+        },
+        "color": "#B87333",
+        "price": 45000,
+        "notes": null
+      }
+    ]
+  },
+  {
+    "name": "Mediterranean Coastal Living Room",
+    "room_type": "Living Room",
+    "style_id": "mediterranean_coastal",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 5,
+      "length": 6,
+      "height": 2.8,
+      "floorMaterial": "tile",
+      "wallColor": "#FFFFFF"
+    },
+    "furniture": [
+      {
+        "furnitureId": "ab3201e9-43cb-429f-84f3-017b8502f977",
+        "name": "Riley",
+        "category": "Sofa",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/white-minimal-sofa.glb",
+        "position": {
+          "x": 1.5,
+          "z": 0.7749999999999999
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2.4,
+          "depth": 0.95,
+          "height": 0.78
+        },
+        "color": "#4F84A6",
+        "price": 65000,
+        "notes": "dims:2.40x0.95x0.78m · InstantMesh from white-minimal-sofa"
+      },
+      {
+        "furnitureId": "c-037",
+        "name": "Coastal",
+        "category": "TV Unit",
+        "modelUrl": null,
+        "position": {
+          "x": 3.45,
+          "z": 0.525
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 0.45,
+          "height": 0.55
+        },
+        "color": "#A0785A",
+        "price": 42000,
+        "notes": null
+      },
+      {
+        "furnitureId": "d526725a-8cda-4080-becc-5ce15b1a9769",
+        "name": "Wave",
+        "category": "Coffee Table",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/oak-rect-coffee-table.glb",
+        "position": {
+          "x": 2.5,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.2,
+          "depth": 0.65,
+          "height": 0.45
+        },
+        "color": "#C9A84C",
+        "price": 8000,
+        "notes": "dims:1.20x0.65x0.45m · InstantMesh oak-rect-coffee-table"
+      },
+      {
+        "furnitureId": "b229c193-f7ee-4f23-9a06-21b705c06ee3",
+        "name": "Sea",
+        "category": "Chair",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/short-compact-chair.glb",
+        "position": {
+          "x": 1.1,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.58,
+          "depth": 0.55,
+          "height": 0.8
+        },
+        "color": "#4CAF7D",
+        "price": 10000,
+        "notes": "dims:0.58x0.55x0.80m · InstantMesh from short-compact-chair"
+      },
+      {
+        "furnitureId": "c-036",
+        "name": "Sand",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2.5,
+          "z": 2.7
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#D9C3A5",
+        "price": 18000,
+        "notes": null
+      },
+      {
+        "furnitureId": "fe28bbf9-127e-4a74-b766-e327f9c1fef5",
+        "name": "Harbor",
+        "category": "Light",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/harbor-pendant.glb",
+        "position": {
+          "x": 0.6,
+          "z": 5.4
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.42,
+          "depth": 0.42,
+          "height": 0.55
+        },
+        "color": "#E8C97A",
+        "price": 28000,
+        "notes": "dims:0.42x0.42x0.55m · InstantMesh harbor-pendant"
+      }
+    ]
+  },
+  {
+    "name": "Mediterranean Coastal Bedroom",
+    "room_type": "Bedroom",
+    "style_id": "mediterranean_coastal",
+    "budget_tier": "comfortable",
+    "thumbnail_url": null,
+    "room_config": {
+      "width": 4,
+      "length": 4.5,
+      "height": 2.8,
+      "floorMaterial": "tile",
+      "wallColor": "#FFFFFF"
+    },
+    "furniture": [
+      {
+        "furnitureId": "c13918b1-340c-4ac2-8830-0e72816d5222",
+        "name": "Saturn",
+        "category": "Bed",
+        "modelUrl": "https://pmsotwinvccacownpnpp.supabase.co/storage/v1/object/public/public/models/teal-headboard-bed.glb",
+        "position": {
+          "x": 1.1,
+          "z": 1.3
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.6,
+          "depth": 2,
+          "height": 1.15
+        },
+        "color": "#7C5C8A",
+        "price": 70000,
+        "notes": "dims:1.60x2.00x1.15m · InstantMesh from teal-headboard-bed"
+      },
+      {
+        "furnitureId": "c-052",
+        "name": "Driftwood",
+        "category": "Wardrobe",
+        "modelUrl": null,
+        "position": {
+          "x": 2.8000000000000003,
+          "z": 0.6
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 1.8,
+          "depth": 0.6,
+          "height": 2.1
+        },
+        "color": "#A0785A",
+        "price": 85000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-053",
+        "name": "Shell",
+        "category": "Side Table",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 1.9000000000000001
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.5,
+          "depth": 0.5,
+          "height": 0.55
+        },
+        "color": "#FFFFFF",
+        "price": 12000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-056",
+        "name": "Reed",
+        "category": "Chair",
+        "modelUrl": "/models/generated-chair.glb",
+        "position": {
+          "x": 0.88,
+          "z": 2.1999999999999997
+        },
+        "rotationY": 3.141592653589793,
+        "dimensions": {
+          "width": 0.7,
+          "depth": 0.75,
+          "height": 1
+        },
+        "color": "#F5F5F0",
+        "price": 30000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-055",
+        "name": "Dune",
+        "category": "Rug",
+        "modelUrl": null,
+        "position": {
+          "x": 2,
+          "z": 2.025
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 2,
+          "depth": 1.4,
+          "height": 0.02
+        },
+        "color": "#D9C3A5",
+        "price": 16000,
+        "notes": null
+      },
+      {
+        "furnitureId": "c-054",
+        "name": "Seafoam",
+        "category": "Light",
+        "modelUrl": null,
+        "position": {
+          "x": 0.6,
+          "z": 3.9000000000000004
+        },
+        "rotationY": 0,
+        "dimensions": {
+          "width": 0.4,
+          "depth": 0.4,
+          "height": 0.55
+        },
+        "color": "#4F84A6",
+        "price": 24000,
+        "notes": null
+      }
+    ]
+  }
+]

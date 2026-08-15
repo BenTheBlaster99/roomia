@@ -1,0 +1,493 @@
+ROOMIA — FULL STATUS RECAP
+Date: 14 August 2026 (shipped to production 15 August 2026)
+Purpose: copyable snapshot of what is actually working, with extra precision on
+Room Composer + photoreal rendering (the phase we just finished). Dashboard
+discussion comes after this file.
+
+Live:           https://www.room-ia.com
+Sarah test:     docs/SARAH-TEST.txt
+Other-PC env:   docs/ENV-SETUP-OTHER-PC.txt
+GitHub:         git@github.com:BenTheBlaster99/roomia.git  (branch: main)
+
+================================================================================
+0. HOW TO READ THIS
+================================================================================
+
+Roomia is no longer one toy. It is two surfaces sharing one catalog and one
+image brain:
+
+  A) PUBLIC PRODUCT (no login)
+     Marketing site + Quiz + Styles + Room Composer + 3D Studio.
+     This is what a visitor, Sarah, or an investor clicks in 30 seconds.
+
+  B) PRO DASHBOARD (login)
+     Workspace + generate + saved history.
+     MVP exists. It is the money layer. It is NOT the same as public Composer
+     (Generate inside Dashboard is still furniture-pins only — no wall/light
+     restyle yet).
+
+The unfair win right now is PHOTO QUALITY:
+  - Composer restyles a real room photo (walls, lights, furniture).
+  - Studio turns a 3D layout into a photoreal still.
+  Both use GPT Image 2 (model id: gpt-image-2).
+  Composer also needs the local SAM2 backend on port 8000.
+
+Catalog-perfect 3D is the Studio track. It is demo-good, not catalog-perfect.
+Do not confuse “GLBs exist and presets load” with “every SKU matches the photo.”
+
+
+================================================================================
+1. PUBLIC SITE — WHAT A VISITOR CAN DO
+================================================================================
+
+Marketing / discovery (working)
+-------------------------------
+- Home (FR/EN via next-intl): styles, rooms, CTAs into quiz / generateur / studio.
+- /generateur hub: two cards only
+    01  Room Composer  →  /room-composer
+    02  Style quiz     →  /quiz
+  Photo Studio is NO LONGER on this hub. Route /photo-studio is kept for
+  rollback, not as the public story.
+- /quiz: short style quiz → deep-links into a style and/or Studio.
+- /styles: one explorer page for all styles + sticky mini-nav (not a pile of
+  separate style microsites).
+- /rooms: curated room presets from the database.
+- /configure: honest W × L × H → open Studio. No fake “scan a floor plan and
+  we reconstruct your house” promise on this path.
+- Partners page exists but is HIDDEN from SiteNav and SiteFooter.
+- Nav CTA can send people to Composer or Studio. Dashboard login is reachable
+  from nav for Pro.
+
+Locales
+-------
+FR + EN message files. Studio / Composer / Dashboard UIs are still mixed
+FR-first in places (gate, dashboard chrome) and EN-first in Composer. Fine
+for demos; not a finished i18n pass.
+
+What is parked on the public site
+---------------------------------
+- Sarah motion / screen.zip animation system. Do not polish generic motion
+  until design lock. Product backlog item #2.
+
+
+================================================================================
+2. CATALOG + 3D STUDIO — WHAT IS WORKING
+================================================================================
+
+Catalog (Supabase furniture_items)
+----------------------------------
+- Live catalog loads in Studio, Composer, and Dashboard generate.
+- Mock catalog is the fallback if the DB fetch fails.
+- Product photos (image_url) drive Composer identity lock (the model copies
+  the real piece, not a hallucination).
+- GLBs (model_url) + width_m / depth_m / height_m drive Studio scale.
+- InstantMesh batch: 30/30 generated, uploaded, junk test rows deleted.
+- Lights hang from the ceiling in Studio (not sitting on the floor).
+- Dragging a ceiling light: grab the fixture OR the gold disc on the floor.
+- Wall snap: pieces dragged near a wall sit flush (wardrobe on the side wall
+  in bedroom presets).
+- Placeholders (not fake generic GLBs) for pieces without unique photos:
+  Gilded / Zellige / Atlas, TV units (cabinet + screen), some wardrobes.
+- Removed duplicates: Majlis, Majlis Bed, Breeze.
+- Pure chair enlarged and used in bedroom presets (Reed/Pebble out of bedrooms).
+
+Studio (/studio) — working product
+----------------------------------
+Entry gate:
+  - Pick a curated preset from room_presets, OR create a blank room
+    (W×L×H from /configure or gate “Créer le vôtre”).
+
+Inside the room:
+  - Place catalog furniture in real metres.
+  - Rotate, duplicate, delete.
+  - Wall-snap while dragging.
+  - Ceiling lights hang + drag on a horizontal plane.
+  - Catalog sidebar: search, category, material, price (DZD).
+  - Mobile: 1-finger drag furniture, 2-finger camera.
+  - Empty state is clearer than the old blank canvas.
+  - Photoreal button: 1 GPT Image call (see section 4).
+
+Presets
+-------
+- Generated by: npm run generate-presets:dump then npm run generate-presets
+  (needs service role; can read furniture-3d-gen .env).
+- Living rooms + bedrooms rebuilt after the GLB pass.
+- Bedroom layout: bed on back wall, wardrobe flush on right wall, one Pure
+  chair, nightstand beside bed.
+- IDs change every regenerate. Do not hardcode preset UUIDs in docs/demos
+  without re-checking the DB.
+
+Studio quality — honest
+-----------------------
+DONE for a demo / investor walkthrough.
+NOT catalog-perfect:
+  - Some InstantMesh SKUs still have holes / weak sides (Dagger side-only
+    photo, L-shape Coupé, Lils). Extra product photos would help.
+  - Placeholder wardrobes / TV units / Gilded / Zellige / Atlas need unique
+    photos before they deserve a GLB.
+  - Pure can still read a bit small next to a sofa in some scenes.
+  - Do NOT re-run InstantMesh --production / 1536px on the 12GB RTX 3060.
+  - Do NOT redo Venus / Dagger / Lils / Aurora / Neptune / Saturn at
+    “medium” if the original low/4-view/512 restore is what looks right.
+
+Photoreal from Studio was smoke-tested on a living-room scene: layout lock
+held, quality looked excellent. That is the 3D → photo path.
+
+
+================================================================================
+3. PHASE FOCUS — ROOM COMPOSER (PUBLIC, NO LOGIN)
+================================================================================
+
+This is Feature A. This is the wow. This is what people should feel in the
+stomach when they see before/after.
+
+URL: /room-composer
+Login: none. Keep it that way. Do not hide this behind Dashboard signup.
+
+What it is now (after the restyle pass)
+---------------------------------------
+Not “drop a sofa in a photo.”
+A full interior restyle of the SAME room, SAME camera:
+
+  1. Upload a real room photo
+     Tips: good light, include walls + ceiling if you want paint or a
+     chandelier, shoot roughly straight-on.
+
+  2. PAINT — tap a color dot (warm plaster, sand, terracotta, sage,
+     gallery white, charcoal, burgundy, ink). Then tap the wall in the photo.
+     Tap the same dot again to undo. No “Keep” pill, no color names crowding
+     the bar.
+
+  3. LIGHT — pick one: Chandelier / Pendant / Floor / Sconce.
+     Then tap ceiling, floor, or wall. The model is told the fixture is ON
+     (glow + new shadows). Tap the same type again to undo.
+     Catalog fixture carousel was removed — too complicated. The AI invents
+     a photoreal fixture of that kind.
+
+  4. FURNITURE — optional. Tap up to 3 existing pieces in the photo, pick
+     from the live catalog (tabs: All / Sofa / Chair / Light / Tables / Rug).
+     Catalog product photos are sent as reference images so the output
+     matches the real SKU (strict identity lock, except rugs/curtains which
+     may adapt to the footprint).
+
+  5. Generate 3 restyles
+     Button enables as soon as you have paint OR a light OR at least one
+     furniture pin. You do not need furniture.
+
+Markers on the photo:
+  - Paint = colored disc
+  - Light = gold star
+  - Furniture = numbered pins 1–3
+
+Progress UI: Masking → Generating → Results (3 images, click to select,
+double-click / Agrandir to zoom). Partial success is kept if 1–2 of 3
+GPT calls fail.
+
+Why this matters commercially
+-----------------------------
+A sofa swap looks like a filter.
+A wall color + a lit chandelier + a catalog sofa looks like a redesigned
+apartment. That is what makes a client or an investor say “the space
+actually changed.”
+
+Composer UX we deliberately simplified
+--------------------------------------
+First restyle UI had: Keep pills + labeled wall chips + lighting types +
+a horizontal catalog-light carousel. Too many decisions before tapping.
+Now: color dots, four light words, tap the photo. Furniture is optional.
+
+
+================================================================================
+4. PHASE FOCUS — PHOTO RENDERING ENGINE (THE BRAIN)
+================================================================================
+
+Two GPT Image 2 entry points. Same model. Different jobs.
+
+-----------------------------------------------------------------------------
+4A. COMPOSER ENGINE  —  POST /api/compose/room
+-----------------------------------------------------------------------------
+
+Job: edit a REAL photograph. Keep camera, windows, unmasked architecture.
+Change only the masked regions: walls, lights, furniture.
+
+Always exactly 3 GPT Image calls (default; max 4). Never “one call per pin.”
+All furniture + wall + light go into ONE masked edit per variation.
+That is how we stay cheap and keep the three results comparable.
+
+Pipeline, in order:
+
+  1. Client sends:
+       image_base64
+       zones[]            (0–3 furniture pins: x, y, prompt, category,
+                           fidelity, optional product photo as reference_base64)
+       atmosphere.wall    (optional: prompt + x,y of the wall tap)
+       atmosphere.lighting(optional: prompt, kind, x,y, optional fixture photo)
+
+  2. MASKING (needs SAM2 on :8000)
+       POST {image, x, y} → grayscale mask per click.
+       Furniture clicks: as-is.
+       Wall click: mask dilated (~10px) so paint covers the wall, not a speck.
+       Light click: mask dilated (~42px) so a chandelier/pendant has room to
+       exist (SAM2 on a ceiling tap is otherwise a tiny blob).
+       All masks unioned into one RGBA PNG: transparent = GPT may edit,
+       opaque = keep. Feather ~8px when restyling, ~5px furniture-only.
+
+  3. PROMPT (lib/render-prompt.ts → buildMultiZoneComposePrompt)
+       Image 1 = the room photo.
+       Extra images = catalog product photos (and optionally a lighting
+       product photo — public Composer currently does not send one).
+       If atmosphere is present, the prompt says this is a FULL INTERIOR
+       RESTYLE: walls must look obviously painted; lights ON with believable
+       glow and contact shadows; still the same room and camera.
+       Furniture lines: map each product to the masked blob nearest its
+       click. Strict identity lock vs placement-adaptive (rugs).
+       Three variations only change ambient light slightly (warmer / cooler /
+       softer). Products and wall color stay identical across the three.
+
+  4. GPT Image 2  client.images.edit
+       model: gpt-image-2
+       quality: high
+       output: jpeg, b64_json
+       size: auto
+       mask: the combined PNG
+       images: room + product refs
+
+  5. Stream NDJSON back to the UI
+       progress → done { variations[], failed_count, warnings }
+       If all 3 fail: error. If 1–2 fail: show what succeeded.
+
+Dependencies:
+  - OPENAI_API_KEY  (optional OPENAI_BASE_URL if you proxy)
+  - AI_BACKEND_URL / NEXT_PUBLIC_AI_BACKEND_URL → SAM2 FastAPI :8000
+  - If SAM2 is down: Composer cannot mask. Error tells you to start the
+    backend. GPT Image alone is not enough for Composer.
+
+Identity lock (why catalog photos matter)
+-----------------------------------------
+Without a product photo, GPT invents “a beige sofa.”
+With a product photo as image 2, 3, … it is told: same model, materials,
+colors; only perspective / scale / lighting may change.
+That is the difference between a pretty fake and “that is our SKU.”
+
+-----------------------------------------------------------------------------
+4B. STUDIO PHOTOREAL  —  POST /api/render/photorealistic
+-----------------------------------------------------------------------------
+
+Job: a 3D screenshot is NOT a photo. This call turns ONE Studio capture
+into ONE photoreal interior photograph.
+
+Always 1 GPT Image call per generate (not 3). Layout lock is the whole
+point: same furniture, same positions, same camera. Allowed: materials,
+lighting, shadows, photographic detail. Forbidden: moving/adding/removing
+furniture or changing the camera.
+
+Prompt includes floor material, wall color, room type from the studio
+scene, plus a hard negative list (cartoon, CGI, floor grid, extra
+furniture, different camera…).
+
+Smoke-test (14 Aug 2026): living-room Studio render looked locked and
+high quality. This path is investor-ready as a “we designed it in 3D,
+here is the photo” closer.
+
+No SAM2 on this path. The input is already the full frame.
+
+-----------------------------------------------------------------------------
+4C. OLD AI PHOTO STUDIO  —  /photo-studio  (legacy, not the hub)
+-----------------------------------------------------------------------------
+
+Older Feature 1: click one object → SAM2 → local SD inpaint remove/replace.
+Still in the repo. Not the generateur story. Composer replaced it as the
+public 2D product because GPT Image + catalog refs looks dramatically
+better than local SD inpaint for furniture identity.
+
+Do not delete yet (rollback). Do not demo it as the main product.
+
+
+================================================================================
+5. WHAT YOU NEED RUNNING FOR A LIVE DEMO
+================================================================================
+
+Composer restyle demo
+---------------------
+  1. Next app:        npm run dev
+  2. SAM2 backend:    npm run back   (or uvicorn on :8000)
+  3. Env:             OPENAI_API_KEY (+ OPENAI_BASE_URL if used)
+                      NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000
+  4. Open:            /room-composer
+  5. Photo with walls AND ceiling visible.
+  6. Sage wall + pendant + one sofa = the wow shot.
+
+Studio photoreal demo
+---------------------
+  1. Next app + OPENAI_API_KEY (no SAM2 required for render).
+  2. Open /studio → pick a living-room preset (or build one).
+  3. Hit photoreal. One image comes back.
+
+Production (https://www.room-ia.com)
+------------------------------------
+  Studio photoreal works if OPENAI_API_KEY + OPENAI_BASE_URL are set on Vercel.
+  Composer generate also needs a PUBLIC SAM2 URL (AI_BACKEND_URL). localhost:8000
+  on Vercel cannot see Jack’s GPU. Until that exists, Sarah tests Composer
+  locally or we accept the SAM2 error on the live Composer page.
+
+Catalog / presets
+-----------------
+  Supabase project with furniture_items + room_presets populated.
+  If DB is empty, Composer/Studio fall back to mock catalog (weaker).
+
+GPU note (3D regen only, not needed for photo demos)
+----------------------------------------------------
+  furniture-3d-gen on the RTX 3060. Venv python sometimes breaks after
+  reboot: ln -sfn /usr/bin/python3.14 venv/bin/python3
+  InstantMesh flags that worked for the restored beds:
+    --quality low --views 4 --diffusion-steps 50
+    --texture-resolution 512 --input-size 512 --exact-dimensions
+
+
+================================================================================
+6. PRO DASHBOARD — WHAT EXISTS TODAY (FOR THE NEXT DISCUSSION)
+================================================================================
+
+This is the “money printing” layer. MVP is already in the repo. It is a
+second product surface, not a patch on public Composer.
+
+URLs
+----
+  /dashboard/login    email + password (Supabase Auth sign-in / sign-up)
+  /dashboard          gated workspace (AuthGate)
+
+What works
+----------
+- Auth: sign up / sign in / sign out. Session required.
+- Shell: Workspace ↔ Generate. French chrome (“Espace de travail”,
+  “Déconnexion”). One-time onboard hint in localStorage.
+- Workspace: upload images, list newest first, open a file into Generate.
+- Storage: Cloudflare R2 if R2_* env is set; otherwise Supabase Storage
+  bucket `workspace`. Files are per-user path.
+- Generate: upload a photo OR pick a workspace file → tap up to 3 furniture
+  spots → same /api/compose/room brain → 3 variations → save results back
+  into the workspace (stacked history, not a disappearing grid).
+- Public /room-composer is unchanged and still no-login.
+
+What the Dashboard Generate does NOT have yet
+---------------------------------------------
+- Wall paint restyle
+- Lighting restyle (chandelier / pendant / floor / sconce)
+- The simplified Composer paint/light bar
+So: Dashboard is still the OLD furniture-pin composer inside a logged-in
+shell with file history. Public Composer is ahead on atmosphere/wow.
+
+What the Dashboard is NOT (on purpose for MVP)
+----------------------------------------------
+- No Studio 3D inside the dashboard
+- No billing / seats / orgs / roles
+- No quotas / abuse limits beyond “you have a login”
+- No client folders / agency multi-project taxonomy (flat list)
+- No Maghreb marketplace checkout
+
+Why this split was the plan
+---------------------------
+Public Composer = demo + consumer wow, no login friction.
+Pro Dashboard   = agencies / showrooms / architects pay for saved assets.
+Same generation brain; different shell.
+
+The commercial idea (from the earlier note, still valid):
+  Composer is hard to charge for as a one-shot toy.
+  A workspace with uploads + stacked generations is something companies
+  pay monthly for. Algeria B2B needs client folders, not “3 options then
+  WhatsApp.”
+
+Risk if we overbuild Dashboard now:
+  It is a full SaaS (auth, storage lifecycle, permissions, billing later).
+  Mixing consumer “furnish my room” and pro “agency DAM” in one UX makes
+  both worse. Never put a login wall in front of public Composer.
+
+
+================================================================================
+7. BACKLOG MAP (PRODUCT ITEMS vs THIS PHASE)
+================================================================================
+
+DONE
+  #3  Quiz
+  #4  Styles page + mini-nav
+  #5  Catalog filters (materials, price DA)
+  #6  Studio remodel (gate, rotation, wall snap, light drag, bedroom presets)
+  #7  Partners hidden
+  #8  Generateur = Composer + quiz (Photo Studio off the hub)
+  #9  Studio polish slice (empty state, mobile touch, photoreal errors)
+  #10 Configure honesty (W×L×H → Studio)
+  #1  GLBs uploaded + dims + presets rebuilt (demo-good, not catalog-perfect)
+  Photoreal Studio smoke-test
+  Public Composer restyle (walls + lights + optional furniture)
+  Composer UI simplified (dots + 4 lights, no catalog-fixture carousel)
+  Pro Dashboard MVP (auth + workspace + furniture generate + save)
+
+PARKED
+  #2  Sarah motion / screen.zip
+
+LATER (quality, not missing features)
+  Extra product photos for weak InstantMesh SKUs
+  Unique photos for placeholder-only pieces
+  Optional Pure scale tweak
+  Bring Dashboard Generate up to public Composer restyle (walls + lights)
+  Dashboard productization: folders, billing, seats — only when selling
+
+API call budget (remember this)
+  Composer / Dashboard generate:  3 GPT Image calls per run
+  Studio photoreal:               1 GPT Image call per run
+
+
+================================================================================
+8. FILE MAP (IF YOU NEED TO POINT AT CODE)
+================================================================================
+
+Public Composer
+  app/room-composer/page.tsx
+  lib/composer-restyle.ts          wall palettes + light recipes
+  app/api/compose/room/route.ts    SAM2 + union mask + 3 GPT edits
+  lib/render-prompt.ts             restyle + furniture identity prompts
+  lib/sam-mask-to-alpha.ts         union / dilate / mime sniff
+
+Studio photoreal
+  app/studio/components/RenderPanel.tsx
+  app/api/render/photorealistic/route.ts
+  lib/render-prompt.ts             buildRenderPrompt (3D → photo)
+
+Studio 3D
+  app/studio/...
+  lib/studio-footprint.ts          wall snap
+  lib/catalog-mapper.ts            metres + light min-height
+  store/useStudioStore.ts
+  scripts/generate-room-presets.ts
+
+Dashboard
+  app/dashboard/login/page.tsx
+  app/dashboard/page.tsx + layout + AuthGate
+  app/dashboard/components/DashboardShell.tsx
+  app/dashboard/components/WorkspaceView.tsx
+  app/dashboard/components/GenerateView.tsx   furniture-only compose
+  app/api/dashboard/files/route.ts
+  lib/workspace-storage.ts         R2 or Supabase Storage
+
+GPT client
+  lib/openai-client.ts             GPT_IMAGE_MODEL = gpt-image-2
+
+
+================================================================================
+9. ONE-PARAGRAPH TRUTH FOR AN INVESTOR
+================================================================================
+
+Roomia lets someone photograph a real room and restyle it — paint, lighting,
+catalog furniture — into three photoreal options without an account. The same
+catalog lives in a 3D studio in real metres; one click turns that layout into
+a photograph that keeps the furniture where you placed it. A Pro dashboard
+already exists so agencies can log in, keep the files, and run the same
+engine with history. The next conversation is how to productize that
+dashboard without touching the public wow path.
+
+
+================================================================================
+END
+Next: discuss the new dashboard (what to keep, what to steal from public
+Composer restyle, what “Pro” must mean before anyone pays).
+================================================================================

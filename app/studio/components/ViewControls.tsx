@@ -35,7 +35,7 @@ export default function ViewControls() {
         ))}
       </div>
       <p className="hidden rounded-full bg-black/45 px-3 py-1 text-[10px] text-white/85 sm:block">
-        Glisser = orbit · Clic droit / molette clic = pan · Molette = zoom
+        Glisser = orbit · Clic droit = pan · Molette = zoom · Mobile : 1 doigt = meuble · 2 doigts = orbit/zoom
       </p>
     </div>
   )

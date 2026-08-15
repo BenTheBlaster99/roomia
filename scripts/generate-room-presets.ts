@@ -1,6 +1,7 @@
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
-import { catalogForPreset } from '../lib/mock-catalog.ts'
+import { MOCK_CATALOG, type CatalogItem } from '../lib/mock-catalog.ts'
+import { furnitureItemToCatalogItem } from '../lib/catalog-mapper.ts'
 import { placeFurnitureInRoom } from '../lib/preset-layout.ts'
 import {
   DEFAULT_ROOM_DIMS,
@@ -8,24 +9,81 @@ import {
   STYLE_PRESENTATION,
   STYLE_SLUG,
 } from '../lib/style-room-presentation.ts'
+import type { FurnitureItem } from '../types/index.ts'
 
 const PRIORITY: Record<string, string[]> = {
   'Living Room': ['Sofa', 'Coffee Table', 'Chair', 'Rug', 'Light', 'TV Unit'],
   Bedroom: ['Bed', 'Wardrobe', 'Side Table', 'Rug', 'Light', 'Chair'],
 }
 
-function loadEnv(): Record<string, string> {
+function parseEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {}
   return Object.fromEntries(
-    readFileSync('.env.local', 'utf8')
+    readFileSync(path, 'utf8')
       .split('\n')
-      .filter(Boolean)
-      .map(line => line.split('=').map(s => s.trim()))
-      .map(([k, ...v]) => [k, v.join('=')]),
+      .filter(line => line.trim() && !line.trim().startsWith('#') && line.includes('='))
+      .map(line => {
+        const [k, ...rest] = line.split('=')
+        return [k.trim(), rest.join('=').trim().replace(/^['"]|['"]$/g, '')]
+      }),
   )
 }
 
+function loadEnv(): Record<string, string> {
+  return {
+    ...parseEnvFile('../furniture-3d-gen/.env'),
+    ...parseEnvFile('.env'),
+    ...parseEnvFile('.env.local'),
+  }
+}
+
+function mergeCatalog(dbItems: CatalogItem[]): CatalogItem[] {
+  const dbNames = new Set(dbItems.map(item => item.name))
+  return [...dbItems, ...MOCK_CATALOG.filter(item => !dbNames.has(item.name))]
+}
+
+const SKIP_PRESET_NAMES = new Set(['Reed', 'Pebble'])
+const FAKE_LOCAL_MODELS = new Set([
+  '/models/generated-chair.glb',
+  '/models/generated-bed.glb',
+])
+
+function catalogForPreset(all: CatalogItem[], style: string, roomType: string): CatalogItem[] {
+  const inStyle = all.filter(
+    item =>
+      item.available &&
+      item.style === style &&
+      item.room.includes(roomType) &&
+      !SKIP_PRESET_NAMES.has(item.name) &&
+      !FAKE_LOCAL_MODELS.has(item.modelUrl ?? ''),
+  )
+
+  if (roomType !== 'Bedroom') return inStyle
+
+  // Bedroom chairs: use Pure (real GLB) instead of Reed/Pebble fakes
+  if (!inStyle.some(item => item.category === 'Chair')) {
+    const pure = all.find(item => item.name === 'Pure' && item.available)
+    if (pure) return [...inStyle, { ...pure, room: [...pure.room, 'Bedroom'] }]
+  }
+  return inStyle
+}
+
+async function fetchDbCatalog(url: string, anonKey: string): Promise<CatalogItem[]> {
+  const supabase = createClient(url, anonKey)
+  const { data, error } = await supabase
+    .from('furniture_items')
+    .select('*')
+    .or('model_url.not.is.null,image_url.not.is.null')
+    .order('name')
+  if (error) {
+    console.warn('Live catalog load failed, using mock only:', error.message)
+    return []
+  }
+  return ((data ?? []) as FurnitureItem[]).map(furnitureItemToCatalogItem)
+}
+
 function pickItems(
-  catalog: ReturnType<typeof catalogForPreset>,
+  catalog: CatalogItem[],
   roomType: string,
   max = 6,
 ) {
@@ -47,38 +105,28 @@ function pickItems(
 }
 
 async function main() {
+  const dumpOnly = process.argv.includes('--dump')
   const env = loadEnv()
   const url = env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const key =
     process.env.SUPABASE_SECRET_KEY ??
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
     env.SUPABASE_SECRET_KEY ??
     env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!url || !key) {
-    console.error(`
-Missing Supabase credentials.
-
-Add to .env.local:
-  NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co   (you already have this)
-  SUPABASE_SERVICE_ROLE_KEY=eyJ...                    (service role — see below)
-
-Where to find the service role key:
-  Supabase Dashboard → your project → Project Settings → API
-  → "Project API keys" → service_role (secret)
-
-⚠ Never commit this key or use it in client/browser code. Scripts only.
-`)
-    process.exit(1)
+  const dbItems = url && anon ? await fetchDbCatalog(url, anon) : []
+  const allItems = mergeCatalog(dbItems)
+  if (dbItems.length > 0) {
+    console.log(`Using ${dbItems.length} live furniture_items + mock fillers`)
   }
 
-  const supabase = createClient(url, key)
   const roomTypes = ['Living Room', 'Bedroom'] as const
   const rows = []
 
   for (const styleName of STYLE_NAMES) {
     for (const roomType of roomTypes) {
-      const catalog = catalogForPreset(styleName, roomType)
+      const catalog = catalogForPreset(allItems, styleName, roomType)
       const selected = pickItems(catalog, roomType, 6)
 
       if (selected.length < 4) {
@@ -88,7 +136,7 @@ Where to find the service role key:
       const dims = DEFAULT_ROOM_DIMS[roomType]
       const presentation = STYLE_PRESENTATION[styleName]
       const roomConfig = { ...dims, ...presentation }
-      const furniture = placeFurnitureInRoom(selected, dims).map(
+      const furniture = placeFurnitureInRoom(selected, dims, roomType).map(
         ({ id: _id, ...rest }) => rest,
       )
 
@@ -105,6 +153,39 @@ Where to find the service role key:
       console.log(`✓ ${styleName} ${roomType} — ${selected.length} items, ${furniture.length} placed`)
     }
   }
+
+  if (dumpOnly) {
+    const { writeFileSync, mkdirSync } = await import('fs')
+    const { dirname } = await import('path')
+    const out = process.argv.find(a => a.startsWith('--out='))?.slice(6) ?? '/tmp/roomia-presets.json'
+    mkdirSync(dirname(out), { recursive: true })
+    writeFileSync(out, JSON.stringify(rows, null, 2))
+    console.log(`\nDumped ${rows.length} presets → ${out}`)
+    console.log('Apply to DB with: npm run generate-presets  (needs SUPABASE_SERVICE_ROLE_KEY)')
+    return
+  }
+
+  if (!url || !key) {
+    console.error(`
+Missing Supabase credentials.
+
+Add to .env.local:
+  NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co   (you already have this)
+  SUPABASE_SERVICE_ROLE_KEY=eyJ...                    (service role — see below)
+
+Where to find the service role key:
+  Supabase Dashboard → your project → Project Settings → API
+  → "Project API keys" → service_role (secret)
+
+⚠ Never commit this key or use it in client/browser code. Scripts only.
+
+Or dump JSON only:
+  npx tsx scripts/generate-room-presets.ts --dump
+`)
+    process.exit(1)
+  }
+
+  const supabase = createClient(url, key)
 
   const { error: deleteError } = await supabase
     .from('room_presets')

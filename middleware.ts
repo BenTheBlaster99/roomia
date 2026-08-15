@@ -13,6 +13,7 @@ export const config = {
     '/partners',
     '/rooms',
     '/styles',
+    '/quiz',
     '/generateur',
     '/marketplace',
   ],

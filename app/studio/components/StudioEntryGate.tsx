@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
+import { useStudioStore } from '@/store/useStudioStore'
 import type { RoomPresetRow } from '@/types/room-preset'
 
 type PresetRow = Pick<
@@ -25,14 +26,17 @@ const COPY = {
 }
 
 export default function StudioEntryGate({
+  skipGate = false,
   onEnterBlank,
 }: {
+  skipGate?: boolean
   onEnterBlank: () => void
 }) {
   const searchParams = useSearchParams()
   const [presets, setPresets] = useState<PresetRow[] | null>(null)
 
   const shouldSkip =
+    skipGate ||
     Boolean(searchParams.get('preset')) ||
     searchParams.get('create') === '1' ||
     Boolean(searchParams.get('width')) ||
@@ -40,9 +44,13 @@ export default function StudioEntryGate({
 
   const [dismissed, setDismissed] = useState(shouldSkip)
 
+  // Sync gate visibility immediately (avoid TopBar/dims chrome flashing under the gate)
   useEffect(() => {
-    if (shouldSkip) setDismissed(true)
-  }, [shouldSkip])
+    useStudioStore.getState().setEntryGateOpen(!dismissed)
+    return () => {
+      useStudioStore.getState().setEntryGateOpen(false)
+    }
+  }, [dismissed])
 
   useEffect(() => {
     if (dismissed) return
@@ -62,7 +70,7 @@ export default function StudioEntryGate({
   if (dismissed) return null
 
   return (
-    <div className="absolute inset-0 z-50 overflow-y-auto bg-[var(--rm-bg)] text-[var(--rm-text)]">
+    <div className="absolute inset-0 z-[100] overflow-y-auto bg-[var(--rm-bg)] text-[var(--rm-text)]">
       <div className="mx-auto max-w-5xl px-5 py-10 md:px-8">
         <Link
           href="/"
@@ -81,9 +89,14 @@ export default function StudioEntryGate({
             type="button"
             onClick={() => {
               setDismissed(true)
+              useStudioStore.getState().setEntryGateOpen(false)
               onEnterBlank()
               const url = new URL(window.location.href)
               url.searchParams.set('create', '1')
+              // Drop dimension query noise from configure redirect
+              url.searchParams.delete('width')
+              url.searchParams.delete('length')
+              url.searchParams.delete('height')
               window.history.replaceState({}, '', url.toString())
             }}
             className="rm-panel p-6 text-left transition-transform hover:-translate-y-0.5"
@@ -98,12 +111,15 @@ export default function StudioEntryGate({
           >
             <div className="rm-display text-xl font-bold">{COPY.floorPlan}</div>
             <p className="mt-2 text-sm text-[var(--rm-muted)]">
-              Dimensions depuis un plan — puis studio
+              Entrez les dimensions ou scannez un plan — puis ouvrez le studio
             </p>
           </Link>
         </div>
 
         <h2 className="rm-display mt-14 text-xl font-bold">{COPY.presets}</h2>
+        <p className="mt-2 text-sm text-[var(--rm-muted)]">
+          Pièces curatées — pas de mesures à saisir ici.
+        </p>
 
         {presets === null ? (
           <p className="mt-4 text-sm text-[var(--rm-muted)]">{COPY.loading}</p>
@@ -128,11 +144,11 @@ export default function StudioEntryGate({
                     }}
                   />
                   <div className="p-4">
-                    <div className="font-bold text-sm group-hover:text-[var(--rm-primary)]">
+                    <div className="text-sm font-bold group-hover:text-[var(--rm-primary)]">
                       {preset.name}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--rm-muted)] capitalize">
-                      {preset.room_type} · {COPY.open} →
+                    <div className="mt-1 text-xs capitalize text-[var(--rm-muted)]">
+                      {preset.room_type?.replace(/_/g, ' ')} · {COPY.open} →
                     </div>
                   </div>
                 </a>

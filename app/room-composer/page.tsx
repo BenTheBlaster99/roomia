@@ -4,11 +4,18 @@ import { useEffect, useRef, useState } from 'react'
 import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
+import { getReferenceFidelity } from '@/lib/render-prompt'
+import {
+  COMPOSER_LIGHTS,
+  COMPOSER_WALLS,
+  lightById,
+  wallById,
+  type ComposerLightId,
+} from '@/lib/composer-restyle'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import ImageLightbox from '@/components/ImageLightbox'
 
-const AI_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL ?? 'http://localhost:8000'
 const MAX_ZONES = 3
 
 interface Zone {
@@ -19,6 +26,28 @@ interface Zone {
 }
 
 type Stage = 'idle' | 'placing' | 'catalog' | 'generating' | 'results' | 'error'
+type ClickMode = 'furniture' | 'wall' | 'light'
+
+type WallPin = { id: string; hex: string; label: string; prompt: string; x: number; y: number }
+type LightPin = {
+  id: ComposerLightId
+  label: string
+  prompt: string
+  x: number
+  y: number
+}
+
+type ProgressStep = 'masking' | 'generating' | 'results'
+
+const PROGRESS_STEPS: { id: ProgressStep; title: string }[] = [
+  { id: 'masking', title: 'Step 1 · Masking' },
+  { id: 'generating', title: 'Step 2 · Generating' },
+  { id: 'results', title: 'Step 3 · Results' },
+]
+
+function progressIndex(step: ProgressStep): number {
+  return PROGRESS_STEPS.findIndex(s => s.id === step)
+}
 
 function imgToB64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -29,9 +58,20 @@ function imgToB64(file: File): Promise<string> {
   })
 }
 
+const CATALOG_TABS = ['All', 'Sofa', 'Chair', 'Light', 'Tables', 'Rug'] as const
+type CatalogTab = (typeof CATALOG_TABS)[number]
+
+function matchesCatalogTab(item: CatalogItem, tab: CatalogTab) {
+  if (tab === 'All') return true
+  if (tab === 'Tables') {
+    return ['Coffee Table', 'Dining Table', 'Side Table', 'TV Unit'].includes(item.category)
+  }
+  return item.category === tab
+}
+
 const PHOTO_TIPS = [
   'Take the photo in good lighting — natural light works best',
-  'Make sure the whole piece of furniture you want to change is visible',
+  'Include the walls and ceiling if you want paint or a chandelier',
   'Avoid extreme angles — shoot roughly straight-on',
   'One clear photo works better than a cluttered wide shot',
 ]
@@ -47,6 +87,15 @@ export default function RoomComposerPage() {
   const [selectedVariation, setSelectedVariation] = useState<number | null>(null)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progressStep, setProgressStep] = useState<ProgressStep>('masking')
+  const [progressPct, setProgressPct] = useState(0)
+  const [progressDetail, setProgressDetail] = useState('Preparing…')
+  const [clickMode, setClickMode] = useState<ClickMode>('furniture')
+  const [wallPin, setWallPin] = useState<WallPin | null>(null)
+  const [lightPin, setLightPin] = useState<LightPin | null>(null)
+  const [pendingWallId, setPendingWallId] = useState<string | null>(null)
+  const [pendingLightId, setPendingLightId] = useState<ComposerLightId | null>(null)
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>('All')
   const [catalog, setCatalog] = useState<CatalogItem[]>(MOCK_CATALOG.filter(c => c.available))
 
   useEffect(() => {
@@ -80,15 +129,43 @@ export default function RoomComposerPage() {
     setOriginalSrc(URL.createObjectURL(file))
     setStage('placing')
     setZones([])
+    setWallPin(null)
+    setLightPin(null)
+    setPendingWallId(null)
+    setPendingLightId(null)
+    setClickMode('furniture')
     setError(null)
   }
 
   function handlePhotoClick(e: React.MouseEvent<HTMLImageElement>) {
-    if (stage !== 'placing' || zones.length >= MAX_ZONES) return
+    if (stage !== 'placing') return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
 
+    if (clickMode === 'wall' && pendingWallId) {
+      const wall = wallById(pendingWallId)
+      if (!wall) return
+      setWallPin({ id: wall.id, hex: wall.hex, label: wall.label, prompt: wall.prompt, x, y })
+      setClickMode('furniture')
+      return
+    }
+
+    if (clickMode === 'light' && pendingLightId) {
+      const light = lightById(pendingLightId)
+      if (!light) return
+      setLightPin({
+        id: light.id,
+        label: light.label,
+        prompt: light.prompt,
+        x,
+        y,
+      })
+      setClickMode('furniture')
+      return
+    }
+
+    if (zones.length >= MAX_ZONES) return
     const newZone: Zone = { id: crypto.randomUUID(), x, y, item: null }
     setZones(z => [...z, newZone])
     setActiveZoneId(newZone.id)
@@ -134,14 +211,17 @@ export default function RoomComposerPage() {
 
   async function handleGenerate() {
     const readyZones = zones.filter(z => z.item !== null)
-    if (readyZones.length === 0) {
-      setError('Add at least one furniture piece before generating')
+    if (readyZones.length === 0 && !wallPin && !lightPin) {
+      setError('Paint a wall, add a light, or pin a furniture piece')
       return
     }
 
     setStage('generating')
     setError(null)
     setSelectedVariation(null)
+    setProgressStep('masking')
+    setProgressPct(8)
+    setProgressDetail('Preparing masks…')
 
     try {
       const zonesPayload = await Promise.all(
@@ -162,36 +242,139 @@ export default function RoomComposerPage() {
             x: zone.x,
             y: zone.y,
             prompt,
+            category: item.category,
+            fidelity: getReferenceFidelity(item.category),
             reference_base64,
           }
         }),
       )
 
-      const res = await fetch(`${AI_URL}/compose/room`, {
+      const res = await fetch('/api/compose/room', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_base64: originalB64,
           zones: zonesPayload,
+          atmosphere: {
+            wall: wallPin
+              ? { prompt: wallPin.prompt, x: wallPin.x, y: wallPin.y }
+              : null,
+            lighting: lightPin
+              ? {
+                  prompt: lightPin.prompt,
+                  kind: lightPin.id,
+                  x: lightPin.x,
+                  y: lightPin.y,
+                }
+              : null,
+          },
           num_variations: 3,
         }),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail ?? `Backend error ${res.status}`)
+        throw new Error(err.detail ?? `Compose error ${res.status}`)
       }
 
-      const data = await res.json()
-      setVariations(
-        (data.variations as string[]).map(b64 => `data:image/jpeg;base64,${b64}`),
-      )
+      if (!res.body) {
+        throw new Error('Compose stream unavailable')
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let gotVariations: string[] | null = null
+      let partialWarning: string | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+          let event: {
+            type: string
+            step?: ProgressStep
+            label?: string
+            detail?: string
+            pct?: number
+            variations?: string[]
+            failed_count?: number
+            warnings?: string[]
+          }
+          try {
+            event = JSON.parse(trimmed)
+          } catch {
+            continue
+          }
+
+          if (event.type === 'progress' && event.step) {
+            setProgressStep(event.step)
+            if (typeof event.pct === 'number') setProgressPct(event.pct)
+            setProgressDetail(event.detail ?? event.label ?? '')
+          } else if (event.type === 'done' && Array.isArray(event.variations)) {
+            gotVariations = event.variations
+            setProgressStep('results')
+            setProgressPct(100)
+            setProgressDetail(
+              event.failed_count && event.failed_count > 0
+                ? `${event.variations.length} ready (${event.failed_count} failed)`
+                : 'Done',
+            )
+            if (event.failed_count && event.failed_count > 0) {
+              partialWarning = `${event.variations.length} of 3 variations succeeded. Others failed on the image API.`
+            }
+          } else if (event.type === 'error') {
+            throw new Error(event.detail ?? 'Compose failed')
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer.trim()) as {
+            type: string
+            variations?: string[]
+            detail?: string
+            failed_count?: number
+          }
+          if (event.type === 'done' && Array.isArray(event.variations)) {
+            gotVariations = event.variations
+            if (event.failed_count && event.failed_count > 0) {
+              partialWarning = `${event.variations.length} of 3 variations succeeded. Others failed on the image API.`
+            }
+          } else if (event.type === 'error') {
+            throw new Error(event.detail ?? 'Compose failed')
+          }
+        } catch (trailErr) {
+          if (trailErr instanceof SyntaxError) {
+            // ignore incomplete trailing chunk if we already have results
+            if (!gotVariations?.length) {
+              throw new Error('Stream ended unexpectedly (no results)')
+            }
+          } else {
+            throw trailErr
+          }
+        }
+      }
+
+      if (!gotVariations?.length) {
+        throw new Error('No variations returned (all requests failed or stream cut off)')
+      }
+
+      setVariations(gotVariations.map(b64 => `data:image/jpeg;base64,${b64}`))
+      if (partialWarning) setError(partialWarning)
       setStage('results')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'
       setError(
-        message.toLowerCase().includes('fetch')
-          ? 'Could not reach AI backend. Make sure it is running on port 8000.'
+        message.toLowerCase().includes('fetch') || message.includes('502')
+          ? 'Image API returned an error (502). Check OPENAI_BASE_URL / key, then retry — partial results are kept when any variation succeeds.'
           : message,
       )
       setStage('error')
@@ -204,13 +387,31 @@ export default function RoomComposerPage() {
     setOriginalSrc('')
     setZones([])
     setActiveZoneId(null)
+    setWallPin(null)
+    setLightPin(null)
+    setPendingWallId(null)
+    setPendingLightId(null)
+    setClickMode('furniture')
+    setCatalogTab('All')
     setVariations([])
     setSelectedVariation(null)
+    setLightboxSrc(null)
+    setProgressStep('masking')
+    setProgressPct(0)
+    setProgressDetail('Preparing…')
     setError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
   const readyCount = zones.filter(z => z.item).length
+  const canGenerate = readyCount > 0 || Boolean(wallPin) || Boolean(lightPin)
+  const filteredCatalog = catalog.filter(item => matchesCatalogTab(item, catalogTab))
+  const placingHint =
+    clickMode === 'wall'
+      ? 'Tap the wall in the photo'
+      : clickMode === 'light'
+        ? (lightById(pendingLightId ?? '')?.hint ?? 'Tap where the light goes')
+        : 'Tap the photo to swap furniture — optional'
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
@@ -222,11 +423,10 @@ export default function RoomComposerPage() {
             Feature A
           </p>
           <h1 className="rm-display mt-2 text-3xl font-bold tracking-tight md:text-4xl">
-            Furnish your room photo
+            Restyle your room photo
           </h1>
           <p className="mt-2 text-sm text-[var(--rm-muted)] leading-relaxed">
-            Upload your room, tap up to {MAX_ZONES} spots to furnish, and get 3 AI-generated
-            variations to choose from.
+            Paint walls, add a light, swap furniture — three photoreal looks from one photo.
           </p>
         </div>
 
@@ -272,10 +472,14 @@ export default function RoomComposerPage() {
         {(stage === 'placing' || stage === 'catalog') && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-[var(--rm-muted)]">
-                {zones.length < MAX_ZONES
-                  ? `Tap furniture to change (${zones.length}/${MAX_ZONES} selected)`
-                  : `Maximum ${MAX_ZONES} zones selected`}
+              <p
+                className={`text-xs ${
+                  clickMode === 'furniture'
+                    ? 'text-[var(--rm-muted)]'
+                    : 'font-medium text-[var(--rm-primary)]'
+                }`}
+              >
+                {placingHint}
               </p>
               <button
                 type="button"
@@ -293,6 +497,26 @@ export default function RoomComposerPage() {
                 className="w-full rounded-[1.25rem] border border-[var(--rm-text)]/10 block cursor-crosshair"
                 onClick={handlePhotoClick}
               />
+              {wallPin && (
+                <div
+                  className="absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow pointer-events-none"
+                  style={{
+                    left: `${wallPin.x * 100}%`,
+                    top: `${wallPin.y * 100}%`,
+                    background: wallPin.hex,
+                  }}
+                  title={wallPin.label}
+                />
+              )}
+              {lightPin && (
+                <div
+                  className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-amber-300 bg-amber-400/90 text-[10px] font-bold text-zinc-900 shadow pointer-events-none"
+                  style={{ left: `${lightPin.x * 100}%`, top: `${lightPin.y * 100}%` }}
+                  title={lightPin.label}
+                >
+                  ✦
+                </div>
+              )}
               {zones.map((zone, i) => (
                 <div
                   key={zone.id}
@@ -302,6 +526,99 @@ export default function RoomComposerPage() {
                   {i + 1}
                 </div>
               ))}
+            </div>
+
+            <div className="rm-panel flex flex-col gap-3 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--rm-muted)]">
+                  Paint
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {COMPOSER_WALLS.map(wall => {
+                    const active = (wallPin?.id ?? pendingWallId) === wall.id
+                    return (
+                      <button
+                        key={wall.id}
+                        type="button"
+                        title={wall.label}
+                        aria-label={wall.label}
+                        onClick={() => {
+                          if (active) {
+                            setWallPin(null)
+                            setPendingWallId(null)
+                            setClickMode('furniture')
+                            return
+                          }
+                          setPendingWallId(wall.id)
+                          setPendingLightId(null)
+                          if (wallPin) {
+                            setWallPin({
+                              ...wallPin,
+                              id: wall.id,
+                              hex: wall.hex,
+                              label: wall.label,
+                              prompt: wall.prompt,
+                            })
+                            setClickMode('furniture')
+                          } else {
+                            setClickMode('wall')
+                          }
+                        }}
+                        className={`h-7 w-7 rounded-full border ${
+                          active
+                            ? 'border-[var(--rm-primary)] ring-2 ring-[var(--rm-primary)]/30'
+                            : 'border-black/10'
+                        }`}
+                        style={{ background: wall.hex }}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--rm-muted)]">
+                  Light
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {COMPOSER_LIGHTS.map(light => {
+                    const active = (lightPin?.id ?? pendingLightId) === light.id
+                    return (
+                      <button
+                        key={light.id}
+                        type="button"
+                        onClick={() => {
+                          if (active) {
+                            setLightPin(null)
+                            setPendingLightId(null)
+                            setClickMode('furniture')
+                            return
+                          }
+                          setPendingLightId(light.id)
+                          setPendingWallId(null)
+                          if (lightPin) {
+                            setLightPin({
+                              ...lightPin,
+                              id: light.id,
+                              label: light.label,
+                              prompt: light.prompt,
+                            })
+                            setClickMode('furniture')
+                          } else {
+                            setClickMode('light')
+                          }
+                        }}
+                        className={`rounded-full px-3 py-1 text-xs ${
+                          active
+                            ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
+                            : 'bg-[var(--rm-secondary)] text-[var(--rm-muted)]'
+                        }`}
+                      >
+                        {light.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
 
             {zones.length > 0 && (
@@ -367,8 +684,24 @@ export default function RoomComposerPage() {
                     Back
                   </button>
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATALOG_TABS.map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setCatalogTab(tab)}
+                      className={`rounded-full px-3 py-1 text-xs ${
+                        catalogTab === tab
+                          ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
+                          : 'bg-[var(--rm-secondary)] text-[var(--rm-muted)]'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                  {catalog.map(item => (
+                  {filteredCatalog.map(item => (
                     <button
                       key={item.id}
                       type="button"
@@ -402,13 +735,24 @@ export default function RoomComposerPage() {
               </div>
             )}
 
-            {stage === 'placing' && readyCount > 0 && (
+            {stage === 'placing' && canGenerate && (
               <button
                 type="button"
                 onClick={handleGenerate}
                 className="w-full rm-btn-primary py-3.5 text-sm"
               >
-                Generate {readyCount} zone{readyCount > 1 ? 's' : ''} → 3 results
+                Generate 3 restyles
+                <span className="mt-1 block text-[11px] font-normal opacity-80">
+                  {[
+                    wallPin ? wallPin.label : null,
+                    lightPin ? lightPin.label : null,
+                    readyCount > 0
+                      ? `${readyCount} furniture piece${readyCount > 1 ? 's' : ''}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
               </button>
             )}
           </div>
@@ -421,13 +765,60 @@ export default function RoomComposerPage() {
               alt="Processing"
               className="w-full rounded-[1.25rem] border border-[var(--rm-text)]/10 opacity-40"
             />
-            <div className="flex flex-col items-center gap-3 py-6">
-              <span className="w-10 h-10 border-2 border-[var(--rm-primary)] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-[var(--rm-primary)] font-medium">Generating 3 variations...</p>
-              <p className="text-xs text-[var(--rm-muted)] text-center max-w-sm">
-                This can take 1–3 minutes with multiple furniture pieces. Start with 1 zone to
-                smoke-test.
-              </p>
+            <div className="space-y-5 rounded-[1.25rem] border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] px-5 py-6">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[var(--rm-text)]">
+                  {PROGRESS_STEPS[progressIndex(progressStep)]?.title ?? 'Working…'}
+                </p>
+                <span className="text-xs tabular-nums text-[var(--rm-muted)]">
+                  {Math.round(progressPct)}%
+                </span>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--rm-text)]/10">
+                <div
+                  className="h-full rounded-full bg-[var(--rm-primary)] transition-[width] duration-500 ease-out"
+                  style={{ width: `${Math.min(100, Math.max(4, progressPct))}%` }}
+                />
+              </div>
+
+              <ol className="space-y-2.5">
+                {PROGRESS_STEPS.map((step, i) => {
+                  const activeIdx = progressIndex(progressStep)
+                  const done = i < activeIdx
+                  const active = i === activeIdx
+                  return (
+                    <li
+                      key={step.id}
+                      className={`flex items-center gap-3 text-sm ${
+                        active
+                          ? 'font-medium text-[var(--rm-primary)]'
+                          : done
+                            ? 'text-[var(--rm-text)]'
+                            : 'text-[var(--rm-muted)]'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                          active
+                            ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
+                            : done
+                              ? 'bg-[var(--rm-primary)]/20 text-[var(--rm-primary)]'
+                              : 'bg-[var(--rm-text)]/10 text-[var(--rm-muted)]'
+                        }`}
+                      >
+                        {done ? '✓' : i + 1}
+                      </span>
+                      <span>{step.title.replace(/^Step \d+ · /, '')}</span>
+                      {active && (
+                        <span className="ml-auto h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--rm-primary)] border-t-transparent" />
+                      )}
+                    </li>
+                  )
+                })}
+              </ol>
+
+              <p className="text-xs text-[var(--rm-muted)]">{progressDetail}</p>
             </div>
           </div>
         )}

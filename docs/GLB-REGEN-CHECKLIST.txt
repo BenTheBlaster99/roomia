@@ -1,0 +1,59 @@
+Roomia — GLB regeneration checklist
+====================================
+Goal: replace weak catalog GLBs with models that match real product look AND metres.
+
+Pipeline (furniture-3d-gen / your GPU machine)
+----------------------------------------------
+1. For each furniture_items row with a product photo (image_url):
+   - Export / note: id, name, category, target W×D×H (metres)
+2. Run your generator with the product reference image.
+3. Verify orientation (upright, front faces +Z or your studio convention).
+4. Measure the baked mesh; scale so world size ≈ target metres.
+5. Upload GLB to storage (Supabase Storage or R2).
+6. Update furniture_items.model_url (+ notes with dims if no dim columns yet).
+7. Smoke-test in /studio: place item, check selection box vs real scale, rotate, render.
+
+Target metres by category (defaults in lib/studio-constants.ts)
+--------------------------------------------------------------
+Sofa:          ~2.1 × 0.85 × 0.80
+Bed:           ~1.6 × 2.00 × 1.05
+Chair:         ~0.70 × 0.75 × 1.00
+Coffee Table:  ~1.10 × 0.60 × 0.45
+Dining Table:  ~1.40 × 0.80 × 0.75
+Wardrobe:      ~1.80 × 0.60 × 2.10
+TV Unit:       ~1.60 × 0.45 × 0.55
+Side Table:    ~0.50 × 0.50 × 0.55
+Bookshelf:     ~0.80 × 0.30 × 1.80
+Rug:           ~2.00 × 1.40 × 0.02
+Light:         ~0.40 × 0.40 × 0.55  (ceiling pendants, not floor lamps)
+Curtains:      ~1.50 × 0.05 × 2.40
+
+Batching
+--------
+Do 5–10 SKUs per batch. After each batch: open Studio, place each, photoreal one scene.
+Do not rebuild all room_presets until a critical mass of hero SKUs (sofa, bed, chair, table) look right.
+
+Runtime dims (until DB stores metres)
+-------------------------------------
+lib/catalog-mapper.ts maps name overrides + CATEGORY_DIMS.
+Never ship undersized “testing” dims — sanitizeDimensions() enforces floors.
+
+Status
+------
+[x] Sarah catalog InstantMesh batch — 30/30 GLBs generated (lowvram after GNOME OOM)
+[x] Uploaded to Supabase + furniture_items.model_url / width_m / depth_m / height_m
+[x] Junk test rows deleted
+[x] Fix pass: InstantMesh medium 1024px / no-axis-swap + Y-rotate post
+    Ceiling lights uploaded: Accent, Ghost, A Hundred Tails, Leila, Thread
+    Aliases: Chandelier←A Hundred Tails, Harbor←Ghost, Zen←Leila, Rattan←Thread
+    Redo: Coupé, Raphael, Mid-Way, Pure (Majlis 0.70×0.75×1.00), Meida, Wave, Sharpe, Walima
+    Procedural until unique photos: Gilded, Zellige, Atlas, TV units (Velvet/Coastal/Forge/Line)
+    Removed: Majlis, Majlis Bed, Breeze (flipped duplicates)
+[x] Hole/speckle pass: Studio DoubleSide + beds/Dorothy regen at medium 1024
+    Venus, Dagger, Lils, Aurora, Neptune, Saturn, Dorothy uploaded
+    Extra product views still needed for Dagger (side-only photo) and L-shape Coupé
+[x] Smoke-test Studio + photoreal (living-room render 2026-08-14 — quality OK)
+[x] Presets rebuilt after new GLBs (bedroom Pure + flush wardrobe + wall snap)
+
+
+

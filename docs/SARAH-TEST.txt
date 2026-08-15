@@ -1,0 +1,67 @@
+ROOMIA — SARAH TEST (live + what to look at)
+Date: 15 August 2026
+
+Live site:  https://www.room-ia.com
+
+Send Sarah this file + docs/STATUS-RECAP.txt
+(the recap is the long “what we built” note).
+
+
+================================================================================
+TRY THESE PAGES
+================================================================================
+
+1) Room Composer (the wow — restyle a real photo)
+   https://www.room-ia.com/room-composer
+
+   Upload a room photo that shows walls AND ceiling.
+   Paint: tap a color dot, then tap a wall.
+   Light: tap Chandelier / Pendant / Floor / Sconce, then tap ceiling/floor/wall.
+   Furniture: optional — tap an existing piece, pick from the catalog (max 3).
+   Generate 3 restyles.
+
+   If you see “Could not reach SAM2 backend”:
+   Composer masks still need the GPU backend. Studio photoreal (below)
+   does not. Tell Jack — production SAM2 is not public yet.
+   Local fallback on Jack’s machine: npm run back + npm run dev
+   → http://localhost:3000/room-composer
+
+2) 3D Studio + photoreal photo
+   https://www.room-ia.com/studio
+
+   Pick a curated preset OR create a blank room.
+   Move furniture, drag ceiling lights (lamp or gold disc on the floor).
+   Hit photoreal — one photograph, same layout.
+
+3) Quiz + styles
+   https://www.room-ia.com/quiz
+   https://www.room-ia.com/styles
+
+4) Pro Dashboard (login)
+   https://www.room-ia.com/dashboard/login
+   Optional. Furniture-pin generate + saved files.
+   Public Composer is still the no-login path — do not force signup.
+
+
+================================================================================
+WHAT “GOOD” LOOKS LIKE
+================================================================================
+
+Composer: the room should feel redesigned (paint obvious, lights ON with
+glow/shadows), same camera, catalog sofas look like the catalog photos.
+
+Studio: pieces in real metres, lights hang from the ceiling, photoreal
+keeps the furniture where you placed it.
+
+GLBs are demo-good, not every SKU is catalog-perfect. Note anything that
+looks wrong (holes, tiny chairs, wrong product) with a screenshot.
+
+
+================================================================================
+PLEASE SEND BACK
+================================================================================
+
+- Phone or desktop?
+- Which page?
+- Screenshot of a result you like AND one that feels off
+- Exact error text if generate fails

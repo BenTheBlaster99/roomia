@@ -1,58 +1,50 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { loadFloorPlan } from '@/lib/floor-plan-storage'
-import { supabase } from '@/lib/supabase'
-import { useStudioStore } from '@/store/useStudioStore'
+import { fetchRoomPreset } from '@/lib/room-preset'
 import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
-import type { RoomPresetRow } from '@/types/room-preset'
+import { useStudioStore } from '@/store/useStudioStore'
+import type { RoomPresetPayload } from '@/types/room-preset'
+import type { StudioQuery } from './studio-query'
 
 /** Hydrates Zustand from preset URL, /configure params, or scanned floor plan. Preset wins. */
-export default function StudioBootstrap() {
-  const searchParams = useSearchParams()
-  const setRoom = useStudioStore(s => s.setRoom)
-  const setActiveRoom = useStudioStore(s => s.setActiveRoom)
-  const loadPreset = useStudioStore(s => s.loadPreset)
-  const setPreFilterStyle = useStudioStore(s => s.setPreFilterStyle)
+export default function StudioBootstrap({
+  initialPreset,
+  query,
+}: {
+  initialPreset: RoomPresetPayload | null
+  query: StudioQuery
+}) {
   const loadedRef = useRef<string | null>(null)
+  const presetId = query.preset
+  const styleParam = query.style
+  const roomParam = query.room
+  const widthParam = query.width
+  const lengthParam = query.length
+  const heightParam = query.height
 
   useEffect(() => {
-    const presetId = searchParams.get('preset')
-    const styleParam = searchParams.get('style')
-    const roomParam = searchParams.get('room')
+    const { setRoom, setActiveRoom, loadPreset, setPreFilterStyle } = useStudioStore.getState()
 
     if (presetId) {
       if (loadedRef.current === presetId) return
       loadedRef.current = presetId
-
-      supabase
-        .from('room_presets')
-        .select('*')
-        .eq('id', presetId)
-        .single()
-        .then(({ data, error }) => {
-          if (error || !data) {
-            console.error('Failed to load preset:', error?.message)
-            return
-          }
-          const row = data as RoomPresetRow
-          loadPreset({
-            room: row.room_config,
-            furniture: row.furniture ?? [],
-            roomType: row.room_type,
-            styleId: row.style_id,
-            name: row.name,
-          })
-        })
+      if (initialPreset) {
+        loadPreset(initialPreset)
+        return
+      }
+      fetchRoomPreset(presetId).then(payload => {
+        if (payload) loadPreset(payload)
+      })
       return
     }
 
     loadedRef.current = null
     const stored = loadFloorPlan()
-    const width = parseFloat(searchParams.get('width') ?? '')
-    const length = parseFloat(searchParams.get('length') ?? '')
-    const height = parseFloat(searchParams.get('height') ?? '')
+    const width = parseFloat(widthParam ?? '')
+    const length = parseFloat(lengthParam ?? '')
+    const height = parseFloat(heightParam ?? '')
 
     const updates: { width?: number; length?: number; height?: number } = {}
 
@@ -80,7 +72,15 @@ export default function StudioBootstrap() {
       const name = SLUG_TO_STYLE[styleParam]
       if (name) setPreFilterStyle(name)
     }
-  }, [searchParams, setRoom, setActiveRoom, loadPreset, setPreFilterStyle])
+  }, [
+    presetId,
+    initialPreset,
+    styleParam,
+    roomParam,
+    widthParam,
+    lengthParam,
+    heightParam,
+  ])
 
   return null
 }

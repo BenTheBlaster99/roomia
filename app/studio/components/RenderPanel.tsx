@@ -5,7 +5,17 @@ import { useStudioStore } from '@/store/useStudioStore'
 import { FLOOR_MATERIALS } from '@/lib/studio-constants'
 import ImageLightbox from '@/components/ImageLightbox'
 
-const AI_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL ?? 'http://localhost:8000'
+type ProgressStep = 'capturing' | 'generating' | 'results'
+
+const PROGRESS_STEPS: { id: ProgressStep; title: string }[] = [
+  { id: 'capturing', title: 'Step 1 · Capture' },
+  { id: 'generating', title: 'Step 2 · Generating' },
+  { id: 'results', title: 'Step 3 · Results' },
+]
+
+function progressIndex(step: ProgressStep): number {
+  return PROGRESS_STEPS.findIndex(s => s.id === step)
+}
 
 export default function RenderPanel() {
   const { renderPanelOpen, setRenderPanelOpen, canvasRef, room, activeRoom, setViewMode } =
@@ -14,9 +24,11 @@ export default function RenderPanel() {
   const [beforeSrc, setBeforeSrc] = useState('')
   const [afterSrc, setAfterSrc] = useState('')
   const [error, setError] = useState<string | null>(null)
-  /** If true, jump to eye-level capture preset before shooting. Else use whatever view the user framed. */
   const [useEyeLevel, setUseEyeLevel] = useState(false)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [progressStep, setProgressStep] = useState<ProgressStep>('capturing')
+  const [progressPct, setProgressPct] = useState(0)
+  const [progressDetail, setProgressDetail] = useState('Preparing…')
 
   if (!renderPanelOpen) return null
 
@@ -29,6 +41,9 @@ export default function RenderPanel() {
 
     setStage('rendering')
     setError(null)
+    setProgressStep('capturing')
+    setProgressPct(10)
+    setProgressDetail('Capturing studio view…')
 
     const store = useStudioStore.getState()
     const previousView = store.viewMode
@@ -41,7 +56,6 @@ export default function RenderPanel() {
         store.setViewMode('capture')
         await new Promise(r => setTimeout(r, 900))
       } else {
-        // Keep user's framed view; short settle for chrome hide
         await new Promise(r => setTimeout(r, 350))
       }
 
@@ -52,8 +66,11 @@ export default function RenderPanel() {
       }
 
       setBeforeSrc(dataUrl)
+      setProgressStep('generating')
+      setProgressPct(40)
+      setProgressDetail('Sending to GPT Image 2…')
 
-      const res = await fetch(`${AI_URL}/render/photorealistic`, {
+      const res = await fetch('/api/render/photorealistic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,17 +78,88 @@ export default function RenderPanel() {
           floor_material: FLOOR_MATERIALS[room.floorMaterial]?.label ?? '',
           wall_color: room.wallColor,
           room_type: activeRoom,
-          strength: 0.62,
         }),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail ?? `Backend error ${res.status}`)
+        throw new Error(err.detail ?? `Render error ${res.status}`)
       }
 
-      const data = await res.json()
-      setAfterSrc(`data:image/jpeg;base64,${data.result_base64}`)
+      if (!res.body) {
+        throw new Error('Render stream unavailable')
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let resultBase64: string | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+          let event: {
+            type: string
+            step?: ProgressStep
+            detail?: string
+            label?: string
+            pct?: number
+            result_base64?: string
+          }
+          try {
+            event = JSON.parse(trimmed)
+          } catch {
+            continue
+          }
+
+          if (event.type === 'progress' && event.step) {
+            setProgressStep(event.step)
+            if (typeof event.pct === 'number') setProgressPct(event.pct)
+            setProgressDetail(event.detail ?? event.label ?? '')
+          } else if (event.type === 'done' && event.result_base64) {
+            resultBase64 = event.result_base64
+            setProgressStep('results')
+            setProgressPct(100)
+            setProgressDetail('Done')
+          } else if (event.type === 'error') {
+            throw new Error(event.detail ?? 'Render failed')
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer.trim()) as {
+            type: string
+            result_base64?: string
+            detail?: string
+          }
+          if (event.type === 'done' && event.result_base64) {
+            resultBase64 = event.result_base64
+          } else if (event.type === 'error') {
+            throw new Error(event.detail ?? 'Render failed')
+          }
+        } catch (trailErr) {
+          if (trailErr instanceof SyntaxError) {
+            if (!resultBase64) throw new Error('Stream ended unexpectedly')
+          } else {
+            throw trailErr
+          }
+        }
+      }
+
+      if (!resultBase64) {
+        throw new Error('No render returned')
+      }
+
+      setAfterSrc(`data:image/jpeg;base64,${resultBase64}`)
       setStage('done')
     } catch (err: unknown) {
       useStudioStore.getState().setCaptureMode(false)
@@ -82,11 +170,23 @@ export default function RenderPanel() {
       }
 
       const message = err instanceof Error ? err.message : 'Something went wrong'
-      setError(
-        message.toLowerCase().includes('fetch')
-          ? 'Backend IA inaccessible. Vérifiez que le serveur tourne.'
-          : message,
-      )
+      const lower = message.toLowerCase()
+      let friendly = message
+      if (lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch')) {
+        friendly =
+          'Passerelle de rendu inaccessible. Vérifiez que le serveur Next tourne et que OPENAI_API_KEY / OPENAI_BASE_URL sont configurés.'
+      } else if (lower.includes('401') || lower.includes('403') || lower.includes('api key')) {
+        friendly =
+          'Authentification API refusée. Vérifiez OPENAI_API_KEY (et OPENAI_BASE_URL si vous utilisez une passerelle).'
+      } else if (lower.includes('429') || lower.includes('rate')) {
+        friendly = 'Trop de requêtes pour le moment. Attendez quelques secondes puis réessayez.'
+      } else if (lower.includes('no image') || lower.includes('no render') || lower.includes('empty')) {
+        friendly =
+          'Le modèle n’a renvoyé aucune image. Réessayez, ou changez légèrement l’angle de caméra.'
+      } else if (lower.includes('timeout') || lower.includes('timed out')) {
+        friendly = 'Le rendu a expiré. Réessayez avec une scène plus simple ou un autre cadrage.'
+      }
+      setError(friendly)
       setStage('error')
     }
   }
@@ -101,6 +201,9 @@ export default function RenderPanel() {
     setAfterSrc('')
     setError(null)
     setLightboxSrc(null)
+    setProgressStep('capturing')
+    setProgressPct(0)
+    setProgressDetail('Preparing…')
   }
 
   return (
@@ -117,7 +220,7 @@ export default function RenderPanel() {
             <div>
               <h2 className="font-bold text-white">Rendu photoréaliste</h2>
               <p className="mt-0.5 text-xs text-zinc-500">
-                Cadrez la vue 3D comme vous voulez, puis générez
+                GPT Image 2 · 1 variation · même clé API que le Composer
               </p>
             </div>
             <button
@@ -140,7 +243,7 @@ export default function RenderPanel() {
               <p className="text-sm leading-relaxed text-zinc-400">
                 Orbitez et zoomez dans le studio pour choisir l&apos;angle. Le rendu utilise{' '}
                 <strong className="text-zinc-200">la vue actuelle</strong> (grille et labels
-                masqués). Ou activez la vue photo niveau des yeux.
+                masqués), puis GPT Image 2 — comme le Composer.
               </p>
 
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3">
@@ -190,11 +293,57 @@ export default function RenderPanel() {
                   className="w-full rounded-xl border border-zinc-800 opacity-50"
                 />
               )}
-              <div className="flex items-center justify-center gap-3 py-4">
-                <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-                <span className="text-sm text-amber-400">
-                  {beforeSrc ? 'Rendu en cours… (20–40 s)' : 'Capture de la vue…'}
-                </span>
+              <div className="space-y-4 rounded-xl border border-zinc-700 bg-zinc-800/40 px-4 py-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-zinc-200">
+                    {PROGRESS_STEPS[progressIndex(progressStep)]?.title ?? 'Working…'}
+                  </p>
+                  <span className="text-xs tabular-nums text-zinc-500">
+                    {Math.round(progressPct)}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-700">
+                  <div
+                    className="h-full rounded-full bg-amber-400 transition-[width] duration-500 ease-out"
+                    style={{ width: `${Math.min(100, Math.max(4, progressPct))}%` }}
+                  />
+                </div>
+                <ol className="space-y-2">
+                  {PROGRESS_STEPS.map((step, i) => {
+                    const activeIdx = progressIndex(progressStep)
+                    const done = i < activeIdx
+                    const active = i === activeIdx
+                    return (
+                      <li
+                        key={step.id}
+                        className={`flex items-center gap-3 text-sm ${
+                          active
+                            ? 'font-medium text-amber-400'
+                            : done
+                              ? 'text-zinc-200'
+                              : 'text-zinc-500'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                            active
+                              ? 'bg-amber-400 text-zinc-950'
+                              : done
+                                ? 'bg-amber-400/20 text-amber-400'
+                                : 'bg-zinc-700 text-zinc-500'
+                          }`}
+                        >
+                          {done ? '✓' : i + 1}
+                        </span>
+                        <span>{step.title.replace(/^Step \d+ · /, '')}</span>
+                        {active && (
+                          <span className="ml-auto h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+                <p className="text-xs text-zinc-500">{progressDetail}</p>
               </div>
             </div>
           )}
@@ -220,7 +369,7 @@ export default function RenderPanel() {
                   className="text-left"
                   onClick={() => setLightboxSrc(afterSrc)}
                 >
-                  <p className="mb-1.5 text-xs text-zinc-500">Photoréaliste</p>
+                  <p className="mb-1.5 text-xs text-zinc-500">Photoréaliste (GPT Image 2)</p>
                   <img
                     src={afterSrc}
                     alt="Après"

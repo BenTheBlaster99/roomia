@@ -4,7 +4,7 @@ export const CATEGORY_DIMS: Record<string, { width: number; depth: number; heigh
   'Chair':         { width: 0.70, depth: 0.75, height: 1.00 },
   'Coffee Table':  { width: 1.10, depth: 0.60, height: 0.45 },
   'Dining Table':  { width: 1.40, depth: 0.80, height: 0.75 },
-  'Light':         { width: 0.30, depth: 0.30, height: 1.80 },
+  'Light':         { width: 0.40, depth: 0.40, height: 0.55 },
   'Wardrobe':      { width: 1.80, depth: 0.60, height: 2.10 },
   'TV Unit':       { width: 1.60, depth: 0.45, height: 0.55 },
   'Side Table':    { width: 0.50, depth: 0.50, height: 0.55 },

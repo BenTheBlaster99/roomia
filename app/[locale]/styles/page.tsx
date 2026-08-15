@@ -1,9 +1,12 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { Link } from '@/i18n/navigation'
 import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
+import StylesExplorer, {
+  fallbackStyleSections,
+  type StyleSection,
+} from '@/components/marketing/StylesExplorer'
 
 export default async function StylesPage({
   params,
@@ -14,14 +17,19 @@ export default async function StylesPage({
   setRequestLocale(locale)
   const t = await getTranslations('stylesPage')
 
-  const { data: styles } = await supabase
+  const { data } = await supabase
     .from('styles')
-    .select('id, name, tagline, main_color, accent_color')
+    .select('id, name, tagline, description, main_color, accent_color')
     .order('name')
+
+  const styles: StyleSection[] =
+    data && data.length > 0
+      ? (data as StyleSection[])
+      : fallbackStyleSections()
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav ctaHref="/studio" ctaLabel={t('studio')} />
+      <SiteNav ctaHref="/quiz" ctaLabel={t('quiz')} />
 
       <section className="relative overflow-hidden border-b border-[var(--rm-text)]/8">
         <HaikeiBackdrop variant="band" />
@@ -36,35 +44,8 @@ export default async function StylesPage({
         </div>
       </section>
 
-      <main className="mx-auto max-w-6xl px-5 py-14 md:px-6">
-        {!styles?.length ? (
-          <p className="text-[var(--rm-muted)]">{t('empty')}</p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {styles.map(style => (
-              <article key={style.id} className="rm-panel overflow-hidden">
-                <div className="flex h-28">
-                  <div className="flex-[3]" style={{ backgroundColor: style.main_color }} />
-                  <div className="flex-1" style={{ backgroundColor: style.accent_color }} />
-                </div>
-                <div className="p-6">
-                  <h2 className="rm-display text-2xl font-bold">{style.name}</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--rm-muted)]">
-                    {style.tagline}
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <Link href="/rooms" className="rm-btn-primary text-sm">
-                      {t('explore')}
-                    </Link>
-                    <a href="/studio" className="rm-btn-secondary text-sm">
-                      {t('studio')}
-                    </a>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+      <main className="mx-auto max-w-6xl px-5 py-10 md:px-6 md:py-14">
+        <StylesExplorer styles={styles} />
       </main>
 
       <SiteFooter />

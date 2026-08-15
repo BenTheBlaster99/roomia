@@ -1,0 +1,120 @@
+Roomia — Fix / backlog list
+Last updated: 2026-08-14
+Status note: Product backlog (#3–#10 + Dashboard + Studio/presets) is DONE.
+  Photoreal smoke-test passed (living-room render looks locked + high quality).
+  #2 Sarah motion still parked. #1 GLBs are demo-good, not catalog-perfect.
+
+================================================================================
+STATUS SNAPSHOT (2026-08-14 evening)
+================================================================================
+DONE in product:
+- #7 Partners hidden from nav/footer
+- #8 Photo Studio removed from /generateur hub (route kept)
+- #6 Studio gate + rotation + wall snap + ceiling-light drag + bedroom presets
+- #1 InstantMesh catalog GLBs uploaded; dims in DB; presets rebuilt in room_presets
+- #4 Styles page + sticky mini-nav
+- #3 Quiz → style/Studio deep links
+- #5 Catalog price + material filters
+- #10 Configure → Studio honesty path
+- #9 Studio polish slice (empty state, mobile touch, photoreal errors)
+- Pro Dashboard MVP at /dashboard (auth + workspace + stacked generate)
+- Photoreal: Studio → GPT Image smoke-test OK
+
+PARKED (not this backlog):
+- #2 Sarah animation until screen.zip
+
+LATER (quality, not missing features):
+- Extra product photos for weak InstantMesh SKUs (Lils/Dagger holes, Coupé L-shape)
+- Unique photos for placeholder-only pieces (wardrobes, TV units, Gilded/Zellige/Atlas)
+- Pure chair still a bit small vs sofa in some renders — optional scale tweak
+
+================================================================================
+1. REGENERATE ALL GLB FURNITURE MODELS (DATABASE)
+================================================================================
+Problem:
+- ~95% of existing GLBs in the catalog/DB do not look like the real product and/or
+  do not match the supposed real-world measurements (metres).
+- Bad GLBs poison Studio placement, photoreal renders, and presets.
+
+What to do:
+- Rebuild / re-upload ALL furniture_items GLBs with correct proportions + visuals.
+- Re-measure and store reliable dimensions (W/D/H in metres) per item.
+- Re-run / refresh the furniture-3d-gen pipeline for existing SKUs.
+- After new GLBs land, re-test Studio scale + presets + photoreal.
+
+Depends on: furniture generation pipeline (furniture-3d-gen) + Supabase assets.
+Priority: CRITICAL (blocks Studio quality, presets, Sarah demos of 3D).
+Status: DONE for demo — catalog GLBs uploaded + presets rebuilt + photoreal
+smoke-test passed. Remaining SKU polish is optional (see LATER above).
+
+================================================================================
+2. REWORK ANIMATION / MOTION STYLE (AFTER SARAH'S DESIGN)
+================================================================================
+Problem:
+- Marketing motion/animation needs a pass once Sarah finalizes visual design.
+- Reference: screen.zip (design handoff — not yet in repo as of this note).
+
+What to do:
+- Wait for Sarah design finish + screen.zip assets.
+- Align scroll/hero/page transitions to her system (not generic AI motion).
+- Touch landing, styles, generateur hub, studio gate as needed.
+
+Priority: HIGH after design lock. Do NOT over-polish motion before handoff.
+Status: PARKED.
+
+================================================================================
+3. IMPLEMENT THE QUIZ
+================================================================================
+Status: DONE — /quiz + CTAs from home/generateur; maps to style/Studio.
+
+================================================================================
+4. REDO STYLE PAGES / PRESETS — ONE PAGE, ALL STYLES + MINI NAV
+================================================================================
+Status: DONE — styles explorer + sticky mini-nav.
+
+================================================================================
+5. CATALOG / STUDIO FILTERS — MATERIALS, PRICE (DA)
+================================================================================
+Status: DONE — Studio CatalogSidebar price modes + material filter.
+
+================================================================================
+6. MAJOR STUDIO REMODEL (+ PRESETS + ENTRY GATE NUMBERS BUG)
+================================================================================
+Status: DONE — gate, rotation, wall snap, light drag, bedroom layout, presets in DB.
+
+================================================================================
+7. HIDE THE PARTNERS PAGE
+================================================================================
+Status: DONE — removed from SiteNav + SiteFooter.
+
+================================================================================
+8. /GENERATEUR — ROOM COMPOSER vs AI PHOTO STUDIO (CLARIFY / DECIDE)
+================================================================================
+Status: DONE — hub shows Composer (+ quiz); /photo-studio kept for rollback.
+
+================================================================================
+9. STUDIO — "A FUCK TON MORE" (OPEN BUCKET)
+================================================================================
+Status: Scoped slice DONE (empty state, mobile 1-finger furniture / 2-finger camera,
+clearer photoreal gateway errors). Rest of forever-bucket deferred / Dashboard accounts.
+
+================================================================================
+10. FLOOR PLAN — OPTIMIZE OR HONEST SCOPE?
+================================================================================
+Status: DONE honesty pass — /configure is single clear W×L×H → Studio path.
+
+================================================================================
+PRO DASHBOARD
+================================================================================
+Status: MVP at /dashboard — Supabase Auth, R2-or-Supabase workspace, stacked generates
+reusing /api/compose/room. Public /room-composer unchanged.
+
+================================================================================
+NOTES
+================================================================================
+- screen.zip: look for Sarah design pack when available; place under design/ or docs/.
+- Do not push secrets; keep OPENAI_* in .env.local / Vercel only.
+- Composer: always 3 GPT Image calls (all pins in one edit per variation).
+- Studio render: 1 GPT Image call per generate (for now).
+- Presets: npm run generate-presets:dump → scripts/data/room-presets.json
+  then npm run generate-presets with service role to write room_presets.

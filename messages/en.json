@@ -9,11 +9,21 @@
     "ai": "AI Generator",
     "studio": "3D Studio",
     "partners": "Partners",
+    "pro": "Pro",
+    "dashboard": "Dashboard",
     "cta": "Get started",
     "ctaStudio": "Open studio",
     "ctaCustom": "Create your own",
     "langFr": "FR",
     "langEn": "EN"
+  },
+  "dashboard": {
+    "title": "Pro Dashboard",
+    "workspace": "Workspace",
+    "generate": "Generate",
+    "onboardTitle": "Upload → Pin → Generate",
+    "login": "Sign in",
+    "signup": "Create account"
   },
   "footer": {
     "tagline": "Interior design for Algeria — scan, compose, and shop the look.",
@@ -66,27 +76,71 @@
     "ctaTitle2": "Your rules.",
     "ctaBody": "Free to explore. No account needed. Design today — quote when you're ready.",
     "ctaDesign": "Get started",
-    "ctaShop": "Browse catalog"
+    "ctaShop": "Browse catalog",
+    "ctaQuiz": "Find my style",
+    "stylesQuiz": "Not sure? Take the quiz →"
   },
   "generateur": {
     "eyebrow": "AI Generator",
     "title": "Transform a room photo",
-    "sub": "Two AI tools — furnish by zones, or edit an existing piece.",
+    "sub": "Two AI tools — restyle a photo, or edit an existing piece.",
     "composerTitle": "Room composer",
-    "composerDesc": "Tap up to 3 zones, pick from the catalog, get 3 AI variations.",
+    "composerDesc": "Paint the walls, add a chandelier or floor lamp, swap furniture — three photoreal restyles from one photo.",
     "composerCta": "Open composer",
     "photoTitle": "AI photo studio",
     "photoDesc": "Select furniture in a photo, remove it or replace it with a catalog item.",
-    "photoCta": "Open photo studio"
+    "photoCta": "Open photo studio",
+    "quizTitle": "No direction yet?",
+    "quizDesc": "Three questions to find a style — then open the studio or composer.",
+    "quizCta": "Start the quiz"
   },
+
   "stylesPage": {
     "eyebrow": "Styles",
     "title": "Five worlds, one clear direction",
-    "sub": "Each style guides presets, catalog picks, and the mood of your room.",
+    "sub": "Each style guides presets, catalog picks, and the mood of your room. Scroll the page — the mini-nav tracks where you are.",
     "explore": "Explore presets",
     "studio": "Open studio",
+    "quiz": "Find my style",
+    "miniNavLabel": "Styles on this page",
     "empty": "No styles yet."
   },
+  "quiz": {
+    "eyebrow": "Style quiz",
+    "title": "Find your direction",
+    "sub": "Three short questions — we point you to a Roomia style.",
+    "navStudio": "Open studio",
+    "stepOf": "Question {current} / {total}",
+    "roomTitle": "Which room are you furnishing?",
+    "roomLiving": "Living room",
+    "roomBedroom": "Bedroom",
+    "budgetTitle": "What's your furniture budget (DA)?",
+    "budgetHint": "Estimate for the main pieces — not the whole home.",
+    "budgetTight": "Under 200,000 DA",
+    "budgetMid": "200,000 – 500,000 DA",
+    "budgetPremium": "Over 500,000 DA",
+    "vibeTitle": "Which vibe pulls you in?",
+    "vibeIndustrial": "Raw, metal, loft",
+    "vibeMaximalism": "Bold, colorful, layered",
+    "vibeMinimalism": "Calm, clean, spacious",
+    "vibeTraditional": "Warm, craft, Algerian heritage",
+    "vibeCoastal": "Bright, natural, coastal",
+    "back": "Back",
+    "resultEyebrow": "Your match",
+    "resultTitle": "Here's your style",
+    "resultSub": "Open the style page, or jump into the studio already filtered.",
+    "ctaStyles": "View style",
+    "ctaStudio": "Create in studio",
+    "restart": "Retake quiz",
+    "styleBlurb": {
+      "industrial": "Raw textures, useful lines, strong contrast.",
+      "maximalism": "Layers, pattern, and color — on purpose.",
+      "minimalism": "Few pieces, lots of air and clarity.",
+      "traditional_algerian": "Craft, hospitality, decorative detail.",
+      "mediterranean_coastal": "Light, natural materials, ease."
+    }
+  },
+
   "rooms": {
     "title": "Room presets",
     "sub": "Pick a styled living room or bedroom — open it in the 3D studio.",

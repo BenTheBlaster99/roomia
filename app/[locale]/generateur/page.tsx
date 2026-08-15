@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
@@ -11,21 +12,6 @@ export default async function GenerateurPage({
   const { locale } = await params
   setRequestLocale(locale)
   const t = await getTranslations('generateur')
-
-  const tools = [
-    {
-      href: '/room-composer',
-      title: t('composerTitle'),
-      desc: t('composerDesc'),
-      cta: t('composerCta'),
-    },
-    {
-      href: '/photo-studio',
-      title: t('photoTitle'),
-      desc: t('photoDesc'),
-      cta: t('photoCta'),
-    },
-  ]
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
@@ -48,24 +34,37 @@ export default async function GenerateurPage({
 
       <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-16 md:px-6">
         <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-          {tools.map((tool, i) => (
-            <a
-              key={tool.href}
-              href={tool.href}
-              className="group rm-panel p-8 transition-transform hover:-translate-y-1"
-            >
-              <span className="font-mono text-xs text-[var(--rm-accent)]">
-                0{i + 1}
-              </span>
-              <h2 className="rm-display mt-3 text-2xl font-bold group-hover:text-[var(--rm-primary)]">
-                {tool.title}
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--rm-muted)]">{tool.desc}</p>
-              <span className="mt-6 inline-block text-sm font-semibold text-[var(--rm-primary)]">
-                {tool.cta} →
-              </span>
-            </a>
-          ))}
+          <a
+            href="/room-composer"
+            className="group rm-panel block p-8 transition-transform hover:-translate-y-1"
+          >
+            <span className="font-mono text-xs text-[var(--rm-accent)]">01</span>
+            <h2 className="rm-display mt-3 text-2xl font-bold group-hover:text-[var(--rm-primary)]">
+              {t('composerTitle')}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--rm-muted)]">
+              {t('composerDesc')}
+            </p>
+            <span className="mt-6 inline-block text-sm font-semibold text-[var(--rm-primary)]">
+              {t('composerCta')} →
+            </span>
+          </a>
+
+          <Link
+            href="/quiz"
+            className="group rm-panel block p-8 transition-transform hover:-translate-y-1"
+          >
+            <span className="font-mono text-xs text-[var(--rm-accent)]">02</span>
+            <h2 className="rm-display mt-3 text-2xl font-bold group-hover:text-[var(--rm-primary)]">
+              {t('quizTitle')}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--rm-muted)]">
+              {t('quizDesc')}
+            </p>
+            <span className="mt-6 inline-block text-sm font-semibold text-[var(--rm-primary)]">
+              {t('quizCta')} →
+            </span>
+          </Link>
         </div>
       </section>
 

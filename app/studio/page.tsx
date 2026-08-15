@@ -1,16 +1,31 @@
-'use client'
-
-import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
-import StudioBootstrap from './StudioBootstrap'
+import { connection } from 'next/server'
+import { fetchRoomPreset } from '@/lib/room-preset'
+import StudioClient from './StudioClient'
+import { firstSearchParam, type StudioQuery } from './studio-query'
 
-const Studio = dynamic(() => import('./Studio'), { ssr: false })
+export default async function StudioPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  await connection()
+  const raw = await searchParams
+  const query: StudioQuery = {
+    preset: firstSearchParam(raw.preset),
+    create: firstSearchParam(raw.create),
+    style: firstSearchParam(raw.style),
+    room: firstSearchParam(raw.room),
+    width: firstSearchParam(raw.width),
+    length: firstSearchParam(raw.length),
+    height: firstSearchParam(raw.height),
+  }
 
-export default function StudioPage() {
+  const initialPreset = query.preset ? await fetchRoomPreset(query.preset) : null
+
   return (
     <Suspense fallback={null}>
-      <StudioBootstrap />
-      <Studio />
+      <StudioClient initialPreset={initialPreset} query={query} />
     </Suspense>
   )
 }

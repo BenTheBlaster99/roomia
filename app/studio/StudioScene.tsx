@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, Suspense } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { CameraControls, Grid } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
 import * as THREE from 'three'
@@ -62,39 +62,57 @@ function CameraController() {
         right: ACTION.TRUCK,
         wheel: ACTION.DOLLY,
       }}
+      // Mobile: one finger reserved for selecting/dragging furniture;
+      // two fingers orbit+zoom so camera does not fight placement.
       touches={{
-        one: ACTION.TOUCH_ROTATE,
-        two: ACTION.TOUCH_DOLLY_TRUCK,
+        one: ACTION.NONE,
+        two: ACTION.TOUCH_DOLLY_ROTATE,
         three: ACTION.TOUCH_TRUCK,
       }}
     />
   )
 }
 
-function DragPlane() {
-  const room = useStudioStore(s => s.room)
+function DragController() {
   const draggingId = useStudioStore(s => s.draggingId)
-  const dragOffset = useStudioStore(s => s.dragOffset)
-  const moveItem = useStudioStore(s => s.moveItem)
-  const stopDrag = useStudioStore(s => s.stopDrag)
+  const { camera, gl } = useThree()
 
-  if (!draggingId) return null
+  useEffect(() => {
+    if (!draggingId) return
+    const raycaster = new THREE.Raycaster()
+    const ndc = new THREE.Vector2()
+    const hit = new THREE.Vector3()
+    const plane = new THREE.Plane()
+    const up = new THREE.Vector3(0, 1, 0)
 
-  return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[room.width / 2, 0.001, room.length / 2]}
-      onPointerMove={e => {
-        e.stopPropagation()
-        moveItem(draggingId, e.point.x - dragOffset.x, e.point.z - dragOffset.z)
-      }}
-      onPointerUp={() => stopDrag()}
-      onPointerLeave={() => stopDrag()}
-    >
-      <planeGeometry args={[room.width * 6, room.length * 6]} />
-      <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
-    </mesh>
-  )
+    function onMove(ev: PointerEvent) {
+      const { draggingId: id, dragOffset, dragPlaneY, moveItem } = useStudioStore.getState()
+      if (!id) return
+      const rect = gl.domElement.getBoundingClientRect()
+      ndc.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      raycaster.setFromCamera(ndc, camera)
+      plane.set(up, -dragPlaneY)
+      if (!raycaster.ray.intersectPlane(plane, hit)) return
+      moveItem(id, hit.x - dragOffset.x, hit.z - dragOffset.z)
+    }
+    function onUp() {
+      useStudioStore.getState().stopDrag()
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [draggingId, camera, gl])
+
+  return null
 }
 
 function RotationCapturePlane() {
@@ -186,7 +204,7 @@ export default function StudioScene() {
             <FurniturePiece key={item.id} item={item} />
           ))}
 
-          <DragPlane />
+          <DragController />
           <RotationCapturePlane />
           <CameraController />
         </Suspense>

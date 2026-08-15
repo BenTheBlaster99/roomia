@@ -24,7 +24,6 @@ export default function SiteFooter() {
           <Link href="/generateur" className="hover:text-[var(--rm-bg)]">{t('ai')}</Link>
           <a href="/studio" className="hover:text-[var(--rm-bg)]">{t('studio')}</a>
           <Link href="/about" className="hover:text-[var(--rm-bg)]">{t('about')}</Link>
-          <Link href="/partners" className="hover:text-[var(--rm-bg)]">{t('partners')}</Link>
           <a href="mailto:contact@roomia.dz" className="hover:text-[var(--rm-bg)]">{t('contact')}</a>
         </div>
 

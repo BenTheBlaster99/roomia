@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { CATEGORY_DIMS } from '@/lib/studio-constants'
+import { clampToRoom } from '@/lib/studio-footprint'
 import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
 import type { CatalogItem } from '@/lib/mock-catalog'
 import type { RoomPresetPayload } from '@/types/room-preset'
@@ -59,7 +60,8 @@ interface StudioState {
 
   draggingId: string | null
   dragOffset: { x: number; z: number }
-  startDrag: (id: string, offset: { x: number; z: number }) => void
+  dragPlaneY: number
+  startDrag: (id: string, offset: { x: number; z: number }, planeY?: number) => void
   stopDrag: () => void
 
   isRotating: boolean
@@ -68,6 +70,11 @@ interface StudioState {
   startRotationMode: (id: string, pointerX: number, pointerZ: number) => void
   updateRotationFromPointer: (pointerX: number, pointerZ: number) => void
   stopRotationMode: () => void
+  rotateItemBy: (id: string, deltaRadians: number) => void
+  setItemRotation: (id: string, rotationY: number) => void
+
+  entryGateOpen: boolean
+  setEntryGateOpen: (open: boolean) => void
 
   past: Snapshot[]
   future: Snapshot[]
@@ -127,11 +134,32 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   loadPreset: payload => {
     const styleName = payload.styleId ? SLUG_TO_STYLE[payload.styleId] : null
+    const furniture = Array.isArray(payload.furniture) ? payload.furniture : []
+    const room: RoomConfig = {
+      width: 5,
+      length: 6,
+      height: 2.8,
+      floorMaterial: 'wood',
+      wallColor: '#F5F0EB',
+      ...payload.room,
+    }
     set({
-      room: payload.room,
-      items: payload.furniture.map(item => ({ ...item, id: nanoid() })),
+      room,
+      items: furniture.map(item => ({
+        furnitureId: item.furnitureId,
+        name: item.name,
+        category: item.category,
+        modelUrl: item.modelUrl ?? null,
+        position: item.position ?? { x: room.width / 2, z: room.length / 2 },
+        rotationY: item.rotationY ?? 0,
+        dimensions: item.dimensions ?? { width: 0.8, depth: 0.8, height: 0.8 },
+        color: item.color ?? '#888888',
+        price: item.price ?? 0,
+        notes: item.notes ?? null,
+        id: nanoid(),
+      })),
       selectedId: null,
-      activeRoom: payload.roomType,
+      activeRoom: payload.roomType || 'Living Room',
       preFilterStyle: styleName ?? null,
       cart: [],
       past: [],
@@ -165,13 +193,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     x = Math.max(dims.width / 2, Math.min(room.width - dims.width / 2, x))
     z = Math.max(dims.depth / 2, Math.min(room.length - dims.depth / 2, z))
+    const pos = clampToRoom(x, z, dims, 0, room)
     const newItem: PlacedItem = {
       id: nanoid(),
       furnitureId: catalog.id,
       name: catalog.name,
       category: catalog.category,
       modelUrl: catalog.modelUrl,
-      position: { x, z },
+      position: pos,
       rotationY: 0,
       dimensions: dims,
       color: catalog.color,
@@ -198,13 +227,17 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().snapshot()
     const item = get().items.find(i => i.id === id)
     if (!item) return
+    const pos = clampToRoom(
+      item.position.x + 0.5,
+      item.position.z + 0.5,
+      item.dimensions,
+      item.rotationY,
+      get().room,
+    )
     const newItem: PlacedItem = {
       ...item,
       id: nanoid(),
-      position: {
-        x: Math.min(item.position.x + 0.5, get().room.width - item.dimensions.width / 2),
-        z: Math.min(item.position.z + 0.5, get().room.length - item.dimensions.depth / 2),
-      },
+      position: pos,
     }
     set(state => ({ items: [...state.items, newItem], selectedId: newItem.id }))
   },
@@ -213,20 +246,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const { room, items } = get()
     const item = items.find(i => i.id === id)
     if (!item) return
-    const hw = item.dimensions.width / 2
-    const hd = item.dimensions.depth / 2
+    const pos = clampToRoom(x, z, item.dimensions, item.rotationY, room, true)
     set(state => ({
-      items: state.items.map(i =>
-        i.id === id
-          ? {
-              ...i,
-              position: {
-                x: Math.max(hw, Math.min(room.width - hw, x)),
-                z: Math.max(hd, Math.min(room.length - hd, z)),
-              },
-            }
-          : i,
-      ),
+      items: state.items.map(i => (i.id === id ? { ...i, position: pos } : i)),
     }))
   },
 
@@ -241,9 +263,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   draggingId: null,
   dragOffset: { x: 0, z: 0 },
-  startDrag: (id, offset) => {
+  dragPlaneY: 0.002,
+  startDrag: (id, offset, planeY = 0.002) => {
     get().snapshot()
-    set({ draggingId: id, dragOffset: offset })
+    set({ draggingId: id, dragOffset: offset, dragPlaneY: planeY })
   },
   stopDrag: () => set({ draggingId: null, dragOffset: { x: 0, z: 0 } }),
 
@@ -277,7 +300,60 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }))
   },
 
-  stopRotationMode: () => set({ isRotating: false, rotatingItemId: null, rotationData: null }),
+  stopRotationMode: () => {
+    const { rotatingItemId, room, items } = get()
+    if (!rotatingItemId) {
+      set({ isRotating: false, rotatingItemId: null, rotationData: null })
+      return
+    }
+    const item = items.find(i => i.id === rotatingItemId)
+    const pos = item
+      ? clampToRoom(item.position.x, item.position.z, item.dimensions, item.rotationY, room, true)
+      : null
+    set({
+      isRotating: false,
+      rotatingItemId: null,
+      rotationData: null,
+      items: pos
+        ? items.map(i => (i.id === rotatingItemId ? { ...i, position: pos } : i))
+        : items,
+    })
+  },
+
+  rotateItemBy: (id, deltaRadians) => {
+    get().snapshot()
+    const { room } = get()
+    set(state => ({
+      items: state.items.map(i => {
+        if (i.id !== id) return i
+        const rotationY = i.rotationY + deltaRadians
+        return {
+          ...i,
+          rotationY,
+          position: clampToRoom(i.position.x, i.position.z, i.dimensions, rotationY, room, true),
+        }
+      }),
+    }))
+  },
+
+  setItemRotation: (id, rotationY) => {
+    get().snapshot()
+    const { room } = get()
+    set(state => ({
+      items: state.items.map(i =>
+        i.id === id
+          ? {
+              ...i,
+              rotationY,
+              position: clampToRoom(i.position.x, i.position.z, i.dimensions, rotationY, room, true),
+            }
+          : i,
+      ),
+    }))
+  },
+
+  entryGateOpen: false,
+  setEntryGateOpen: open => set({ entryGateOpen: open }),
 
   past: [],
   future: [],

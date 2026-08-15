@@ -25,6 +25,9 @@ export interface FurnitureItem {
   image_url: string | null
   partner_link: string | null
   notes: string | null
+  width_m?: number | null
+  depth_m?: number | null
+  height_m?: number | null
 }
 
 export interface MoodboardImage {

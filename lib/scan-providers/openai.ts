@@ -1,7 +1,7 @@
-import OpenAI from 'openai'
 import { FLOOR_PLAN_SCAN_PROMPT } from '@/lib/scan-prompt'
 import { ScanApiError } from '@/lib/scan-error'
 import type { PreparedScanImage } from '@/lib/scan-image'
+import { getOpenAIClient } from '@/lib/openai-client'
 
 const MODELS = ['gpt-4o', 'gpt-4o-mini'] as const
 
@@ -34,12 +34,13 @@ function sleep(ms: number) {
 }
 
 export async function scanWithOpenAI(image: PreparedScanImage): Promise<{ text: string; model: string }> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
+  let client
+  try {
+    client = getOpenAIClient()
+  } catch {
     throw new ScanApiError('OpenAI API key is not configured.', 'missing_api_key', 500)
   }
 
-  const client = new OpenAI({ apiKey })
   let lastError: unknown = null
 
   for (const modelName of MODELS) {
