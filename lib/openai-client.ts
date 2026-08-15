@@ -25,3 +25,12 @@ export function getAiBackendUrl(): string {
     'http://localhost:8000'
   )
 }
+
+/** Shared secret for the GPU SAM2 host. Never NEXT_PUBLIC_*. */
+export function aiBackendHeaders(): Record<string, string> {
+  const secret = process.env.AI_BACKEND_SECRET?.trim()
+  return {
+    'Content-Type': 'application/json',
+    ...(secret ? { 'x-roomia-ai-key': secret } : {}),
+  }
+}

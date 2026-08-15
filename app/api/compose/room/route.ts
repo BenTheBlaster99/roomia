@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { toFile } from 'openai'
-import { GPT_IMAGE_MODEL, getAiBackendUrl, getOpenAIClient } from '@/lib/openai-client'
+import { GPT_IMAGE_MODEL, aiBackendHeaders, getAiBackendUrl, getOpenAIClient } from '@/lib/openai-client'
 import { extractImageBase64 } from '@/lib/extract-image-b64'
 import {
   buildMultiZoneComposePrompt,
@@ -55,7 +55,7 @@ async function segmentMask(
   const backend = getAiBackendUrl()
   const res = await fetch(`${backend}/segment`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: aiBackendHeaders(),
     body: JSON.stringify({ image_base64: imageBase64, x, y }),
   })
 
@@ -159,7 +159,7 @@ async function generateVariation(opts: {
 function errorDetail(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Compose failed'
   if (message.includes('ECONNREFUSED') || message.toLowerCase().includes('fetch failed')) {
-    return 'Could not reach SAM2 backend. Start the AI backend on port 8000.'
+    return 'Could not reach SAM2. On this PC: npm run back. Live site needs the GPU tunnel (docs/SAM2-GPU-TUNNEL.txt).'
   }
   return message
 }

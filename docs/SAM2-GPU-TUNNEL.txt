@@ -1,0 +1,78 @@
+ROOMIA — SAM2 ON THIS GPU (live Composer)
+Date: 15 August 2026
+
+The live site (Vercel) cannot see localhost:8000.
+We expose this PC’s FastAPI SAM2 with a Cloudflare quick tunnel, then point
+Vercel AI_BACKEND_URL at that https://….trycloudflare.com URL.
+
+GPT Image still runs in the cloud. Only click-masks (SAM2) use this GPU.
+
+
+================================================================================
+KEEP THIS PC AWAKE
+================================================================================
+
+While Sarah tests Composer on https://www.room-ia.com/room-composer :
+
+  1. This machine ON, not sleeping
+  2. Backend:   npm run back     (from roomia, port 8000)
+  3. Tunnel:    cloudflared tunnel --url http://127.0.0.1:8000
+  4. Vercel AI_BACKEND_URL = the trycloudflare URL printed by cloudflared
+  5. Vercel AI_BACKEND_SECRET = same as roomia-ai-backend/.env
+     (header x-roomia-ai-key)
+
+If you reboot or restart the tunnel, the trycloudflare hostname CHANGES.
+Update Vercel AI_BACKEND_URL and Redeploy (or wait for the next git push).
+
+Named tunnel + ai.room-ia.com later = stable hostname (needs Cloudflare login).
+
+
+================================================================================
+START (this PC)
+================================================================================
+
+Terminal A — SAM2:
+
+  cd /media/jackhammer/DATA/Linux-Work/Projects/roomia
+  npm run back
+
+Terminal B — public URL:
+
+  cloudflared tunnel --url http://127.0.0.1:8000
+
+Wait for a line like:
+
+  https://something.trycloudflare.com
+
+Then:
+
+  npx vercel env add AI_BACKEND_URL production,preview --value "https://something.trycloudflare.com" --force --yes
+  npx vercel env add AI_BACKEND_SECRET production,preview --sensitive --yes
+  # then Redeploy on Vercel so production picks it up
+
+Warm SAM2 once (first load is slow):
+
+  curl -sS -H "x-roomia-ai-key: YOUR_SECRET" https://something.trycloudflare.com/warmup
+
+
+================================================================================
+SECURITY
+================================================================================
+
+The trycloudflare URL is on the public internet.
+AI_BACKEND_SECRET must be set on the GPU backend AND on Vercel.
+Do not put the secret in git or NEXT_PUBLIC_*.
+
+
+================================================================================
+IF COMPOSER FAILS LIVE
+================================================================================
+
+"Could not reach SAM2"
+  → backend or tunnel down, or AI_BACKEND_URL stale after a restart
+
+401 Unauthorized
+  → Vercel AI_BACKEND_SECRET ≠ backend AI_BACKEND_SECRET
+  → or production deploy is older than the x-roomia-ai-key header code
+
+Studio photoreal still works without this GPU (GPT Image only).
