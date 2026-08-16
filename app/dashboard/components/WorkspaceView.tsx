@@ -83,18 +83,21 @@ export default function WorkspaceView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--rm-primary)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
+            Drive
+          </p>
+          <h2 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight text-[var(--rm-primary)]">
             Espace de travail
           </h2>
-          <p className="mt-1 text-sm text-[var(--rm-muted)]">
-            Uploads et générations empilées — comme un Drive, trié du plus récent.
+          <p className="mt-2 max-w-lg text-sm text-[var(--rm-muted)]">
+            Photos sources et looks empilés dessous — rien ne disparaît.
           </p>
         </div>
         <label className="rm-btn-primary cursor-pointer text-sm">
-          {uploading ? 'Envoi…' : 'Uploader une image'}
+          {uploading ? 'Envoi…' : 'Uploader'}
           <input
             type="file"
             accept="image/*"
@@ -114,42 +117,65 @@ export default function WorkspaceView({
       {filesLoading && files.length === 0 ? (
         <p className="text-sm text-[var(--rm-muted)]">Chargement des fichiers…</p>
       ) : stacks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[var(--rm-primary)]/25 bg-[var(--rm-surface)]/70 px-6 py-14 text-center">
-          <p className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--rm-primary)]">
+        <div className="rounded-[1.75rem] border border-dashed border-[var(--rm-primary)]/25 bg-[var(--rm-surface)]/80 px-6 py-20 text-center">
+          <p className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--rm-primary)]">
             Votre Drive est vide
           </p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-[var(--rm-muted)]">
-            Uploadez une photo de pièce, puis passez en mode Générer pour épingler et produire des
-            variations — elles apparaîtront empilées ici.
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[var(--rm-muted)]">
+            Uploadez une photo de pièce. Les trois restyles s’empilent ici, sous l’original — plus de
+            fichiers perdus dans WhatsApp.
           </p>
         </div>
       ) : (
-        <ul className="space-y-4">
+        <ul className="grid gap-5 sm:grid-cols-2">
           {stacks.map(({ parent, children }) => (
             <li
               key={parent.id}
-              className="overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] shadow-[0_12px_40px_-28px_rgba(20,32,28,0.45)]"
+              className="overflow-hidden rounded-[1.5rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] shadow-[0_20px_56px_-36px_rgba(20,32,28,0.5)]"
             >
-              <FileRow
-                file={parent}
-                onPreview={() => setPreview(parent)}
-                onUse={() => onUseInGenerate(parent)}
-              />
+              <button type="button" className="block w-full text-left" onClick={() => setPreview(parent)}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={parent.public_url}
+                  alt=""
+                  className="aspect-[4/3] w-full object-cover bg-[var(--rm-secondary)]"
+                />
+              </button>
+              <div className="flex items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{parent.name}</p>
+                  <p className="mt-0.5 text-xs text-[var(--rm-muted)]">
+                    {parent.kind === 'generation' ? 'Génération' : 'Original'} · {formatWhen(parent.created_at)}
+                    {children.length > 0 ? ` · ${children.length} look${children.length > 1 ? 's' : ''}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rm-btn-primary shrink-0 px-3 py-1.5 text-xs"
+                  onClick={() => onUseInGenerate(parent)}
+                >
+                  Restyler
+                </button>
+              </div>
               {children.length > 0 && (
-                <ul className="border-t border-[var(--rm-text)]/6 bg-[var(--rm-bg)]/40">
+                <ul className="grid grid-cols-3 gap-1 border-t border-[var(--rm-text)]/6 bg-[var(--rm-bg)]/50 p-2">
                   {children.map((child, i) => (
-                    <li
-                      key={child.id}
-                      className="border-t border-[var(--rm-text)]/5 first:border-t-0"
-                      style={{ paddingLeft: '1.25rem' }}
-                    >
-                      <FileRow
-                        file={child}
-                        stacked
-                        stackIndex={children.length - i}
-                        onPreview={() => setPreview(child)}
-                        onUse={() => onUseInGenerate(child)}
-                      />
+                    <li key={child.id}>
+                      <button
+                        type="button"
+                        onClick={() => setPreview(child)}
+                        className="relative block w-full overflow-hidden rounded-lg"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={child.public_url}
+                          alt=""
+                          className="aspect-square w-full object-cover"
+                        />
+                        <span className="absolute left-1.5 top-1.5 rounded bg-[var(--rm-ink)]/75 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+                          #{children.length - i}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -161,12 +187,12 @@ export default function WorkspaceView({
 
       {preview && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--rm-ink)]/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--rm-ink)]/75 p-4 backdrop-blur-sm"
           onClick={() => setPreview(null)}
           role="presentation"
         >
           <div
-            className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-2xl bg-[var(--rm-surface)] shadow-2xl"
+            className="relative max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[1.5rem] bg-[var(--rm-surface)] shadow-2xl"
             onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -175,74 +201,32 @@ export default function WorkspaceView({
             <img
               src={preview.public_url}
               alt={preview.name}
-              className="max-h-[80vh] w-full object-contain"
+              className="max-h-[78vh] w-full object-contain"
             />
             <div className="flex items-center justify-between gap-3 border-t border-[var(--rm-text)]/8 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{preview.name}</p>
                 <p className="text-xs text-[var(--rm-muted)]">{formatWhen(preview.created_at)}</p>
               </div>
-              <button type="button" className="rm-btn-secondary text-sm" onClick={() => setPreview(null)}>
-                Fermer
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rm-btn-primary text-sm"
+                  onClick={() => {
+                    onUseInGenerate(preview)
+                    setPreview(null)
+                  }}
+                >
+                  Restyler
+                </button>
+                <button type="button" className="rm-btn-secondary text-sm" onClick={() => setPreview(null)}>
+                  Fermer
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function FileRow({
-  file,
-  stacked,
-  stackIndex,
-  onPreview,
-  onUse,
-}: {
-  file: WorkspaceFileRow
-  stacked?: boolean
-  stackIndex?: number
-  onPreview: () => void
-  onUse: () => void
-}) {
-  return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${stacked ? 'bg-transparent' : ''}`}>
-      <button
-        type="button"
-        onClick={onPreview}
-        className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--rm-secondary)] ring-1 ring-[var(--rm-text)]/8"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={file.public_url} alt="" className="h-full w-full object-cover" />
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-[var(--rm-text)]">{file.name}</p>
-          <span
-            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-              file.kind === 'generation'
-                ? 'bg-[var(--rm-accent)]/15 text-[var(--rm-accent)]'
-                : 'bg-[var(--rm-primary)]/10 text-[var(--rm-primary)]'
-            }`}
-          >
-            {file.kind === 'generation'
-              ? stacked && stackIndex
-                ? `Génération · #${stackIndex}`
-                : 'Génération'
-              : 'Upload'}
-          </span>
-        </div>
-        <p className="mt-0.5 text-xs text-[var(--rm-muted)]">{formatWhen(file.created_at)}</p>
-      </div>
-      <div className="flex shrink-0 gap-2">
-        <button type="button" className="rm-btn-secondary px-3 py-1.5 text-xs" onClick={onPreview}>
-          Voir
-        </button>
-        <button type="button" className="rm-btn-primary px-3 py-1.5 text-xs" onClick={onUse}>
-          Générer
-        </button>
-      </div>
     </div>
   )
 }

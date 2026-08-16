@@ -17,7 +17,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--rm-bg)] text-[var(--rm-muted)]">
-        <p className="text-sm tracking-wide">Chargement du tableau de bord…</p>
+        <p className="text-sm tracking-wide">Chargement…</p>
       </div>
     )
   }

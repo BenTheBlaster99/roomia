@@ -5,6 +5,13 @@ import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
 import { getReferenceFidelity } from '@/lib/render-prompt'
+import {
+  COMPOSER_LIGHTS,
+  COMPOSER_WALLS,
+  lightById,
+  wallById,
+  type ComposerLightId,
+} from '@/lib/composer-restyle'
 import type { WorkspaceFileRow } from '@/types/workspace'
 import { useDashboard } from './DashboardProvider'
 
@@ -18,7 +25,27 @@ interface Zone {
 }
 
 type Stage = 'pick' | 'placing' | 'catalog' | 'generating' | 'results' | 'error'
+type ClickMode = 'furniture' | 'wall' | 'light'
 type ProgressStep = 'masking' | 'generating' | 'results'
+type WallPin = { id: string; hex: string; label: string; prompt: string; x: number; y: number }
+type LightPin = {
+  id: ComposerLightId
+  label: string
+  prompt: string
+  x: number
+  y: number
+}
+
+const CATALOG_TABS = ['All', 'Sofa', 'Chair', 'Light', 'Tables', 'Rug'] as const
+type CatalogTab = (typeof CATALOG_TABS)[number]
+
+function matchesCatalogTab(item: CatalogItem, tab: CatalogTab) {
+  if (tab === 'All') return true
+  if (tab === 'Tables') {
+    return ['Coffee Table', 'Dining Table', 'Side Table', 'TV Unit'].includes(item.category)
+  }
+  return item.category === tab
+}
 
 function imgToB64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -63,7 +90,13 @@ export default function GenerateView({
   const [progressPct, setProgressPct] = useState(0)
   const [progressDetail, setProgressDetail] = useState('Préparation…')
   const [catalog, setCatalog] = useState<CatalogItem[]>(MOCK_CATALOG.filter(c => c.available))
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>('All')
   const [saving, setSaving] = useState(false)
+  const [clickMode, setClickMode] = useState<ClickMode>('furniture')
+  const [wallPin, setWallPin] = useState<WallPin | null>(null)
+  const [lightPin, setLightPin] = useState<LightPin | null>(null)
+  const [pendingWallId, setPendingWallId] = useState<string | null>(null)
+  const [pendingLightId, setPendingLightId] = useState<ComposerLightId | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +124,15 @@ export default function GenerateView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile?.id])
 
+  function clearRestyle() {
+    setWallPin(null)
+    setLightPin(null)
+    setPendingWallId(null)
+    setPendingLightId(null)
+    setClickMode('furniture')
+    setCatalogTab('All')
+  }
+
   async function loadFromWorkspace(file: WorkspaceFileRow) {
     setError(null)
     try {
@@ -102,6 +144,7 @@ export default function GenerateView({
       setActiveZoneId(null)
       setVariations([])
       setSavedRows([])
+      clearRestyle()
       setStage('placing')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de charger l’image')
@@ -134,6 +177,7 @@ export default function GenerateView({
       setZones([])
       setVariations([])
       setSavedRows([])
+      clearRestyle()
       setStage('placing')
       await refreshFiles()
       onSaved()
@@ -146,10 +190,28 @@ export default function GenerateView({
   }
 
   function handlePhotoClick(e: React.MouseEvent<HTMLImageElement>) {
-    if (stage !== 'placing' || zones.length >= MAX_ZONES) return
+    if (stage !== 'placing') return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
+
+    if (clickMode === 'wall' && pendingWallId) {
+      const wall = wallById(pendingWallId)
+      if (!wall) return
+      setWallPin({ id: wall.id, hex: wall.hex, label: wall.label, prompt: wall.prompt, x, y })
+      setClickMode('furniture')
+      return
+    }
+
+    if (clickMode === 'light' && pendingLightId) {
+      const light = lightById(pendingLightId)
+      if (!light) return
+      setLightPin({ id: light.id, label: light.label, prompt: light.prompt, x, y })
+      setClickMode('furniture')
+      return
+    }
+
+    if (zones.length >= MAX_ZONES) return
     const newZone: Zone = { id: crypto.randomUUID(), x, y, item: null }
     setZones(z => [...z, newZone])
     setActiveZoneId(newZone.id)
@@ -208,8 +270,8 @@ export default function GenerateView({
 
   async function handleGenerate() {
     const readyZones = zones.filter(z => z.item !== null)
-    if (readyZones.length === 0) {
-      setError('Ajoutez au moins un meuble avant de générer')
+    if (readyZones.length === 0 && !wallPin && !lightPin) {
+      setError('Peignez un mur, ajoutez une lumière, ou épinglez un meuble')
       return
     }
 
@@ -217,7 +279,7 @@ export default function GenerateView({
     setError(null)
     setProgressStep('masking')
     setProgressPct(8)
-    setProgressDetail('Préparation des masques…')
+    setProgressDetail('Lecture des murs, lumières et meubles…')
     setVariations([])
     setSavedRows([])
 
@@ -247,6 +309,17 @@ export default function GenerateView({
         body: JSON.stringify({
           image_base64: originalB64,
           zones: zonesPayload,
+          atmosphere: {
+            wall: wallPin ? { prompt: wallPin.prompt, x: wallPin.x, y: wallPin.y } : null,
+            lighting: lightPin
+              ? {
+                  prompt: lightPin.prompt,
+                  kind: lightPin.id,
+                  x: lightPin.x,
+                  y: lightPin.y,
+                }
+              : null,
+          },
           num_variations: 3,
         }),
       })
@@ -333,22 +406,38 @@ export default function GenerateView({
     setActiveZoneId(null)
     setVariations([])
     setSavedRows([])
+    clearRestyle()
     setError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
   const readyCount = zones.filter(z => z.item).length
+  const canGenerate = readyCount > 0 || Boolean(wallPin) || Boolean(lightPin)
   const uploads = files.filter(f => f.kind === 'upload')
+  const filteredCatalog = catalog.filter(item => matchesCatalogTab(item, catalogTab))
+  const lightHint = lightById(pendingLightId ?? '')?.hint ?? 'Tap where the light goes'
+  const placingHint =
+    clickMode === 'wall'
+      ? 'Touchez le mur sur la photo'
+      : clickMode === 'light'
+        ? lightHint === 'Tap the ceiling'
+          ? 'Touchez le plafond'
+          : lightHint === 'Tap the floor'
+            ? 'Touchez le sol'
+            : 'Touchez le mur'
+        : 'Touchez un meuble à remplacer — optionnel'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div>
-        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--rm-primary)]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
+          Restyle Pro
+        </p>
+        <h2 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight text-[var(--rm-primary)]">
           Générer
         </h2>
-        <p className="mt-1 text-sm text-[var(--rm-muted)]">
-          Choisissez une image, épinglez jusqu’à {MAX_ZONES} zones, générez — les résultats sont
-          empilés dans l’espace de travail.
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--rm-muted)]">
+          Peignez, éclairez, changez le mobilier — trois looks photoréalistes, empilés dans le Drive.
         </p>
       </div>
 
@@ -359,12 +448,14 @@ export default function GenerateView({
       )}
 
       {stage === 'pick' && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--rm-primary)]/30 bg-[var(--rm-surface)] px-6 py-12 text-center transition hover:border-[var(--rm-primary)]/55">
-            <span className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--rm-primary)]">
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <label className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.5rem] border border-dashed border-[var(--rm-primary)]/35 bg-[var(--rm-surface)] px-6 py-16 text-center shadow-[0_20px_60px_-40px_rgba(20,32,28,0.55)] transition hover:border-[var(--rm-primary)]/60">
+            <span className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--rm-primary)]">
               {saving ? 'Envoi…' : 'Uploader une photo'}
             </span>
-            <span className="text-sm text-[var(--rm-muted)]">Enregistrée automatiquement dans le Drive</span>
+            <span className="text-sm text-[var(--rm-muted)]">
+              Enregistrée automatiquement dans le Drive
+            </span>
             <input
               ref={fileRef}
               type="file"
@@ -375,28 +466,23 @@ export default function GenerateView({
             />
           </label>
 
-          <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--rm-accent)]">
-              Depuis l’espace de travail
+          <div className="rounded-[1.5rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--rm-accent)]">
+              Depuis le Drive
             </p>
             {uploads.length === 0 ? (
-              <p className="mt-4 text-sm text-[var(--rm-muted)]">Aucun upload pour l’instant.</p>
+              <p className="mt-6 text-sm text-[var(--rm-muted)]">Aucun upload pour l’instant.</p>
             ) : (
-              <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+              <ul className="mt-4 grid max-h-72 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
                 {uploads.map(f => (
                   <li key={f.id}>
                     <button
                       type="button"
                       onClick={() => void loadFromWorkspace(f)}
-                      className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[var(--rm-secondary)]/60"
+                      className="group w-full overflow-hidden rounded-xl ring-1 ring-[var(--rm-text)]/8 transition hover:ring-[var(--rm-primary)]/40"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={f.public_url}
-                        alt=""
-                        className="h-12 w-12 rounded-lg object-cover ring-1 ring-[var(--rm-text)]/8"
-                      />
-                      <span className="truncate text-sm font-medium">{f.name}</span>
+                      <img src={f.public_url} alt="" className="aspect-square w-full object-cover" />
                     </button>
                   </li>
                 ))}
@@ -414,12 +500,17 @@ export default function GenerateView({
         originalSrc && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-[var(--rm-muted)]">
-                {stage === 'placing' &&
-                  `Touchez la photo pour épingler (${readyCount}/${MAX_ZONES} prêts)`}
+              <p
+                className={`text-sm ${
+                  clickMode === 'furniture'
+                    ? 'text-[var(--rm-muted)]'
+                    : 'font-medium text-[var(--rm-primary)]'
+                }`}
+              >
+                {stage === 'placing' && placingHint}
                 {stage === 'catalog' && 'Choisissez un meuble pour l’épingle'}
                 {stage === 'generating' && progressDetail}
-                {stage === 'results' && `${variations.length} variation(s) enregistrée(s)`}
+                {stage === 'results' && `${variations.length} look(s) enregistré(s) dans le Drive`}
                 {stage === 'error' && 'Une erreur est survenue — vous pouvez réessayer'}
               </p>
               <button type="button" className="rm-btn-secondary text-xs" onClick={resetPick}>
@@ -427,16 +518,36 @@ export default function GenerateView({
               </button>
             </div>
 
-            <div className="relative overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-ink)]">
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-[var(--rm-text)]/8 bg-[var(--rm-ink)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={originalSrc}
                 alt="Source"
-                className={`mx-auto max-h-[62vh] w-full object-contain ${
+                className={`mx-auto max-h-[58vh] w-full object-contain ${
                   stage === 'placing' ? 'cursor-crosshair' : ''
                 }`}
                 onClick={handlePhotoClick}
               />
+              {wallPin && (
+                <div
+                  className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow"
+                  style={{
+                    left: `${wallPin.x * 100}%`,
+                    top: `${wallPin.y * 100}%`,
+                    background: wallPin.hex,
+                  }}
+                  title={wallPin.label}
+                />
+              )}
+              {lightPin && (
+                <div
+                  className="pointer-events-none absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-amber-300 bg-amber-400/90 text-[10px] font-bold text-zinc-900 shadow"
+                  style={{ left: `${lightPin.x * 100}%`, top: `${lightPin.y * 100}%` }}
+                  title={lightPin.label}
+                >
+                  ✦
+                </div>
+              )}
               {zones.map((zone, i) => (
                 <button
                   key={zone.id}
@@ -462,9 +573,104 @@ export default function GenerateView({
               ))}
             </div>
 
+            {(stage === 'placing' || stage === 'catalog') && (
+              <div className="flex flex-col gap-3 rounded-[1.25rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--rm-muted)]">
+                    Peinture
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {COMPOSER_WALLS.map(wall => {
+                      const active = (wallPin?.id ?? pendingWallId) === wall.id
+                      return (
+                        <button
+                          key={wall.id}
+                          type="button"
+                          title={wall.label}
+                          aria-label={wall.label}
+                          onClick={() => {
+                            if (active) {
+                              setWallPin(null)
+                              setPendingWallId(null)
+                              setClickMode('furniture')
+                              return
+                            }
+                            setPendingWallId(wall.id)
+                            setPendingLightId(null)
+                            if (wallPin) {
+                              setWallPin({
+                                ...wallPin,
+                                id: wall.id,
+                                hex: wall.hex,
+                                label: wall.label,
+                                prompt: wall.prompt,
+                              })
+                              setClickMode('furniture')
+                            } else {
+                              setClickMode('wall')
+                            }
+                          }}
+                          className={`h-7 w-7 rounded-full border ${
+                            active
+                              ? 'border-[var(--rm-primary)] ring-2 ring-[var(--rm-primary)]/30'
+                              : 'border-black/10'
+                          }`}
+                          style={{ background: wall.hex }}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--rm-muted)]">
+                    Lumière
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {COMPOSER_LIGHTS.map(light => {
+                      const active = (lightPin?.id ?? pendingLightId) === light.id
+                      return (
+                        <button
+                          key={light.id}
+                          type="button"
+                          onClick={() => {
+                            if (active) {
+                              setLightPin(null)
+                              setPendingLightId(null)
+                              setClickMode('furniture')
+                              return
+                            }
+                            setPendingLightId(light.id)
+                            setPendingWallId(null)
+                            if (lightPin) {
+                              setLightPin({
+                                ...lightPin,
+                                id: light.id,
+                                label: light.label,
+                                prompt: light.prompt,
+                              })
+                              setClickMode('furniture')
+                            } else {
+                              setClickMode('light')
+                            }
+                          }}
+                          className={`rounded-full px-3 py-1 text-xs ${
+                            active
+                              ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
+                              : 'bg-[var(--rm-secondary)] text-[var(--rm-muted)]'
+                          }`}
+                        >
+                          {light.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {stage === 'catalog' && (
-              <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-4">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="rounded-[1.25rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">Catalogue</p>
                   <button
                     type="button"
@@ -478,20 +684,36 @@ export default function GenerateView({
                     Annuler l’épingle
                   </button>
                 </div>
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {CATALOG_TABS.map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setCatalogTab(tab)}
+                      className={`rounded-full px-3 py-1 text-xs ${
+                        catalogTab === tab
+                          ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
+                          : 'bg-[var(--rm-secondary)] text-[var(--rm-muted)]'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
                 <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4">
-                  {catalog.map(item => (
+                  {filteredCatalog.map(item => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => pickItemForZone(item)}
                       className="overflow-hidden rounded-xl border border-[var(--rm-text)]/8 text-left transition hover:border-[var(--rm-primary)]/40"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.imageUrl}
                           alt=""
-                          className="aspect-square w-full object-cover bg-[var(--rm-secondary)]"
+                          className="aspect-square w-full bg-[var(--rm-secondary)] object-cover"
                         />
                       ) : (
                         <div className="flex aspect-square w-full items-center justify-center bg-[var(--rm-secondary)] text-xs text-[var(--rm-muted)]">
@@ -506,7 +728,7 @@ export default function GenerateView({
             )}
 
             {stage === 'generating' && (
-              <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
+              <div className="rounded-[1.25rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
                 <div className="mb-2 flex justify-between text-xs text-[var(--rm-muted)]">
                   <span className="uppercase tracking-wider">{progressStep}</span>
                   <span>{progressPct}%</span>
@@ -517,41 +739,46 @@ export default function GenerateView({
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
+                <p className="mt-3 text-sm text-[var(--rm-muted)]">{progressDetail}</p>
               </div>
             )}
 
             {stage === 'placing' && (
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rm-btn-primary"
-                  disabled={readyCount === 0}
-                  onClick={() => void handleGenerate()}
-                >
-                  Générer {readyCount > 0 ? `(${readyCount} zone${readyCount > 1 ? 's' : ''})` : ''}
-                </button>
-                {zones.length > 0 && (
-                  <button type="button" className="rm-btn-secondary" onClick={() => setZones([])}>
-                    Effacer les épingles
-                  </button>
-                )}
-              </div>
+              <button
+                type="button"
+                className="w-full rm-btn-primary py-3.5 text-sm"
+                disabled={!canGenerate}
+                onClick={() => void handleGenerate()}
+              >
+                Générer 3 restyles
+                <span className="mt-1 block text-[11px] font-normal opacity-80">
+                  {[
+                    wallPin ? wallPin.label : null,
+                    lightPin ? lightPin.label : null,
+                    readyCount > 0
+                      ? `${readyCount} meuble${readyCount > 1 ? 's' : ''}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Peinture, lumière ou meuble'}
+                </span>
+              </button>
             )}
 
             {stage === 'results' && variations.length > 0 && (
               <div className="space-y-4">
                 <p className="text-sm font-semibold text-[var(--rm-primary)]">
-                  Historique empilé (enregistré dans le Drive)
+                  Empilé et sauvé dans le Drive
                 </p>
-                <ul className="space-y-4">
+                <ul className="space-y-5">
                   {variations.map((src, i) => (
                     <li
                       key={savedRows[i]?.id ?? i}
-                      className="overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)]"
+                      className="overflow-hidden rounded-[1.5rem] border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] shadow-[0_18px_50px_-36px_rgba(20,32,28,0.55)]"
                     >
-                      <div className="flex items-center justify-between gap-3 border-b border-[var(--rm-text)]/6 px-4 py-2">
+                      <div className="flex items-center justify-between gap-3 border-b border-[var(--rm-text)]/6 px-4 py-2.5">
                         <span className="text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)]">
-                          Génération #{variations.length - i}
+                          Look {i + 1}
                         </span>
                         <a
                           href={savedRows[i]?.public_url ?? src}
@@ -562,7 +789,7 @@ export default function GenerateView({
                         </a>
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={`Variation ${i + 1}`} className="w-full object-contain" />
+                      <img src={src} alt={`Look ${i + 1}`} className="w-full object-contain" />
                     </li>
                   ))}
                 </ul>
@@ -573,10 +800,11 @@ export default function GenerateView({
                     setZones([])
                     setVariations([])
                     setSavedRows([])
+                    clearRestyle()
                     setStage('placing')
                   }}
                 >
-                  Nouvelle génération sur cette image
+                  Nouveau restyle sur cette image
                 </button>
               </div>
             )}

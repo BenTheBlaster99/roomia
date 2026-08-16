@@ -67,13 +67,13 @@ export default function DashboardLoginPage() {
             roomia
           </a>
           <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--rm-accent)]">
-            Pro · Agences
+            Pro
           </p>
           <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--rm-ink)]">
             {mode === 'signin' ? 'Connexion' : 'Créer un compte'}
           </h1>
           <p className="mt-1 text-sm text-[var(--rm-muted)]">
-            Espace de travail Drive + génération IA empilée.
+            Restyles photoréalistes, empilés dans votre Drive. Plus de fichiers perdus.
           </p>
         </div>
 
