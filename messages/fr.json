@@ -4,14 +4,17 @@
     "description": "Configurateur d'intérieur pour l'Algérie — générez avec l'IA, modélisez en 3D, et achetez le look."
   },
   "nav": {
+    "home": "Accueil",
     "styles": "Styles",
     "catalog": "Catalogue",
-    "ai": "Générateur IA",
-    "studio": "Studio 3D",
+    "ai": "Image en IA",
+    "studio": "Studio",
+    "contact": "Contact",
     "partners": "Partenaires",
     "pro": "Pro",
     "dashboard": "Tableau de bord",
     "cta": "Commencer",
+    "ctaCreate": "Commencer à créer",
     "ctaStudio": "Ouvrir le studio",
     "ctaCustom": "Créer le vôtre",
     "langFr": "FR",
@@ -37,23 +40,59 @@
     "rights": "© 2026 Roomia · Algérie"
   },
   "home": {
+    "heroHeadlineBefore": "Imaginez votre intérieur ",
+    "heroHeadlineHighlight": "avant de le réaliser",
+    "heroHeadlineAfter": ", depuis le confort de votre maison et en quelques minutes.",
+    "heroBody": "Fini les déplacements et les recherches Instagram sans fin. <brand>Roomia</brand> est un outil de visualisation qui vous permet de tester meubles, couleurs et aménagements dans votre propre intérieur depuis les catalogues des sociétés algériennes, et de voir le résultat final sans effort.",
+    "heroNotifyCta": "Soyez notifié au lancement",
+    "heroCheck1": "Magasin de meubles algérien",
+    "heroCheck2": "Accès",
     "headline1": "Concevez la pièce.",
     "headline2": "Vivez la photo.",
     "sub": "Scannez votre espace, meublez avec l'IA, arrangez en 3D — pensé pour les maisons algériennes.",
     "ctaPrimary": "Commencer",
     "ctaSecondary": "Générateur IA",
     "scroll": "Défiler",
-    "pathsEyebrow": "Deux chemins",
-    "pathsTitle": "Choisissez votre façon de créer",
-    "pathsSub": "IA pour transformer une photo, ou studio 3D pour construire votre pièce.",
+    "pathsTitle": "Un espace. Deux façons de visualiser.",
+    "pathsSub": "Visualisez votre intérieur avant tout achat et assurez-vous que chaque meuble, couleur ou décoration s'intègre parfaitement à votre espace.",
     "pathAiKicker": "01",
     "pathAiTitle": "Générateur IA",
-    "pathAiDesc": "Uploadez une photo de pièce, choisissez des meubles du catalogue, obtenez des variations photoréalistes.",
+    "pathAiDesc": "Choisissez des endroits dans une pièce réelle. L'IA place des éléments directement du catalogue.",
     "pathAiCta": "Ouvrir le générateur",
+    "pathAiSteps": [
+      "Prenez une photo de votre pièce",
+      "Téléchargez-la sur la plateforme",
+      "Testez immédiatement l'ajout de petites touches décoratives (tapis, lampes, peinture, meuble…)"
+    ],
     "path3dKicker": "02",
-    "path3dTitle": "Modélisation 3D",
-    "path3dDesc": "Partez d'un preset ou créez votre pièce, arrangez le mobilier, puis rendez une photo réaliste.",
+    "path3dTitle": "Studio 3D",
+    "path3dDesc": "Donnez les dimensions de votre pièce. Le studio construit l'espace en 3D avec du mobilier local.",
     "path3dCta": "Ouvrir le studio",
+    "path3dSteps": [
+      "Fournissez les dimensions de votre pièce",
+      "Saisissez une description du style",
+      "Recevez votre espace créé avec du meuble adapté des magasins locaux",
+      "Personnalisez instantanément la proposition"
+    ],
+    "whyTitle": "Pourquoi Roomia ?",
+    "whyItems": [
+      {
+        "title": "Évitez les erreurs coûteuses",
+        "body": "Visualisez votre intérieur avant tout achat et assurez-vous que chaque meuble, couleur ou décoration s'intègre parfaitement à votre espace."
+      },
+      {
+        "title": "Gagnez du temps",
+        "body": "Comparez rapidement plusieurs options d'aménagement sans vous déplacer de magasin en magasin ni demander de multiples devis."
+      },
+      {
+        "title": "Des meubles de magasins algériens",
+        "body": "Chaque proposition s'appuie sur des catalogues locaux — vous voyez le rendu, puis vous achetez chez des enseignes d'ici."
+      },
+      {
+        "title": "Deux façons de visualiser",
+        "body": "Transformez une photo avec l'IA, ou construisez la pièce en 3D. Même objectif : un intérieur clair, avant de dépenser."
+      }
+    ],
     "settleEyebrow": "Studio → photo",
     "settleTitle1": "Regardez le design",
     "settleTitle2": "devenir une pièce.",
@@ -62,16 +101,45 @@
     "catalogTitle": "Parcourez notre catalogue",
     "catalogSub": "Canapés, tables, luminaires et plus — filtrez par style et budget.",
     "catalogCta": "Voir le catalogue",
+    "catSofas": "Fauteuils",
+    "catCoffee": "Tables basses",
+    "catDining": "Tables à manger",
+    "catChairs": "Chaises",
+    "catLights": "Luminaires",
+    "catBeds": "Lits",
+    "presetsTitle": "Commencez depuis une préconfiguration",
+    "presetIndustrial": "Séjour industriel",
+    "presetMinimal": "Chambre minimaliste",
+    "presetScandi": "Séjour scandinave",
     "statsStyles": "Styles",
     "statsPresets": "Presets",
     "statsCatalog": "Pièces catalogue",
     "statsAi": "Photo + rendu 3D",
-    "presetsTitle": "Partir d'un preset",
     "presetsSub": "Pièces curatées par l'architecte, prêtes dans le studio.",
     "presetsAll": "Tout voir →",
     "presetsOpen": "Ouvrir dans le studio →",
-    "stylesTitle": "Des styles avec un point de vue",
-    "stylesSub": "Cinq directions curatées — chaque preset et chaque pièce du catalogue est tagué.",
+    "stylesDiscover": "Découvrez votre style",
+    "stylesExplained": "Styles de design intérieurs expliqués",
+    "stylesSeeMore": "Voir plus",
+    "stylesSeeLess": "Voir moins",
+    "stylesQuizHint": "Ou prenez un <quiz>QUIZ</quiz> et nous vous aiderons à le découvrir",
+    "stylesTakeQuiz": "Prendre le QUIZ",
+    "stylesExpandedTitle": "Comprendre votre goût est le secret d’un espace réussi",
+    "stylesExpandedSub": "Parcourez les styles ou répondez à un <quiz>QUIZ</quiz> et découvrez votre style préféré",
+    "styleName": {
+      "minimalism": "Minimalisme",
+      "scandinavian": "Scandinave",
+      "industrial": "Industriel",
+      "maximalism": "Maximalisme",
+      "japandi": "Japandi",
+      "contemporary": "Contemporain",
+      "traditional": "Traditionnel",
+      "art_deco": "Art Déco",
+      "modern": "Moderne",
+      "glamour": "Glamour",
+      "mid_century": "Moderne du milieu du siècle",
+      "rustic": "Rustique"
+    },
     "ctaTitle1": "Votre espace.",
     "ctaTitle2": "Vos règles.",
     "ctaBody": "Gratuit pour explorer. Pas de compte requis. Concevez aujourd'hui — devis quand vous êtes prêt.",
@@ -95,6 +163,158 @@
     "quizCta": "Lancer le quiz"
   },
 
+  "styleDetail": {
+    "palette": "Palette de couleur",
+    "materials": "Matériaux",
+    "traits": "Caractéristiques",
+    "photoLiving": "Photo d’un séjour",
+    "photoBedroom": "Photo d’une chambre",
+    "photoKitchen": "Photo d’une cuisine",
+    "minimalism": {
+      "traits": [
+        "Lignes épurées",
+        "Peu d’objets",
+        "Rangements discrets",
+        "Lumière naturelle",
+        "Palette calme",
+        "Meubles fonctionnels",
+        "Espaces ouverts",
+        "Aucun superflu"
+      ]
+    },
+    "scandinavian": {
+      "traits": [
+        "Bois clairs",
+        "Ambiance hygge",
+        "Textiles chaleureux",
+        "Murs blancs",
+        "Formes simples",
+        "Plantes vertes",
+        "Confort quotidien",
+        "Lumière du nord"
+      ]
+    },
+    "industrial": {
+      "traits": [
+        "Brique apparente",
+        "Métal brut",
+        "Esprit loft",
+        "Tuyauterie visible",
+        "Pièces vintage",
+        "Béton et acier",
+        "Volumes ouverts",
+        "Esthétique atelier"
+      ]
+    },
+    "maximalism": {
+      "traits": [
+        "Couleurs saturées",
+        "Motifs superposés",
+        "Objets collectionnés",
+        "Murs d’art",
+        "Mélange d’époques",
+        "Tissus riches",
+        "Personnalité forte",
+        "Abondance assumée"
+      ]
+    },
+    "japandi": {
+      "traits": [
+        "Minimalisme chaud",
+        "Meubles bas",
+        "Wabi-sabi",
+        "Artisanat visible",
+        "Matières naturelles",
+        "Silence visuel",
+        "Contrastes doux",
+        "Fonction poétique"
+      ]
+    },
+    "contemporary": {
+      "traits": [
+        "Lignes actuelles",
+        "Textures mixtes",
+        "Confort raffiné",
+        "Éclairage sculptural",
+        "Plan ouvert",
+        "Art contemporain",
+        "Neutres profonds",
+        "Détails soignés"
+      ]
+    },
+    "traditional": {
+      "traits": [
+        "Symétrie",
+        "Moulures",
+        "Meubles classiques",
+        "Tissus riches",
+        "Héritage",
+        "Tapis superposés",
+        "Ornement mesuré",
+        "Élégance intemporelle"
+      ]
+    },
+    "art_deco": {
+      "traits": [
+        "Géométrie nette",
+        "Glamour 1920",
+        "Motifs soleil",
+        "Métaux précieux",
+        "Contrastes forts",
+        "Laque et marbre",
+        "Symétrie luxueuse",
+        "Silhouettes graphiques"
+      ]
+    },
+    "modern": {
+      "traits": [
+        "Forme utile",
+        "Peu d’ornement",
+        "Volumes ouverts",
+        "Géométrie claire",
+        "Matériaux honnêtes",
+        "Esprit Bauhaus",
+        "Noir et blanc",
+        "Lignes tendues"
+      ]
+    },
+    "glamour": {
+      "traits": [
+        "Hollywood Regency",
+        "Brillance",
+        "Velours",
+        "Miroirs",
+        "Cristal",
+        "Contraste dramatique",
+        "Pièces statement",
+        "Soirée permanente"
+      ]
+    },
+    "mid_century": {
+      "traits": [
+        "Courbes organiques",
+        "Pieds fuseaux",
+        "Bois teck",
+        "Icônes 50-60",
+        "Profil bas",
+        "Graphisme vintage",
+        "Fonction claire",
+        "Chaleur du bois"
+      ]
+    },
+    "rustic": {
+      "traits": [
+        "Bois brut",
+        "Pierre naturelle",
+        "Esprit campagne",
+        "Fait main",
+        "Imparfait vivant",
+        "Tons terre",
+        "Confort enveloppant",
+        "Ancré dans le lieu"
+      ]
+    }
+  },
   "stylesPage": {
     "eyebrow": "Styles",
     "title": "Cinq univers, une direction claire",
@@ -209,5 +429,15 @@
     "search": "Rechercher…",
     "cart": "Panier",
     "studio": "Ouvrir le studio"
+  },
+  "contact": {
+    "eyebrow": "Contact",
+    "title": "Parlons de votre intérieur",
+    "body": "Questions, partenariats ou envie d'être prévenu au lancement — écrivez-nous.",
+    "launchTitle": "Notification de lancement",
+    "launchBody": "Laissez-nous votre email et nous vous préviendrons dès que Roomia ouvre l'accès public.",
+    "launchCta": "Demander une notification",
+    "emailTitle": "Email",
+    "tryAi": "Essayer l'image IA →"
   }
 }

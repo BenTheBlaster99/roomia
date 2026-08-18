@@ -1,58 +1,144 @@
 'use client'
 
+import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
+import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 
-const ITEMS = [
-  { label: 'Sofa', mark: 'Sf' },
-  { label: 'Fauteuil', mark: 'Ft' },
-  { label: 'Table', mark: 'Tb' },
-  { label: 'Lit', mark: 'Lt' },
-  { label: 'Luminaire', mark: 'Lm' },
-  { label: 'Tapis', mark: 'Tp' },
-  { label: 'Bibliothèque', mark: 'Bb' },
-  { label: 'Buffet', mark: 'Bf' },
-  { label: 'Chaise', mark: 'Ch' },
-  { label: 'Rideaux', mark: 'Rd' },
+type PresetTeaser = {
+  id: string
+  name: string
+  room_type?: string | null
+  style_id?: string | null
+  room_config?: { wallColor?: string } | null
+}
+
+const CATEGORIES = [
+  {
+    key: 'catSofas',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    key: 'catCoffee',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1532372320572-cda25653a26d?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    key: 'catDining',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1617806118233-18e1de3d13f0?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    key: 'catChairs',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    key: 'catLights',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1543198126-a8ad8e47fb22?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    key: 'catBeds',
+    href: '/marketplace',
+    image:
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=800&q=80',
+  },
+] as const
+
+const FALLBACK_PRESETS = [
+  { id: 'industrial-living', nameKey: 'presetIndustrial' as const, styleId: 'industrial', href: '/rooms' },
+  { id: 'minimal-bedroom', nameKey: 'presetMinimal' as const, styleId: 'minimalism', href: '/rooms' },
+  { id: 'scandi-living', nameKey: 'presetScandi' as const, styleId: 'mediterranean_coastal', href: '/rooms' },
 ]
 
-export default function CatalogMarquee() {
+export default function CatalogMarquee({ presets = [] }: { presets?: PresetTeaser[] }) {
   const t = useTranslations('home')
-  const loop = [...ITEMS, ...ITEMS]
+
+  const presetCards =
+    presets.slice(0, 3).length === 3
+      ? presets.slice(0, 3).map(preset => {
+          const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? {
+            main: '#dce8e1',
+            accent: '#9CA3AF',
+          }
+          return {
+            id: preset.id,
+            name: preset.name,
+            href: `/studio?preset=${preset.id}`,
+            wall: preset.room_config?.wallColor ?? colors.main,
+            accent: colors.accent,
+          }
+        })
+      : FALLBACK_PRESETS.map(preset => {
+          const colors = STYLE_CARD_COLORS[preset.styleId] ?? { main: '#dce8e1', accent: '#9CA3AF' }
+          return {
+            id: preset.id,
+            name: t(preset.nameKey),
+            href: preset.href,
+            wall: colors.main,
+            accent: colors.accent,
+          }
+        })
 
   return (
-    <section className="border-y border-[var(--rm-text)]/8 bg-[var(--rm-ink)] py-10 text-[var(--rm-surface)] overflow-hidden">
-      <div className="mx-auto max-w-6xl px-5 md:px-6 mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h2 className="rm-display text-2xl font-bold tracking-tight md:text-3xl">
+    <div className="bg-[var(--rm-bg)]">
+      <section className="px-6 pb-6 pt-16 md:px-10 md:pt-20">
+        <div className="mx-auto max-w-[92rem]">
+          <h2 className="rm-display text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
             {t('catalogTitle')}
           </h2>
-          <p className="mt-1 text-sm text-[var(--rm-surface)]/65">{t('catalogSub')}</p>
-        </div>
-        <Link
-          href="/marketplace"
-          className="text-sm font-semibold text-[var(--rm-accent)] hover:underline shrink-0"
-        >
-          {t('catalogCta')} →
-        </Link>
-      </div>
 
-      <div className="relative">
-        <div className="rm-marquee flex w-max gap-4 px-4">
-          {loop.map((item, i) => (
-            <Link
-              key={`${item.label}-${i}`}
-              href="/marketplace"
-              className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[9.5rem] hover:bg-white/10 transition-colors"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--rm-accent)]/25 text-xs font-bold text-[var(--rm-accent)]">
-                {item.mark}
-              </span>
-              <span className="text-sm font-medium">{item.label}</span>
-            </Link>
-          ))}
+          <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
+            {CATEGORIES.map(item => (
+              <Link key={item.key} href={item.href} className="rm-cat-item group">
+                <div className="relative mx-auto aspect-square w-full max-w-[11rem]">
+                  <Image
+                    src={item.image}
+                    alt=""
+                    fill
+                    className="rm-cat-photo object-contain object-bottom"
+                    sizes="180px"
+                  />
+                </div>
+                <span className="mt-4 block text-center text-sm font-bold text-[var(--rm-ink)] md:text-base">
+                  {t(item.key)}
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section className="px-6 py-16 md:px-10 md:py-20">
+        <div className="mx-auto max-w-[92rem]">
+          <h2 className="rm-display text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
+            {t('presetsTitle')}
+          </h2>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {presetCards.map(card => (
+              <a key={card.id} href={card.href} className="rm-preset-card group">
+                <div
+                  className="aspect-[4/3] w-full"
+                  style={{
+                    background: `linear-gradient(155deg, ${card.wall} 0%, ${card.accent}99 100%)`,
+                  }}
+                />
+                <div className="bg-white px-5 py-4">
+                  <div className="truncate text-base font-bold text-[var(--rm-ink)]">{card.name}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
   )
 }

@@ -4,14 +4,17 @@
     "description": "Interior design configurator for Algeria — generate with AI, model in 3D, and shop the look."
   },
   "nav": {
+    "home": "Home",
     "styles": "Styles",
     "catalog": "Catalog",
-    "ai": "AI Generator",
-    "studio": "3D Studio",
+    "ai": "AI Image",
+    "studio": "Studio",
+    "contact": "Contact",
     "partners": "Partners",
     "pro": "Pro",
     "dashboard": "Dashboard",
     "cta": "Get started",
+    "ctaCreate": "Start creating",
     "ctaStudio": "Open studio",
     "ctaCustom": "Create your own",
     "langFr": "FR",
@@ -37,41 +40,106 @@
     "rights": "© 2026 Roomia · Algeria"
   },
   "home": {
+    "heroHeadlineBefore": "Imagine your interior ",
+    "heroHeadlineHighlight": "before you build it",
+    "heroHeadlineAfter": ", from the comfort of your home in just a few minutes.",
+    "heroBody": "No more endless showroom visits or Instagram scrolling. <brand>Roomia</brand> is a visualization tool that lets you test furniture, colors, and layouts in your own space using Algerian catalogs — and see the final result effortlessly.",
+    "heroNotifyCta": "Get notified at launch",
+    "heroCheck1": "Algerian furniture stores",
+    "heroCheck2": "Access",
     "headline1": "Design the room.",
     "headline2": "Live the photo.",
     "sub": "Scan your space, furnish with AI, arrange in 3D — built for Algerian homes.",
     "ctaPrimary": "Get started",
     "ctaSecondary": "AI Generator",
     "scroll": "Scroll",
-    "pathsEyebrow": "Two paths",
-    "pathsTitle": "Choose how you create",
-    "pathsSub": "AI to transform a photo, or 3D studio to build your room.",
+    "pathsTitle": "One space. Two ways to visualize.",
+    "pathsSub": "See your interior before you buy anything — and make sure every piece of furniture, color, or décor actually belongs in your room.",
     "pathAiKicker": "01",
     "pathAiTitle": "AI Generator",
-    "pathAiDesc": "Upload a room photo, pick catalog furniture, get photoreal variations.",
+    "pathAiDesc": "Pick spots in a real room photo. AI places catalog pieces directly into the image.",
     "pathAiCta": "Open generator",
+    "pathAiSteps": [
+      "Take a photo of your room",
+      "Upload it to the platform",
+      "Instantly try decorative touches (rugs, lamps, paint, furniture…)"
+    ],
     "path3dKicker": "02",
-    "path3dTitle": "3D Modeling",
-    "path3dDesc": "Start from a preset or create your room, arrange furniture, then render a realistic photo.",
+    "path3dTitle": "3D Studio",
+    "path3dDesc": "Give your room dimensions. The studio builds the space in 3D with local furniture.",
     "path3dCta": "Open studio",
+    "path3dSteps": [
+      "Provide your room dimensions",
+      "Describe the style you want",
+      "Get a furnished space with pieces from local stores",
+      "Customize the proposal instantly"
+    ],
+    "whyTitle": "Why Roomia?",
+    "whyItems": [
+      {
+        "title": "Avoid costly mistakes",
+        "body": "See your interior before you buy anything — and make sure every piece of furniture, color, or décor actually belongs in your room."
+      },
+      {
+        "title": "Save time",
+        "body": "Compare several layout options quickly, without store-to-store trips or chasing quote after quote."
+      },
+      {
+        "title": "Furniture from Algerian stores",
+        "body": "Every proposal draws from local catalogs — you see the result, then you buy from shops here."
+      },
+      {
+        "title": "Two ways to visualize",
+        "body": "Restyle a photo with AI, or build the room in 3D. Same goal: a clear interior before you spend."
+      }
+    ],
     "settleEyebrow": "Studio → photo",
     "settleTitle1": "Watch the design",
     "settleTitle2": "become a room.",
     "settleBody": "Arrange furniture in 3D, then hit Render Photo — layout stays locked, AI paints light and materials.",
     "settleCta": "Open studio",
-    "catalogTitle": "Browse our catalog",
+    "catalogTitle": "Browse our catalogue",
     "catalogSub": "Sofas, tables, lighting and more — filter by style and budget.",
     "catalogCta": "View catalog",
+    "catSofas": "Armchairs",
+    "catCoffee": "Coffee tables",
+    "catDining": "Dining tables",
+    "catChairs": "Chairs",
+    "catLights": "Lighting",
+    "catBeds": "Beds",
+    "presetsTitle": "Start from a preconfiguration",
+    "presetIndustrial": "Industrial living room",
+    "presetMinimal": "Minimalist bedroom",
+    "presetScandi": "Scandinavian living room",
     "statsStyles": "Styles",
     "statsPresets": "Presets",
     "statsCatalog": "Catalog pieces",
     "statsAi": "Photo + 3D render",
-    "presetsTitle": "Start from a preset",
     "presetsSub": "Architect-curated rooms, ready in the studio.",
     "presetsAll": "View all →",
     "presetsOpen": "Open in studio →",
-    "stylesTitle": "Styles with a point of view",
-    "stylesSub": "Five curated directions — every preset and catalog piece is tagged.",
+    "stylesDiscover": "Discover your style",
+    "stylesExplained": "Interior design styles explained",
+    "stylesSeeMore": "See more",
+    "stylesSeeLess": "See less",
+    "stylesQuizHint": "Or take a <quiz>QUIZ</quiz> and we’ll help you find it",
+    "stylesTakeQuiz": "Take the QUIZ",
+    "stylesExpandedTitle": "Understanding your taste is the secret to a successful space",
+    "stylesExpandedSub": "Browse the styles or take a <quiz>QUIZ</quiz> and discover your favorite",
+    "styleName": {
+      "minimalism": "Minimalism",
+      "scandinavian": "Scandinavian",
+      "industrial": "Industrial",
+      "maximalism": "Maximalism",
+      "japandi": "Japandi",
+      "contemporary": "Contemporary",
+      "traditional": "Traditional",
+      "art_deco": "Art Deco",
+      "modern": "Modern",
+      "glamour": "Glamour",
+      "mid_century": "Mid-century modern",
+      "rustic": "Rustic"
+    },
     "ctaTitle1": "Your space.",
     "ctaTitle2": "Your rules.",
     "ctaBody": "Free to explore. No account needed. Design today — quote when you're ready.",
@@ -95,6 +163,158 @@
     "quizCta": "Start the quiz"
   },
 
+  "styleDetail": {
+    "palette": "Color palette",
+    "materials": "Materials",
+    "traits": "Characteristics",
+    "photoLiving": "Living room photo",
+    "photoBedroom": "Bedroom photo",
+    "photoKitchen": "Kitchen photo",
+    "minimalism": {
+      "traits": [
+        "Clean lines",
+        "Few objects",
+        "Hidden storage",
+        "Natural light",
+        "Quiet palette",
+        "Functional furniture",
+        "Open space",
+        "Nothing extra"
+      ]
+    },
+    "scandinavian": {
+      "traits": [
+        "Light woods",
+        "Hygge mood",
+        "Warm textiles",
+        "White walls",
+        "Simple forms",
+        "Houseplants",
+        "Everyday comfort",
+        "Northern light"
+      ]
+    },
+    "industrial": {
+      "traits": [
+        "Exposed brick",
+        "Raw metal",
+        "Loft spirit",
+        "Visible pipes",
+        "Vintage pieces",
+        "Concrete and steel",
+        "Open volumes",
+        "Workshop aesthetic"
+      ]
+    },
+    "maximalism": {
+      "traits": [
+        "Saturated color",
+        "Layered pattern",
+        "Collected objects",
+        "Art-filled walls",
+        "Mixed eras",
+        "Rich textiles",
+        "Strong personality",
+        "Intentional abundance"
+      ]
+    },
+    "japandi": {
+      "traits": [
+        "Warm minimalism",
+        "Low furniture",
+        "Wabi-sabi",
+        "Visible craft",
+        "Natural materials",
+        "Visual quiet",
+        "Soft contrast",
+        "Poetic function"
+      ]
+    },
+    "contemporary": {
+      "traits": [
+        "Current lines",
+        "Mixed textures",
+        "Refined comfort",
+        "Sculptural lighting",
+        "Open plan",
+        "Contemporary art",
+        "Deep neutrals",
+        "Careful details"
+      ]
+    },
+    "traditional": {
+      "traits": [
+        "Symmetry",
+        "Moldings",
+        "Classic furniture",
+        "Rich fabrics",
+        "Heritage feel",
+        "Layered rugs",
+        "Measured ornament",
+        "Timeless elegance"
+      ]
+    },
+    "art_deco": {
+      "traits": [
+        "Sharp geometry",
+        "1920s glamour",
+        "Sunburst motifs",
+        "Precious metals",
+        "High contrast",
+        "Lacquer and marble",
+        "Luxurious symmetry",
+        "Graphic silhouettes"
+      ]
+    },
+    "modern": {
+      "traits": [
+        "Form follows function",
+        "Little ornament",
+        "Open volumes",
+        "Clear geometry",
+        "Honest materials",
+        "Bauhaus spirit",
+        "Black and white",
+        "Taut lines"
+      ]
+    },
+    "glamour": {
+      "traits": [
+        "Hollywood Regency",
+        "Shine",
+        "Velvet",
+        "Mirrors",
+        "Crystal",
+        "Dramatic contrast",
+        "Statement pieces",
+        "Evening all day"
+      ]
+    },
+    "mid_century": {
+      "traits": [
+        "Organic curves",
+        "Tapered legs",
+        "Teak wood",
+        "1950s–60s icons",
+        "Low profile",
+        "Vintage graphics",
+        "Clear function",
+        "Warm timber"
+      ]
+    },
+    "rustic": {
+      "traits": [
+        "Raw wood",
+        "Natural stone",
+        "Countryside mood",
+        "Handmade feel",
+        "Lived-in imperfect",
+        "Earth tones",
+        "Enveloping comfort",
+        "Grounded in place"
+      ]
+    }
+  },
   "stylesPage": {
     "eyebrow": "Styles",
     "title": "Five worlds, one clear direction",
@@ -209,5 +429,15 @@
     "search": "Search…",
     "cart": "Cart",
     "studio": "Open studio"
+  },
+  "contact": {
+    "eyebrow": "Contact",
+    "title": "Let's talk about your space",
+    "body": "Questions, partnerships, or launch updates — we'd love to hear from you.",
+    "launchTitle": "Launch notification",
+    "launchBody": "Send us an email and we'll notify you when Roomia opens to the public.",
+    "launchCta": "Request a notification",
+    "emailTitle": "Email",
+    "tryAi": "Try AI image →"
   }
 }

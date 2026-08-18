@@ -1,12 +1,8 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { supabase } from '@/lib/supabase'
+import { Link } from '@/i18n/navigation'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
-import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
-import StylesExplorer, {
-  fallbackStyleSections,
-  type StyleSection,
-} from '@/components/marketing/StylesExplorer'
+import { STYLE_IDS, StyleChip } from '@/components/marketing/StyleChip'
 
 export default async function StylesPage({
   params,
@@ -15,37 +11,33 @@ export default async function StylesPage({
 }) {
   const { locale } = await params
   setRequestLocale(locale)
-  const t = await getTranslations('stylesPage')
-
-  const { data } = await supabase
-    .from('styles')
-    .select('id, name, tagline, description, main_color, accent_color')
-    .order('name')
-
-  const styles: StyleSection[] =
-    data && data.length > 0
-      ? (data as StyleSection[])
-      : fallbackStyleSections()
+  const t = await getTranslations('home')
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav ctaHref="/quiz" ctaLabel={t('quiz')} />
+      <SiteNav />
 
-      <section className="relative overflow-hidden border-b border-[var(--rm-text)]/8">
-        <HaikeiBackdrop variant="band" />
-        <div className="relative mx-auto max-w-6xl px-5 py-16 md:px-6 md:py-20">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
-            {t('eyebrow')}
-          </p>
-          <h1 className="rm-display mt-3 text-4xl font-bold tracking-tight md:text-6xl">
-            {t('title')}
+      <main className="px-6 py-16 md:px-10 md:py-24">
+        <div className="mx-auto max-w-[92rem]">
+          <h1 className="rm-display mx-auto max-w-4xl text-center text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
+            {t('stylesExpandedTitle')}
           </h1>
-          <p className="mt-4 max-w-xl text-[var(--rm-muted)] md:text-lg">{t('sub')}</p>
+          <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-[var(--rm-muted)] md:text-base">
+            {t.rich('stylesExpandedSub', {
+              quiz: chunks => <em className="not-italic font-semibold tracking-wide">{chunks}</em>,
+            })}
+          </p>
+          <div className="mt-8 flex justify-center">
+            <Link href="/quiz" className="rm-btn-primary px-12 py-3.5 text-base">
+              {t('stylesTakeQuiz')}
+            </Link>
+          </div>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">
+            {STYLE_IDS.map(id => (
+              <StyleChip key={id} id={id} label={t(`styleName.${id}`)} />
+            ))}
+          </div>
         </div>
-      </section>
-
-      <main className="mx-auto max-w-6xl px-5 py-10 md:px-6 md:py-14">
-        <StylesExplorer styles={styles} />
       </main>
 
       <SiteFooter />
