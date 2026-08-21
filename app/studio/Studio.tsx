@@ -29,6 +29,7 @@ export default function Studio({
     Boolean(initialPreset) ||
     Boolean(query.preset) ||
     query.create === '1' ||
+    query.saved === '1' ||
     Boolean(query.width) ||
     Boolean(query.length)
 

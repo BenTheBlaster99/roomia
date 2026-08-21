@@ -58,87 +58,97 @@ const FALLBACK_PRESETS = [
   { id: 'scandi-living', nameKey: 'presetScandi' as const, styleId: 'mediterranean_coastal', href: '/rooms' },
 ]
 
-export default function CatalogMarquee({ presets = [] }: { presets?: PresetTeaser[] }) {
+function usePresetCards(presets: PresetTeaser[]) {
   const t = useTranslations('home')
 
-  const presetCards =
-    presets.slice(0, 3).length === 3
-      ? presets.slice(0, 3).map(preset => {
-          const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? {
-            main: '#dce8e1',
-            accent: '#9CA3AF',
-          }
-          return {
-            id: preset.id,
-            name: preset.name,
-            href: `/studio?preset=${preset.id}`,
-            wall: preset.room_config?.wallColor ?? colors.main,
-            accent: colors.accent,
-          }
-        })
-      : FALLBACK_PRESETS.map(preset => {
-          const colors = STYLE_CARD_COLORS[preset.styleId] ?? { main: '#dce8e1', accent: '#9CA3AF' }
-          return {
-            id: preset.id,
-            name: t(preset.nameKey),
-            href: preset.href,
-            wall: colors.main,
-            accent: colors.accent,
-          }
-        })
+  if (presets.slice(0, 3).length === 3) {
+    return presets.slice(0, 3).map(preset => {
+      const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? {
+        main: '#dce8e1',
+        accent: '#9CA3AF',
+      }
+      return {
+        id: preset.id,
+        name: preset.name,
+        href: `/studio?preset=${preset.id}`,
+        wall: preset.room_config?.wallColor ?? colors.main,
+        accent: colors.accent,
+      }
+    })
+  }
+
+  return FALLBACK_PRESETS.map(preset => {
+    const colors = STYLE_CARD_COLORS[preset.styleId] ?? { main: '#dce8e1', accent: '#9CA3AF' }
+    return {
+      id: preset.id,
+      name: t(preset.nameKey),
+      href: preset.href,
+      wall: colors.main,
+      accent: colors.accent,
+    }
+  })
+}
+
+export default function CatalogMarquee() {
+  const t = useTranslations('home')
 
   return (
-    <div className="bg-[var(--rm-bg)]">
-      <section className="px-6 pb-6 pt-16 md:px-10 md:pt-20">
-        <div className="mx-auto max-w-[92rem]">
-          <h2 className="rm-display text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
-            {t('catalogTitle')}
-          </h2>
+    <section className="flex h-full min-h-0 flex-col justify-center px-5 pb-12 md:px-10 lg:pb-8">
+      <div className="mx-auto w-full max-w-[92rem]">
+        <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-6xl">
+          {t('catalogTitle')}
+        </h2>
 
-          <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
-            {CATEGORIES.map(item => (
-              <Link key={item.key} href={item.href} className="rm-cat-item group">
-                <div className="relative mx-auto aspect-square w-full max-w-[11rem]">
-                  <Image
-                    src={item.image}
-                    alt=""
-                    fill
-                    className="rm-cat-photo object-contain object-bottom"
-                    sizes="180px"
-                  />
-                </div>
-                <span className="mt-4 block text-center text-sm font-bold text-[var(--rm-ink)] md:text-base">
-                  {t(item.key)}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-16 md:px-10 md:py-20">
-        <div className="mx-auto max-w-[92rem]">
-          <h2 className="rm-display text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
-            {t('presetsTitle')}
-          </h2>
-
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {presetCards.map(card => (
-              <a key={card.id} href={card.href} className="rm-preset-card group">
-                <div
-                  className="aspect-[4/3] w-full"
-                  style={{
-                    background: `linear-gradient(155deg, ${card.wall} 0%, ${card.accent}99 100%)`,
-                  }}
+        <div className="rm-cat-rail mt-8 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:mt-14 lg:grid-cols-6">
+          {CATEGORIES.map(item => (
+            <Link key={item.key} href={item.href} className="rm-cat-item group">
+              <div className="relative mx-auto aspect-square w-full max-w-[11rem]">
+                <Image
+                  src={item.image}
+                  alt=""
+                  fill
+                  className="rm-cat-photo object-contain object-bottom"
+                  sizes="180px"
                 />
-                <div className="bg-white px-5 py-4">
-                  <div className="truncate text-base font-bold text-[var(--rm-ink)]">{card.name}</div>
-                </div>
-              </a>
-            ))}
-          </div>
+              </div>
+              <span className="mt-4 block text-center text-sm font-bold text-[var(--rm-ink)] md:text-base">
+                {t(item.key)}
+              </span>
+            </Link>
+          ))}
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
+  )
+}
+
+export function CatalogPresets({ presets = [] }: { presets?: PresetTeaser[] }) {
+  const t = useTranslations('home')
+  const presetCards = usePresetCards(presets)
+
+  return (
+    <section className="flex h-full min-h-0 flex-col justify-center px-5 pb-12 md:px-10 lg:pb-8">
+      <div className="mx-auto w-full max-w-[92rem]">
+        <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-6xl">
+          {t('presetsTitle')}
+        </h2>
+
+        <div className="rm-preset-rail mt-8 grid gap-6 md:grid-cols-3 lg:mt-10">
+          {presetCards.map(card => (
+            <a key={card.id} href={card.href} className="rm-preset-card group">
+              <div
+                className="aspect-[4/3] w-full"
+                style={{
+                  background: `linear-gradient(155deg, ${card.wall} 0%, ${card.accent}99 100%)`,
+                }}
+              />
+              <div className="bg-white px-5 py-4">
+                <div className="truncate text-base font-bold text-[var(--rm-ink)]">{card.name}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }

@@ -57,12 +57,16 @@ export type StyleVisual = {
 
 export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   minimalism: {
-    palette: ['#F4F0EA', '#D8D2C8', '#9A958C'],
-    materials: [MATERIALS.oak, MATERIALS.linen, MATERIALS.ceramic],
+    palette: ['#F3EEE6', '#C9BDB0', '#C5C5C3'],
+    materials: [
+      '/styles/minimalism/oak.jpg',
+      '/styles/minimalism/concrete.jpg',
+      '/styles/minimalism/linen.jpg',
+    ],
     photos: {
-      living: photo('photo-1586023492125-27b2c045efd7'),
-      bedroom: photo('photo-1505693416388-ac5ce068fe85'),
-      kitchen: photo('photo-1556911220-bff31f81231a'),
+      living: '/styles/minimalism/living.jpg',
+      bedroom: '/styles/minimalism/bedroom.jpg',
+      kitchen: '/styles/minimalism/kitchen.jpg',
     },
   },
   scandinavian: {

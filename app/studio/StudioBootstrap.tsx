@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from 'react'
 import { loadFloorPlan } from '@/lib/floor-plan-storage'
+import { loadStudioDesign } from '@/lib/studio-design-storage'
 import { fetchRoomPreset } from '@/lib/room-preset'
 import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
 import { useStudioStore } from '@/store/useStudioStore'
 import type { RoomPresetPayload } from '@/types/room-preset'
 import type { StudioQuery } from './studio-query'
 
-/** Hydrates Zustand from preset URL, /configure params, or scanned floor plan. Preset wins. */
+/** Hydrates Zustand from preset URL, last local save, /configure params, or scanned floor plan. Preset wins. */
 export default function StudioBootstrap({
   initialPreset,
   query,
@@ -18,6 +19,7 @@ export default function StudioBootstrap({
 }) {
   const loadedRef = useRef<string | null>(null)
   const presetId = query.preset
+  const savedParam = query.saved
   const styleParam = query.style
   const roomParam = query.room
   const widthParam = query.width
@@ -25,7 +27,8 @@ export default function StudioBootstrap({
   const heightParam = query.height
 
   useEffect(() => {
-    const { setRoom, setActiveRoom, loadPreset, setPreFilterStyle } = useStudioStore.getState()
+    const { setRoom, setActiveRoom, loadPreset, loadSavedDesign, setPreFilterStyle } =
+      useStudioStore.getState()
 
     if (presetId) {
       if (loadedRef.current === presetId) return
@@ -38,6 +41,17 @@ export default function StudioBootstrap({
         if (payload) loadPreset(payload)
       })
       return
+    }
+
+    const shouldRestore = savedParam === '1'
+    if (shouldRestore) {
+      const saved = loadStudioDesign()
+      if (saved) {
+        if (loadedRef.current === `saved:${saved.savedAt}`) return
+        loadedRef.current = `saved:${saved.savedAt}`
+        loadSavedDesign(saved)
+        return
+      }
     }
 
     loadedRef.current = null
@@ -80,6 +94,7 @@ export default function StudioBootstrap({
     widthParam,
     lengthParam,
     heightParam,
+    savedParam,
   ])
 
   return null

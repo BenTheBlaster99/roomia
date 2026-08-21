@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Syne, Figtree } from 'next/font/google'
+import { Syne, Figtree, Playfair_Display } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import './globals.css'
@@ -13,6 +13,12 @@ const display = Syne({
 const body = Figtree({
   subsets: ['latin'],
   variable: '--font-body',
+  display: 'swap',
+})
+
+const serif = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-serif',
   display: 'swap',
 })
 
@@ -37,7 +43,7 @@ export default async function RootLayout({
   const messages = await getMessages()
 
   return (
-    <html lang={locale} className={`${display.variable} ${body.variable} h-full antialiased`}>
+    <html lang={locale} className={`${display.variable} ${body.variable} ${serif.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-[family-name:var(--font-body)]">
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>

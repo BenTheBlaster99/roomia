@@ -18,7 +18,10 @@
     "ctaStudio": "Open studio",
     "ctaCustom": "Create your own",
     "langFr": "FR",
-    "langEn": "EN"
+    "langEn": "EN",
+    "langLabel": "Language",
+    "langFrName": "Français",
+    "langEnName": "English"
   },
   "dashboard": {
     "title": "Pro Dashboard",
@@ -124,6 +127,8 @@
     "stylesSeeLess": "See less",
     "stylesQuizHint": "Or take a <quiz>QUIZ</quiz> and we’ll help you find it",
     "stylesTakeQuiz": "Take the QUIZ",
+    "quizTeaserTitle": "Not sure about the style?",
+    "quizTeaserBody": "One question to start",
     "stylesExpandedTitle": "Understanding your taste is the secret to a successful space",
     "stylesExpandedSub": "Browse the styles or take a <quiz>QUIZ</quiz> and discover your favorite",
     "styleName": {
@@ -173,13 +178,13 @@
     "minimalism": {
       "traits": [
         "Clean lines",
-        "Few objects",
-        "Hidden storage",
-        "Natural light",
-        "Quiet palette",
+        "Simple forms",
         "Functional furniture",
-        "Open space",
-        "Nothing extra"
+        "Reduced decoration",
+        "Clear surfaces",
+        "Integrated storage",
+        "Natural light",
+        "Few patterns"
       ]
     },
     "scandinavian": {
@@ -327,10 +332,14 @@
   },
   "quiz": {
     "eyebrow": "Style quiz",
-    "title": "Find your direction",
-    "sub": "Three short questions — we point you to a Roomia style.",
+    "title": "Quiz",
+    "sub": "The full quiz is still coming. For now, one first question.",
     "navStudio": "Open studio",
-    "stepOf": "Question {current} / {total}",
+    "stepOf": "{current} / {total}",
+    "q1Title": "Q: Which sentence describes you best?",
+    "q1Empty": "I want very few things. I love empty spaces",
+    "q1Chosen": "A few carefully chosen objects",
+    "q1Rich": "I want a warm, rich interior",
     "roomTitle": "Which room are you furnishing?",
     "roomLiving": "Living room",
     "roomBedroom": "Bedroom",
@@ -349,6 +358,7 @@
     "resultEyebrow": "Your match",
     "resultTitle": "Here's your style",
     "resultSub": "Open the style page, or jump into the studio already filtered.",
+    "resultDraft": "First look — the full quiz is still coming. This is based on your answer.",
     "ctaStyles": "View style",
     "ctaStudio": "Create in studio",
     "restart": "Retake quiz",

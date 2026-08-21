@@ -14,6 +14,7 @@ export default async function StudioPage({
   const query: StudioQuery = {
     preset: firstSearchParam(raw.preset),
     create: firstSearchParam(raw.create),
+    saved: firstSearchParam(raw.saved),
     style: firstSearchParam(raw.style),
     room: firstSearchParam(raw.room),
     width: firstSearchParam(raw.width),

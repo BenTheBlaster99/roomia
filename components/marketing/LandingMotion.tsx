@@ -45,11 +45,11 @@ export function PhotoHero() {
           sizes="100vw"
         />
       </div>
-      <div className="absolute inset-0 bg-gradient-to-r from-[var(--rm-ink)]/88 via-[var(--rm-ink)]/52 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[var(--rm-ink)]/50 via-transparent to-[var(--rm-ink)]/20" />
+      <div className="rm-hero-scrim-side absolute inset-0 bg-gradient-to-r from-[var(--rm-ink)]/88 via-[var(--rm-ink)]/52 to-transparent" />
+      <div className="rm-hero-scrim-bottom absolute inset-0 bg-gradient-to-t from-[var(--rm-ink)]/50 via-transparent to-[var(--rm-ink)]/20" />
       <div className="rm-grain pointer-events-none absolute inset-0 opacity-[0.18]" />
 
-      <div className="relative z-10 mx-auto flex h-full max-w-6xl items-center px-5 pb-16 md:px-6">
+      <div className="relative z-10 mx-auto flex h-full max-w-6xl items-end px-5 pb-10 pt-16 md:items-center md:px-6 md:pb-16">
         <div className="max-w-[36rem] text-[var(--rm-surface)] lg:max-w-[40rem]">
           <h1 className="rm-rise rm-display text-[clamp(1.7rem,4vw,3rem)] font-semibold leading-[1.16] tracking-tight text-pretty">
             {t('heroHeadlineBefore')}
@@ -58,19 +58,19 @@ export function PhotoHero() {
             </span>
             {t('heroHeadlineAfter')}
           </h1>
-          <p className="rm-rise rm-rise-delay-1 mt-6 max-w-[34rem] text-[0.98rem] leading-[1.7] text-[var(--rm-surface)]/82 md:text-[1.05rem]">
+          <p className="rm-hero-body rm-rise rm-rise-delay-1 mt-5 max-w-[34rem] text-[0.95rem] leading-[1.65] text-[var(--rm-surface)]/82 md:mt-6 md:text-[1.05rem] md:leading-[1.7]">
             {t.rich('heroBody', {
               brand: chunks => (
                 <strong className="font-semibold text-[var(--rm-surface)]">{chunks}</strong>
               ),
             })}
           </p>
-          <div className="rm-rise rm-rise-delay-2 mt-9">
-            <Link href="/contact#launch" className="rm-btn-primary px-8 py-3.5 text-base">
+          <div className="rm-rise rm-rise-delay-2 mt-7 md:mt-9">
+            <Link href="/contact#launch" className="rm-btn-primary w-full px-8 py-3.5 text-base md:w-auto">
               {t('heroNotifyCta')}
             </Link>
           </div>
-          <ul className="rm-rise rm-rise-delay-3 mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-10">
+          <ul className="rm-hero-checks rm-rise rm-rise-delay-3 mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-10">
             <HeroCheck label={t('heroCheck1')} />
             <HeroCheck label={t('heroCheck2')} />
           </ul>
@@ -85,24 +85,17 @@ export function StackLayer({
   children,
   z,
   pin = true,
-  handle = true,
 }: {
   children: ReactNode
   z: number
   pin?: boolean
-  handle?: boolean
 }) {
   return (
     <div
       className={`rm-stack-layer ${pin ? 'rm-stack-layer-pin' : ''}`}
       style={{ zIndex: z }}
     >
-      {handle && (
-        <div className="flex justify-center pt-4 pb-1" aria-hidden>
-          <span className="h-1 w-12 rounded-full bg-[var(--rm-text)]/18" />
-        </div>
-      )}
-      {children}
+      <div className={pin ? 'flex min-h-0 flex-1 flex-col' : undefined}>{children}</div>
     </div>
   )
 }
@@ -185,17 +178,17 @@ export function StackedPaths() {
 
   return (
     <StackLayer z={2}>
-      <section className="flex h-full flex-col justify-center bg-[var(--rm-bg)]">
-        <div className="mx-auto w-full max-w-[92rem] px-6 pb-8 text-center md:px-10">
-          <h2 className="rm-display text-4xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-6xl">
+      <section className="flex h-full flex-col justify-center bg-[var(--rm-bg)] lg:pt-12">
+        <div className="mx-auto w-full max-w-[92rem] px-5 pb-6 pt-7 text-left md:px-10 lg:pb-8 lg:pt-0 lg:text-center">
+          <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-6xl">
             {t('pathsTitle')}
           </h2>
-          <p className="mx-auto mt-5 max-w-3xl text-base leading-relaxed text-[var(--rm-muted)] md:text-lg">
+          <p className="mx-auto mt-4 hidden max-w-3xl text-base leading-relaxed text-[var(--rm-muted)] lg:mt-5 lg:block md:text-lg">
             {t('pathsSub')}
           </p>
         </div>
 
-        <div className="mx-auto grid w-full max-w-[92rem] flex-1 gap-7 px-6 pb-10 md:grid-cols-2 md:px-10">
+        <div className="mx-auto grid w-full max-w-[92rem] flex-1 gap-4 px-5 pb-10 md:grid-cols-2 md:gap-7 md:px-10">
           <PathCard
             href="/generateur"
             kicker={t('pathAiKicker')}

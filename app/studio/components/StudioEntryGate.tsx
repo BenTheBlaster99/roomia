@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { loadStudioDesign, type SavedStudioDesign } from '@/lib/studio-design-storage'
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import { useStudioStore } from '@/store/useStudioStore'
 import type { RoomPresetRow } from '@/types/room-preset'
@@ -19,6 +20,8 @@ const COPY = {
   sub: 'Choisissez un preset curaté, ou créez votre propre pièce.',
   create: 'Créer le vôtre',
   createHint: 'Pièce vide prête à meubler',
+  resume: 'Reprendre',
+  resumeHint: 'Dernière sauvegarde dans ce navigateur',
   floorPlan: 'Scanner un plan',
   presets: 'Presets prêts à personnaliser',
   loading: 'Chargement des presets…',
@@ -34,15 +37,21 @@ export default function StudioEntryGate({
 }) {
   const searchParams = useSearchParams()
   const [presets, setPresets] = useState<PresetRow[] | null>(null)
+  const [saved, setSaved] = useState<SavedStudioDesign | null>(null)
 
   const shouldSkip =
     skipGate ||
     Boolean(searchParams.get('preset')) ||
     searchParams.get('create') === '1' ||
+    searchParams.get('saved') === '1' ||
     Boolean(searchParams.get('width')) ||
     Boolean(searchParams.get('length'))
 
   const [dismissed, setDismissed] = useState(shouldSkip)
+
+  useEffect(() => {
+    setSaved(loadStudioDesign())
+  }, [])
 
   // Sync gate visibility immediately (avoid TopBar/dims chrome flashing under the gate)
   useEffect(() => {
@@ -85,6 +94,36 @@ export default function StudioEntryGate({
         <p className="mt-3 max-w-xl text-[var(--rm-muted)]">{COPY.sub}</p>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
+          {saved && (
+            <button
+              type="button"
+              onClick={() => {
+                useStudioStore.getState().loadSavedDesign(saved)
+                setDismissed(true)
+                useStudioStore.getState().setEntryGateOpen(false)
+                const url = new URL(window.location.href)
+                url.searchParams.set('saved', '1')
+                url.searchParams.delete('create')
+                url.searchParams.delete('fresh')
+                url.searchParams.delete('width')
+                url.searchParams.delete('length')
+                url.searchParams.delete('height')
+                window.history.replaceState({}, '', url.toString())
+              }}
+              className="rm-panel p-6 text-left transition-transform hover:-translate-y-0.5 sm:col-span-2"
+            >
+              <div className="rm-display text-xl font-bold">{COPY.resume}</div>
+              <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.resumeHint}</p>
+              <p className="mt-3 text-xs text-[var(--rm-muted)]">
+                {saved.items.length} meuble{saved.items.length === 1 ? '' : 's'} ·{' '}
+                {new Date(saved.savedAt).toLocaleString('fr-DZ', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </p>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -93,7 +132,7 @@ export default function StudioEntryGate({
               onEnterBlank()
               const url = new URL(window.location.href)
               url.searchParams.set('create', '1')
-              // Drop dimension query noise from configure redirect
+              url.searchParams.delete('saved')
               url.searchParams.delete('width')
               url.searchParams.delete('length')
               url.searchParams.delete('height')

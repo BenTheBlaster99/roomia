@@ -1,6 +1,7 @@
 export type StudioQuery = {
   preset?: string
   create?: string
+  saved?: string
   style?: string
   room?: string
   width?: string

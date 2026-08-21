@@ -18,7 +18,10 @@
     "ctaStudio": "Ouvrir le studio",
     "ctaCustom": "Créer le vôtre",
     "langFr": "FR",
-    "langEn": "EN"
+    "langEn": "EN",
+    "langLabel": "Langue",
+    "langFrName": "Français",
+    "langEnName": "English"
   },
   "dashboard": {
     "title": "Tableau de bord Pro",
@@ -124,10 +127,12 @@
     "stylesSeeLess": "Voir moins",
     "stylesQuizHint": "Ou prenez un <quiz>QUIZ</quiz> et nous vous aiderons à le découvrir",
     "stylesTakeQuiz": "Prendre le QUIZ",
+    "quizTeaserTitle": "Vous hésitez encore ?",
+    "quizTeaserBody": "Une question pour commencer",
     "stylesExpandedTitle": "Comprendre votre goût est le secret d’un espace réussi",
     "stylesExpandedSub": "Parcourez les styles ou répondez à un <quiz>QUIZ</quiz> et découvrez votre style préféré",
     "styleName": {
-      "minimalism": "Minimalisme",
+      "minimalism": "Minimaliste",
       "scandinavian": "Scandinave",
       "industrial": "Industriel",
       "maximalism": "Maximalisme",
@@ -173,13 +178,13 @@
     "minimalism": {
       "traits": [
         "Lignes épurées",
-        "Peu d’objets",
-        "Rangements discrets",
+        "Formes simples",
+        "Mobilier fonctionnel",
+        "Décoration réduite",
+        "Surfaces dégagées",
+        "Rangements intégrés",
         "Lumière naturelle",
-        "Palette calme",
-        "Meubles fonctionnels",
-        "Espaces ouverts",
-        "Aucun superflu"
+        "Peu de motifs"
       ]
     },
     "scandinavian": {
@@ -327,10 +332,14 @@
   },
   "quiz": {
     "eyebrow": "Quiz style",
-    "title": "Trouvez votre direction",
-    "sub": "Trois questions courtes — on vous oriente vers un style Roomia.",
+    "title": "Quiz",
+    "sub": "Le quiz complet arrive. Pour l’instant, une première question.",
     "navStudio": "Ouvrir le studio",
-    "stepOf": "Question {current} / {total}",
+    "stepOf": "{current} / {total}",
+    "q1Title": "Q: Quelle phrase décrit vous le mieux?",
+    "q1Empty": "Je veux très peu de choses. J'aime les espaces vides",
+    "q1Chosen": "Quelques objets soigneusement choisis",
+    "q1Rich": "Je veux un intérieur chaleureux et riche",
     "roomTitle": "Quelle pièce meublez-vous ?",
     "roomLiving": "Salon",
     "roomBedroom": "Chambre",
@@ -349,6 +358,7 @@
     "resultEyebrow": "Votre match",
     "resultTitle": "Voici votre style",
     "resultSub": "Explorez la fiche, ou ouvrez le studio déjà filtré.",
+    "resultDraft": "Premier aperçu — le quiz complet arrive. Cette piste vient de votre réponse.",
     "ctaStyles": "Voir le style",
     "ctaStudio": "Créer dans le studio",
     "restart": "Refaire le quiz",

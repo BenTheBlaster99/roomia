@@ -32,8 +32,8 @@ export default async function StyleDetailPage({ params }: PageProps) {
   const visual = STYLE_VISUALS[id]
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav />
+    <div className="min-h-screen bg-[#1a2f26] text-[#f4efe4]">
+      <SiteNav tone="dark" />
       <StyleDetail
         name={tHome(`styleName.${id}`)}
         visual={visual}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { saveStudioDesign } from '@/lib/studio-design-storage'
 import { useStudioStore } from '@/store/useStudioStore'
 
 export default function TopBar() {
@@ -29,14 +30,10 @@ export default function TopBar() {
 
   function saveDesign() {
     const { room, items } = useStudioStore.getState()
-    localStorage.setItem(
-      'roomia:studio-design',
-      JSON.stringify({
-        room,
-        items,
-        savedAt: new Date().toISOString(),
-      }),
-    )
+    saveStudioDesign(room, items)
+    const url = new URL(window.location.href)
+    url.searchParams.set('saved', '1')
+    window.history.replaceState({}, '', url.toString())
     setSaveLabel('Saved')
     window.setTimeout(() => setSaveLabel('Save'), 1500)
   }

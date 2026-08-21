@@ -10,6 +10,18 @@ type Labels = {
   photoKitchen: string
 }
 
+const TRAIT_MARKS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+
+function StyleRule({ compact }: { compact?: boolean }) {
+  return (
+    <div className={`rm-style-rule${compact ? ' rm-style-rule-compact' : ''}`} aria-hidden>
+      <span />
+      <i />
+      <span />
+    </div>
+  )
+}
+
 function SwatchRow({
   items,
   kind,
@@ -28,7 +40,7 @@ function SwatchRow({
           />
         ) : (
           <div key={`${item}-${index}`} className="rm-style-swatch">
-            <Image src={item} alt="" fill sizes="140px" className="object-cover" />
+            <Image src={item} alt="" fill sizes="120px" className="object-cover" />
           </div>
         ),
       )}
@@ -55,29 +67,34 @@ export default function StyleDetail({
 
   return (
     <section className="rm-style-detail">
-      <div className="mx-auto max-w-[92rem] px-6 py-10 md:px-10 md:py-14">
-        <h1 className="rm-display text-center text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
-          {name}
-        </h1>
+      <div className="rm-style-sheet">
+        <h1 className="rm-style-sheet-title">{name}</h1>
+        <StyleRule />
 
-        <div className="rm-style-detail-grid mt-12 md:mt-16">
-          <div className="rm-style-detail-palette">
-            <SwatchRow items={visual.palette} kind="color" />
-            <p className="rm-style-detail-caption">{labels.palette}</p>
-          </div>
-
-          <div className="rm-style-detail-materials">
-            <SwatchRow items={visual.materials} kind="material" />
-            <p className="rm-style-detail-caption">{labels.materials}</p>
-          </div>
-
-          <div className="rm-style-detail-traits">
-            <h2 className="rm-style-detail-heading">{labels.traits}</h2>
-            <ul className="rm-style-traits">
-              {traits.map(trait => (
-                <li key={trait}>{trait}</li>
-              ))}
-            </ul>
+        <div className="rm-style-sheet-grid">
+          <div className="rm-style-sheet-info">
+            <div>
+              <h2 className="rm-style-sheet-heading">{labels.palette}</h2>
+              <SwatchRow items={visual.palette} kind="color" />
+            </div>
+            <div>
+              <h2 className="rm-style-sheet-heading">{labels.materials}</h2>
+              <SwatchRow items={visual.materials} kind="material" />
+            </div>
+            <div>
+              <h2 className="rm-style-sheet-heading">{labels.traits}</h2>
+              <StyleRule compact />
+              <ul className="rm-style-traits">
+                {traits.slice(0, 8).map((trait, index) => (
+                  <li key={trait}>
+                    <span className="rm-style-trait-mark" aria-hidden>
+                      {TRAIT_MARKS[index]}
+                    </span>
+                    <span>{trait}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           <div className="rm-style-detail-photos">
@@ -87,10 +104,9 @@ export default function StyleDetail({
                   src={photo.src}
                   alt={`${name} — ${photo.label}`}
                   fill
-                  sizes="(max-width: 1024px) 100vw, 38vw"
+                  sizes="(max-width: 720px) 55vw, 42vw"
                   className="object-cover"
                 />
-                <figcaption>{photo.label}</figcaption>
               </figure>
             ))}
           </div>

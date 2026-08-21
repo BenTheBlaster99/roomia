@@ -46,6 +46,7 @@ interface StudioState {
   room: RoomConfig
   setRoom: (updates: Partial<RoomConfig>) => void
   loadPreset: (payload: RoomPresetPayload) => void
+  loadSavedDesign: (design: { room: RoomConfig; items: PlacedItem[] }) => void
 
   items: PlacedItem[]
   addItemFromCatalog: (catalog: CatalogItem) => void
@@ -162,6 +163,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activeRoom: payload.roomType || 'Living Room',
       preFilterStyle: styleName ?? null,
       cart: [],
+      past: [],
+      future: [],
+    })
+  },
+
+  loadSavedDesign: design => {
+    set({
+      room: design.room,
+      items: design.items,
+      selectedId: null,
       past: [],
       future: [],
     })

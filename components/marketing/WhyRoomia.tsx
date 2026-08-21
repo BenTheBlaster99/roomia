@@ -13,28 +13,25 @@ type WhyItem = {
 
 export default function WhyRoomia() {
   const t = useTranslations('home')
-  const trackRef = useRef<HTMLDivElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
 
   const items = (Array.isArray(t.raw('whyItems')) ? t.raw('whyItems') : []) as WhyItem[]
   const slides = items.slice(0, STEP_COUNT)
 
   useEffect(() => {
-    const track = trackRef.current
-    if (!track) return
+    const spacer = spacerRef.current
+    if (!spacer) return
 
     let frame = 0
 
     function update() {
       frame = 0
-      const el = trackRef.current
+      if (window.matchMedia('(max-width: 1023px)').matches) return
+      const el = spacerRef.current
       if (!el) return
-      const rect = el.getBoundingClientRect()
-      const nav = Number.parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue('--rm-nav-h'),
-      ) || 72
-      const scrolled = nav - rect.top
-      const range = el.offsetHeight - (window.innerHeight - nav)
+      const range = el.offsetHeight
+      const scrolled = window.innerHeight - el.getBoundingClientRect().top
       const progress = range > 0 ? Math.min(0.999, Math.max(0, scrolled / range)) : 0
       const next = Math.min(slides.length - 1, Math.floor(progress * slides.length))
       setActive(current => (current === next ? current : next))
@@ -56,13 +53,9 @@ export default function WhyRoomia() {
   }, [slides.length])
 
   return (
-    <div ref={trackRef} className="rm-why-track">
+    <>
       <section className="rm-why-panel">
-        <div className="flex justify-center pt-4" aria-hidden>
-          <span className="h-1 w-12 rounded-full bg-white/35" />
-        </div>
-
-        <div className="mx-auto flex h-[calc(100%-1.25rem)] max-w-[92rem] flex-col px-6 pb-8 pt-4 md:px-10">
+        <div className="mx-auto hidden h-full max-w-[92rem] flex-col px-6 pb-8 pt-12 lg:flex lg:px-10">
           <h2 className="rm-display text-center text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
             {t('whyTitle')}
           </h2>
@@ -120,7 +113,28 @@ export default function WhyRoomia() {
             </Link>
           </div>
         </div>
+
+        <div className="px-5 py-12 lg:hidden">
+          <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[#f4efe4]">
+            {t('whyTitle')}
+          </h2>
+          <ol className="rm-why-facts mt-8">
+            {slides.map((item, index) => (
+              <li key={item.title} className="rm-why-fact">
+                <span className="rm-why-fact-n">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <Link href="/contact#launch" className="rm-why-mobile-cta">
+            {t('heroNotifyCta')}
+          </Link>
+        </div>
       </section>
-    </div>
+      <div ref={spacerRef} className="rm-why-spacer" aria-hidden />
+    </>
   )
 }
