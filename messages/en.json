@@ -27,7 +27,7 @@
     "title": "Pro Dashboard",
     "workspace": "Workspace",
     "generate": "Generate",
-    "onboardTitle": "Upload → Pin → Generate",
+    "onboardTitle": "Choose → Place → Generate",
     "login": "Sign in",
     "signup": "Create account"
   },
@@ -169,25 +169,51 @@
   },
 
   "styleDetail": {
+    "back": "Back",
     "palette": "Color palette",
-    "materials": "Materials",
+    "materials": "Key materials",
     "traits": "Characteristics",
+    "inspirations": "Inspiration examples",
+    "cta": "Apply this style to my room",
     "photoLiving": "Living room photo",
     "photoBedroom": "Bedroom photo",
     "photoKitchen": "Kitchen photo",
+    "materialLabel": {
+      "oak": "Light wood",
+      "concrete": "Concrete",
+      "linen": "Linen",
+      "glass": "Glass",
+      "metal": "Matte metal",
+      "birch": "Birch",
+      "wool": "Wool",
+      "steel": "Steel",
+      "reclaimed": "Reclaimed wood",
+      "velvet": "Velvet",
+      "brass": "Brass",
+      "marble": "Marble",
+      "walnut": "Walnut",
+      "rattan": "Rattan",
+      "ceramic": "Ceramic",
+      "leather": "Leather",
+      "chrome": "Chrome",
+      "stone": "Stone",
+      "teak": "Teak",
+      "damask": "Damask",
+      "lacquer": "Lacquer"
+    },
     "minimalism": {
+      "body": "This style is built on simple lines, neutral colors, and rooms that stay clear.",
       "traits": [
-        "Clean lines",
-        "Simple forms",
-        "Functional furniture",
-        "Reduced decoration",
-        "Clear surfaces",
-        "Integrated storage",
-        "Natural light",
-        "Few patterns"
+        { "title": "Simplicity", "body": "Clean, functional forms." },
+        { "title": "Space", "body": "Open rooms with room to breathe." },
+        { "title": "Light", "body": "Natural light and soft atmospheres." },
+        { "title": "Neutral colors", "body": "A calm mix of pale, quiet tones." },
+        { "title": "Less is more", "body": "Every object has a place and a job." },
+        { "title": "Timelessness", "body": "A look that holds across years." }
       ]
     },
     "scandinavian": {
+      "body": "Light woods, warm textiles, and northern light — a simple hygge interior.",
       "traits": [
         "Light woods",
         "Hygge mood",
@@ -200,6 +226,7 @@
       ]
     },
     "industrial": {
+      "body": "Brick, metal, and concrete: loft spirit, raw and useful.",
       "traits": [
         "Exposed brick",
         "Raw metal",
@@ -212,6 +239,7 @@
       ]
     },
     "maximalism": {
+      "body": "Color, pattern, and collections — a room that owns its personality.",
       "traits": [
         "Saturated color",
         "Layered pattern",
@@ -224,6 +252,7 @@
       ]
     },
     "japandi": {
+      "body": "Japanese calm meets Scandinavian comfort: low, natural, poetic.",
       "traits": [
         "Warm minimalism",
         "Low furniture",
@@ -236,6 +265,7 @@
       ]
     },
     "contemporary": {
+      "body": "Current lines, mixed textures, and refined comfort for a room of today.",
       "traits": [
         "Current lines",
         "Mixed textures",
@@ -248,6 +278,7 @@
       ]
     },
     "traditional": {
+      "body": "Symmetry, moldings, and classic furniture — elegance that lasts.",
       "traits": [
         "Symmetry",
         "Moldings",
@@ -260,6 +291,7 @@
       ]
     },
     "art_deco": {
+      "body": "Sharp geometry, precious metals, and 1920s glamour.",
       "traits": [
         "Sharp geometry",
         "1920s glamour",
@@ -272,6 +304,7 @@
       ]
     },
     "modern": {
+      "body": "Form follows function: open volumes, little ornament, taut lines.",
       "traits": [
         "Form follows function",
         "Little ornament",
@@ -284,6 +317,7 @@
       ]
     },
     "glamour": {
+      "body": "Velvet, shine, and Hollywood Regency — luxury put on stage.",
       "traits": [
         "Hollywood Regency",
         "Shine",
@@ -296,6 +330,7 @@
       ]
     },
     "mid_century": {
+      "body": "Tapered legs, teak, and 1950s icons: graphic warmth.",
       "traits": [
         "Organic curves",
         "Tapered legs",
@@ -308,6 +343,7 @@
       ]
     },
     "rustic": {
+      "body": "Raw wood, stone, and earth tones — grounded, imperfect, alive.",
       "traits": [
         "Raw wood",
         "Natural stone",

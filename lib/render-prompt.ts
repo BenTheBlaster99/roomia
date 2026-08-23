@@ -79,6 +79,7 @@ export interface ComposeZonePromptInput {
   referenceImageIndex: number | null
   x: number
   y: number
+  autoPlace?: boolean
 }
 
 export interface ComposeAtmosphere {
@@ -131,7 +132,10 @@ export function buildMultiZoneComposePrompt(opts: {
       z.fidelity === 'placement_adaptive'
         ? 'May adapt fold/orientation to fit the mask, but keep the same product design.'
         : 'STRICT identity lock to the reference (same model, materials, colors). Only perspective/scale/lighting may change.'
-    return `Item ${i + 1} (${cat}) at ${placement(z.x, z.y)}: ${z.catalogPrompt}. ${ref} ${fidelity}`
+    const where = z.autoPlace
+      ? `Place this ${cat} in the best professional interior-design location for this room (the click at ${placement(z.x, z.y)} is only a hint). Prefer the natural designer spot: sofa against the main seating wall, rug under the seating group, coffee table in front of the sofa, dining table centered in the dining zone, wardrobe on a side wall, pendant/chandelier on the ceiling.`
+      : `at ${placement(z.x, z.y)}`
+    return `Item ${i + 1} (${cat}) ${where}: ${z.catalogPrompt}. ${ref} ${fidelity}`
   })
 
   const restyle: string[] = []

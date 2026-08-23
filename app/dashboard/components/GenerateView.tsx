@@ -5,20 +5,44 @@ import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { furnitureItemToCatalogItem } from '@/lib/catalog-mapper'
 import { fetchGeneratedCatalog } from '@/lib/studio-catalog'
 import { getReferenceFidelity } from '@/lib/render-prompt'
+import {
+  suggestFurniturePlacement,
+  suggestLightPlacement,
+  suggestWallPlacement,
+} from '@/lib/placement-hints'
+import {
+  COMPOSER_LIGHTS,
+  COMPOSER_WALLS,
+  lightById,
+  wallById,
+  type ComposerLightId,
+} from '@/lib/composer-restyle'
 import type { WorkspaceFileRow } from '@/types/workspace'
 import { useDashboard } from './DashboardProvider'
 
 const MAX_ZONES = 3
+const CATALOG_TABS = ['Tous', 'Sofa', 'Chair', 'Light', 'Tables', 'Rug'] as const
+type CatalogTab = (typeof CATALOG_TABS)[number]
 
 interface Zone {
   id: string
   x: number
   y: number
-  item: CatalogItem | null
+  item: CatalogItem
+  autoPlace: boolean
 }
 
-type Stage = 'pick' | 'placing' | 'catalog' | 'generating' | 'results' | 'error'
+type Stage = 'pick' | 'ready' | 'generating' | 'results' | 'error'
 type ProgressStep = 'masking' | 'generating' | 'results'
+type WallPin = { id: string; hex: string; label: string; prompt: string; x: number; y: number; autoPlace: boolean }
+type LightPin = {
+  id: ComposerLightId
+  label: string
+  prompt: string
+  x: number
+  y: number
+  autoPlace: boolean
+}
 
 function imgToB64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -41,6 +65,14 @@ async function urlToB64(url: string): Promise<string> {
   })
 }
 
+function matchesCatalogTab(item: CatalogItem, tab: CatalogTab) {
+  if (tab === 'Tous') return true
+  if (tab === 'Tables') {
+    return ['Coffee Table', 'Dining Table', 'Side Table', 'TV Unit'].includes(item.category)
+  }
+  return item.category === tab
+}
+
 export default function GenerateView({
   initialFile,
   onSaved,
@@ -55,7 +87,14 @@ export default function GenerateView({
   const [originalB64, setOriginalB64] = useState('')
   const [originalSrc, setOriginalSrc] = useState('')
   const [zones, setZones] = useState<Zone[]>([])
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
+  const [pendingItem, setPendingItem] = useState<CatalogItem | null>(null)
+  const [pendingWallId, setPendingWallId] = useState<string | null>(null)
+  const [pendingLightId, setPendingLightId] = useState<ComposerLightId | null>(null)
+  const [wallPin, setWallPin] = useState<WallPin | null>(null)
+  const [lightPin, setLightPin] = useState<LightPin | null>(null)
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
+  const [variationCount, setVariationCount] = useState<1 | 2 | 3>(1)
+  const [selectedResult, setSelectedResult] = useState(0)
   const [variations, setVariations] = useState<string[]>([])
   const [savedRows, setSavedRows] = useState<WorkspaceFileRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -63,7 +102,10 @@ export default function GenerateView({
   const [progressPct, setProgressPct] = useState(0)
   const [progressDetail, setProgressDetail] = useState('Préparation…')
   const [catalog, setCatalog] = useState<CatalogItem[]>(MOCK_CATALOG.filter(c => c.available))
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>('Tous')
   const [saving, setSaving] = useState(false)
+
+  const placing = Boolean(pendingItem || pendingWallId || pendingLightId)
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +133,19 @@ export default function GenerateView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile?.id])
 
+  function resetPlacementUi() {
+    setZones([])
+    setPendingItem(null)
+    setPendingWallId(null)
+    setPendingLightId(null)
+    setWallPin(null)
+    setLightPin(null)
+    setCursor(null)
+    setVariations([])
+    setSavedRows([])
+    setSelectedResult(0)
+  }
+
   async function loadFromWorkspace(file: WorkspaceFileRow) {
     setError(null)
     try {
@@ -98,11 +153,8 @@ export default function GenerateView({
       setSourceId(file.id)
       setOriginalB64(b64)
       setOriginalSrc(file.public_url)
-      setZones([])
-      setActiveZoneId(null)
-      setVariations([])
-      setSavedRows([])
-      setStage('placing')
+      resetPlacementUi()
+      setStage('ready')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de charger l’image')
       setStage('error')
@@ -131,10 +183,8 @@ export default function GenerateView({
       setSourceId(row.id)
       setOriginalB64(b64)
       setOriginalSrc(URL.createObjectURL(file))
-      setZones([])
-      setVariations([])
-      setSavedRows([])
-      setStage('placing')
+      resetPlacementUi()
+      setStage('ready')
       await refreshFiles()
       onSaved()
     } catch (err) {
@@ -145,22 +195,78 @@ export default function GenerateView({
     }
   }
 
-  function handlePhotoClick(e: React.MouseEvent<HTMLImageElement>) {
-    if (stage !== 'placing' || zones.length >= MAX_ZONES) return
+  function pointerOnPhoto(e: React.MouseEvent<HTMLImageElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
-    const newZone: Zone = { id: crypto.randomUUID(), x, y, item: null }
-    setZones(z => [...z, newZone])
-    setActiveZoneId(newZone.id)
-    setStage('catalog')
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    }
   }
 
-  function pickItemForZone(item: CatalogItem) {
-    if (!activeZoneId) return
-    setZones(z => z.map(zone => (zone.id === activeZoneId ? { ...zone, item } : zone)))
-    setActiveZoneId(null)
-    setStage('placing')
+  function handlePhotoMove(e: React.MouseEvent<HTMLImageElement>) {
+    if (!placing || stage !== 'ready') return
+    setCursor(pointerOnPhoto(e))
+  }
+
+  function handlePhotoClick(e: React.MouseEvent<HTMLImageElement>) {
+    if (stage !== 'ready' || !placing) return
+    const { x, y } = pointerOnPhoto(e)
+
+    if (pendingWallId) {
+      const wall = wallById(pendingWallId)
+      if (!wall) return
+      setWallPin({ ...wall, x, y, autoPlace: false })
+      setPendingWallId(null)
+      setCursor(null)
+      return
+    }
+
+    if (pendingLightId) {
+      const light = lightById(pendingLightId)
+      if (!light) return
+      setLightPin({ id: light.id, label: light.label, prompt: light.prompt, x, y, autoPlace: false })
+      setPendingLightId(null)
+      setCursor(null)
+      return
+    }
+
+    if (pendingItem && zones.length < MAX_ZONES) {
+      setZones(z => [...z, { id: crypto.randomUUID(), x, y, item: pendingItem, autoPlace: false }])
+      setPendingItem(null)
+      setCursor(null)
+    }
+  }
+
+  function selectFurniture(item: CatalogItem) {
+    if (zones.length >= MAX_ZONES) return
+    setPendingItem(item)
+    setPendingWallId(null)
+    setPendingLightId(null)
+  }
+
+  function autoPlaceFurniture(item: CatalogItem) {
+    if (zones.length >= MAX_ZONES) return
+    const point = suggestFurniturePlacement(item.category)
+    setZones(z => [...z, { id: crypto.randomUUID(), ...point, item, autoPlace: true }])
+    setPendingItem(null)
+    setCursor(null)
+  }
+
+  function autoPlaceWall(id: string) {
+    const wall = wallById(id)
+    if (!wall) return
+    setWallPin({ ...wall, ...suggestWallPlacement(), autoPlace: true })
+    setPendingWallId(null)
+    setCursor(null)
+  }
+
+  function autoPlaceLight(id: ComposerLightId) {
+    const light = lightById(id)
+    if (!light) return
+    const point = suggestLightPlacement(light.id)
+    setLightPin({ id: light.id, label: light.label, prompt: light.prompt, ...point, autoPlace: true })
+    setPendingLightId(null)
+    setCursor(null)
   }
 
   function removeZone(id: string) {
@@ -207,9 +313,8 @@ export default function GenerateView({
   }
 
   async function handleGenerate() {
-    const readyZones = zones.filter(z => z.item !== null)
-    if (readyZones.length === 0) {
-      setError('Ajoutez au moins un meuble avant de générer')
+    if (zones.length === 0 && !wallPin && !lightPin) {
+      setError('Choisissez un meuble, une couleur de mur, ou une lumière')
       return
     }
 
@@ -220,11 +325,12 @@ export default function GenerateView({
     setProgressDetail('Préparation des masques…')
     setVariations([])
     setSavedRows([])
+    setSelectedResult(0)
 
     try {
       const zonesPayload = await Promise.all(
-        readyZones.map(async zone => {
-          const item = zone.item!
+        zones.map(async zone => {
+          const item = zone.item
           const reference_base64 = await fetchRefB64(item.imageUrl)
           const prompt = [item.name, item.style, item.category, item.notes ?? '', item.imageKeyword ?? '']
             .filter(Boolean)
@@ -237,6 +343,7 @@ export default function GenerateView({
             category: item.category,
             fidelity: getReferenceFidelity(item.category),
             reference_base64,
+            auto_place: zone.autoPlace,
           }
         }),
       )
@@ -247,7 +354,13 @@ export default function GenerateView({
         body: JSON.stringify({
           image_base64: originalB64,
           zones: zonesPayload,
-          num_variations: 3,
+          atmosphere: {
+            wall: wallPin ? { prompt: wallPin.prompt, x: wallPin.x, y: wallPin.y } : null,
+            lighting: lightPin
+              ? { prompt: lightPin.prompt, kind: lightPin.id, x: lightPin.x, y: lightPin.y }
+              : null,
+          },
+          num_variations: variationCount,
         }),
       })
 
@@ -279,7 +392,6 @@ export default function GenerateView({
             label?: string
             pct?: number
             variations?: string[]
-            failed_count?: number
           }
           try {
             event = JSON.parse(trimmed)
@@ -329,26 +441,33 @@ export default function GenerateView({
     setSourceId(null)
     setOriginalB64('')
     setOriginalSrc('')
-    setZones([])
-    setActiveZoneId(null)
-    setVariations([])
-    setSavedRows([])
+    resetPlacementUi()
     setError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const readyCount = zones.filter(z => z.item).length
+  const canGenerate = zones.length > 0 || Boolean(wallPin) || Boolean(lightPin)
   const uploads = files.filter(f => f.kind === 'upload')
+  const visibleCatalog = catalog.filter(item => matchesCatalogTab(item, catalogTab))
+
+  const hint = (() => {
+    if (stage === 'generating') return progressDetail
+    if (stage === 'results') return `${variations.length} résultat(s) — swipez ou cliquez`
+    if (stage === 'error') return 'Une erreur est survenue — vous pouvez réessayer'
+    if (pendingItem) return `Placez « ${pendingItem.name} » sur la photo, ou laissez l’IA choisir`
+    if (pendingWallId) return 'Touchez un mur, ou placez automatiquement'
+    if (pendingLightId) return 'Touchez l’endroit de la lumière, ou placez automatiquement'
+    return 'Choisissez d’abord un meuble ou une couleur — puis posez-le sur la photo'
+  })()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--rm-primary)]">
+        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-[var(--rm-ink)]">
           Générer
         </h2>
         <p className="mt-1 text-sm text-[var(--rm-muted)]">
-          Choisissez une image, épinglez jusqu’à {MAX_ZONES} zones, générez — les résultats sont
-          empilés dans l’espace de travail.
+          Meuble d’abord, puis emplacement. Ou laissez l’IA poser au meilleur endroit.
         </p>
       </div>
 
@@ -360,11 +479,11 @@ export default function GenerateView({
 
       {stage === 'pick' && (
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--rm-primary)]/30 bg-[var(--rm-surface)] px-6 py-12 text-center transition hover:border-[var(--rm-primary)]/55">
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--rm-primary)]/30 bg-white px-6 py-12 text-center transition hover:border-[var(--rm-primary)]/55">
             <span className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--rm-primary)]">
               {saving ? 'Envoi…' : 'Uploader une photo'}
             </span>
-            <span className="text-sm text-[var(--rm-muted)]">Enregistrée automatiquement dans le Drive</span>
+            <span className="text-sm text-[var(--rm-muted)]">Enregistrée dans l’espace de travail</span>
             <input
               ref={fileRef}
               type="file"
@@ -375,28 +494,28 @@ export default function GenerateView({
             />
           </label>
 
-          <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
+          <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--rm-accent)]">
-              Depuis l’espace de travail
+              Depuis le Drive
             </p>
             {uploads.length === 0 ? (
               <p className="mt-4 text-sm text-[var(--rm-muted)]">Aucun upload pour l’instant.</p>
             ) : (
-              <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+              <ul className="mt-4 flex gap-2 overflow-x-auto pb-1">
                 {uploads.map(f => (
-                  <li key={f.id}>
+                  <li key={f.id} className="shrink-0">
                     <button
                       type="button"
                       onClick={() => void loadFromWorkspace(f)}
-                      className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[var(--rm-secondary)]/60"
+                      className="w-24 text-left"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={f.public_url}
                         alt=""
-                        className="h-12 w-12 rounded-lg object-cover ring-1 ring-[var(--rm-text)]/8"
+                        className="h-20 w-24 rounded-lg object-cover ring-1 ring-[var(--rm-text)]/8"
                       />
-                      <span className="truncate text-sm font-medium">{f.name}</span>
+                      <span className="mt-1 block truncate text-[11px] font-medium">{f.name}</span>
                     </button>
                   </li>
                 ))}
@@ -406,188 +525,419 @@ export default function GenerateView({
         </div>
       )}
 
-      {(stage === 'placing' ||
-        stage === 'catalog' ||
-        stage === 'generating' ||
-        stage === 'results' ||
-        stage === 'error') &&
+      {(stage === 'ready' || stage === 'generating' || stage === 'results' || stage === 'error') &&
         originalSrc && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-[var(--rm-muted)]">
-                {stage === 'placing' &&
-                  `Touchez la photo pour épingler (${readyCount}/${MAX_ZONES} prêts)`}
-                {stage === 'catalog' && 'Choisissez un meuble pour l’épingle'}
-                {stage === 'generating' && progressDetail}
-                {stage === 'results' && `${variations.length} variation(s) enregistrée(s)`}
-                {stage === 'error' && 'Une erreur est survenue — vous pouvez réessayer'}
-              </p>
-              <button type="button" className="rm-btn-secondary text-xs" onClick={resetPick}>
-                Changer d’image
-              </button>
-            </div>
-
-            <div className="relative overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-ink)]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={originalSrc}
-                alt="Source"
-                className={`mx-auto max-h-[62vh] w-full object-contain ${
-                  stage === 'placing' ? 'cursor-crosshair' : ''
-                }`}
-                onClick={handlePhotoClick}
-              />
-              {zones.map((zone, i) => (
-                <button
-                  key={zone.id}
-                  type="button"
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${zone.x * 100}%`, top: `${zone.y * 100}%` }}
-                  onClick={e => {
-                    e.stopPropagation()
-                    if (stage === 'placing') removeZone(zone.id)
-                  }}
-                  title={zone.item?.name ?? `Zone ${i + 1}`}
-                >
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shadow-lg ring-2 ring-white ${
-                      zone.item
-                        ? 'bg-[var(--rm-primary)] text-[var(--rm-surface)]'
-                        : 'bg-[var(--rm-accent)] text-[var(--rm-ink)]'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(17rem,0.85fr)]">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-[var(--rm-muted)]">{hint}</p>
+                <button type="button" className="rm-btn-secondary text-xs" onClick={resetPick}>
+                  Changer d’image
                 </button>
-              ))}
-            </div>
+              </div>
 
-            {stage === 'catalog' && (
-              <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-semibold">Catalogue</p>
+              <div
+                className={`relative overflow-hidden rounded-2xl bg-[var(--rm-ink)] ${
+                  placing && stage === 'ready'
+                    ? 'ring-2 ring-[#3B82F6] ring-offset-2 ring-offset-[#edf3ef]'
+                    : 'border border-[var(--rm-text)]/8'
+                }`}
+              >
+                <div className="relative mx-auto inline-block w-full">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={originalSrc}
+                    alt="Source"
+                    className={`mx-auto max-h-[56vh] w-full object-contain ${
+                      placing && stage === 'ready' ? 'cursor-none' : ''
+                    }`}
+                    onClick={handlePhotoClick}
+                    onMouseMove={handlePhotoMove}
+                    onMouseLeave={() => setCursor(null)}
+                  />
+
+                  {placing && stage === 'ready' && cursor && (
+                    <div
+                      className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                      style={{ left: `${cursor.x * 100}%`, top: `${cursor.y * 100}%` }}
+                    >
+                      <GhostChip
+                        imageUrl={pendingItem?.imageUrl}
+                        hex={pendingWallId ? wallById(pendingWallId)?.hex : undefined}
+                        label={
+                          pendingItem?.name ??
+                          (pendingWallId ? wallById(pendingWallId)?.label : undefined) ??
+                          (pendingLightId ? lightById(pendingLightId)?.label : undefined) ??
+                          '…'
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {zones.map((zone, i) => (
+                    <button
+                      key={zone.id}
+                      type="button"
+                      className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                      style={{ left: `${zone.x * 100}%`, top: `${zone.y * 100}%` }}
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (stage === 'ready') removeZone(zone.id)
+                      }}
+                      title={zone.autoPlace ? `${zone.item.name} · auto` : zone.item.name}
+                    >
+                      <span className="flex h-9 w-9 overflow-hidden rounded-full bg-white shadow-lg ring-2 ring-[#3B82F6]">
+                        {zone.item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={zone.item.imageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">
+                            {i + 1}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+
+                  {wallPin && (
+                    <button
+                      type="button"
+                      className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white"
+                      style={{
+                        left: `${wallPin.x * 100}%`,
+                        top: `${wallPin.y * 100}%`,
+                        background: wallPin.hex,
+                      }}
+                      title={wallPin.label}
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (stage === 'ready') setWallPin(null)
+                      }}
+                    />
+                  )}
+
+                  {lightPin && (
+                    <button
+                      type="button"
+                      className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 px-2 py-1 text-[10px] font-bold shadow ring-2 ring-white"
+                      style={{ left: `${lightPin.x * 100}%`, top: `${lightPin.y * 100}%` }}
+                      title={lightPin.label}
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (stage === 'ready') setLightPin(null)
+                      }}
+                    >
+                      ✦
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {stage === 'generating' && (
+                <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-5">
+                  <div className="mb-2 flex justify-between text-xs text-[var(--rm-muted)]">
+                    <span className="uppercase tracking-wider">{progressStep}</span>
+                    <span>{progressPct}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[var(--rm-secondary)]">
+                    <div
+                      className="h-full rounded-full bg-[var(--rm-primary)] transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {stage === 'results' && variations.length > 0 && (
+                <div className="space-y-3">
+                  <div className="overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={variations[selectedResult]}
+                      alt={`Résultat ${selectedResult + 1}`}
+                      className="max-h-[48vh] w-full object-contain"
+                    />
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)]">
+                        Résultat {selectedResult + 1}/{variations.length}
+                      </span>
+                      <a
+                        href={savedRows[selectedResult]?.public_url ?? variations[selectedResult]}
+                        download={`generation-${selectedResult + 1}.jpg`}
+                        className="text-xs font-medium text-[var(--rm-primary)] underline"
+                      >
+                        Télécharger
+                      </a>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {variations.map((src, i) => (
+                      <button
+                        key={savedRows[i]?.id ?? i}
+                        type="button"
+                        onClick={() => setSelectedResult(i)}
+                        className={`h-20 w-28 shrink-0 overflow-hidden rounded-xl ring-2 ${
+                          selectedResult === i ? 'ring-[var(--rm-primary)]' : 'ring-transparent'
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
-                    className="text-xs text-[var(--rm-muted)] underline"
+                    className="rm-btn-primary"
                     onClick={() => {
-                      if (activeZoneId) removeZone(activeZoneId)
-                      setActiveZoneId(null)
-                      setStage('placing')
+                      setVariations([])
+                      setSavedRows([])
+                      setStage('ready')
                     }}
                   >
-                    Annuler l’épingle
+                    Nouvelle génération sur cette image
                   </button>
                 </div>
-                <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4">
-                  {catalog.map(item => (
+              )}
+
+              {stage === 'error' && (
+                <button type="button" className="rm-btn-primary" onClick={() => setStage('ready')}>
+                  Réessayer
+                </button>
+              )}
+            </div>
+
+            <aside className="space-y-4">
+              <section className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-4">
+                <p className="text-sm font-bold">1. Peindre les murs</p>
+                <p className="mt-1 text-xs text-[var(--rm-muted)]">
+                  Choisissez la couleur, puis touchez un mur — ou laissez l’IA.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {COMPOSER_WALLS.map(wall => {
+                    const active = (wallPin?.id ?? pendingWallId) === wall.id
+                    return (
+                      <button
+                        key={wall.id}
+                        type="button"
+                        title={wall.label}
+                        aria-label={wall.label}
+                        onClick={() => {
+                          setPendingWallId(wall.id)
+                          setPendingItem(null)
+                          setPendingLightId(null)
+                        }}
+                        className={`h-7 w-7 rounded-full ring-2 ${
+                          active ? 'ring-[var(--rm-primary)]' : 'ring-[var(--rm-text)]/15'
+                        }`}
+                        style={{ background: wall.hex }}
+                      />
+                    )
+                  })}
+                </div>
+                {pendingWallId && (
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button
-                      key={item.id}
                       type="button"
-                      onClick={() => pickItemForZone(item)}
-                      className="overflow-hidden rounded-xl border border-[var(--rm-text)]/8 text-left transition hover:border-[var(--rm-primary)]/40"
+                      className="rm-btn-secondary px-3 py-1.5 text-xs"
+                      onClick={() => autoPlaceWall(pendingWallId)}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt=""
-                          className="aspect-square w-full object-cover bg-[var(--rm-secondary)]"
-                        />
-                      ) : (
-                        <div className="flex aspect-square w-full items-center justify-center bg-[var(--rm-secondary)] text-xs text-[var(--rm-muted)]">
-                          {item.name.slice(0, 1)}
-                        </div>
-                      )}
-                      <span className="block truncate px-2 py-1.5 text-xs font-medium">{item.name}</span>
+                      Meilleur endroit
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-[var(--rm-muted)] underline"
+                      onClick={() => setPendingWallId(null)}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold">2. Ajouter un meuble</p>
+                  <span className="text-[11px] text-[var(--rm-muted)]">
+                    {zones.length}/{MAX_ZONES}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--rm-muted)]">
+                  Sélectionnez, le curseur devient le meuble. Cliquez la photo, ou auto.
+                </p>
+                <div className="mt-3 flex gap-1 overflow-x-auto">
+                  {CATALOG_TABS.map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setCatalogTab(tab)}
+                      className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                        catalogTab === tab
+                          ? 'bg-[var(--rm-primary)] text-white'
+                          : 'bg-[var(--rm-secondary)] text-[var(--rm-muted)]'
+                      }`}
+                    >
+                      {tab}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {stage === 'generating' && (
-              <div className="rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)] p-5">
-                <div className="mb-2 flex justify-between text-xs text-[var(--rm-muted)]">
-                  <span className="uppercase tracking-wider">{progressStep}</span>
-                  <span>{progressPct}%</span>
+                <div className="mt-3 grid max-h-56 grid-cols-3 gap-2 overflow-y-auto">
+                  {visibleCatalog.map(item => {
+                    const selected = pendingItem?.id === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => selectFurniture(item)}
+                        className={`overflow-hidden rounded-xl text-left ring-2 ${
+                          selected ? 'ring-[#3B82F6]' : 'ring-transparent hover:ring-[var(--rm-primary)]/30'
+                        }`}
+                      >
+                        {item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="aspect-square w-full bg-[var(--rm-secondary)] object-cover"
+                          />
+                        ) : (
+                          <div className="flex aspect-square items-center justify-center bg-[var(--rm-secondary)] text-xs">
+                            {item.name.slice(0, 1)}
+                          </div>
+                        )}
+                        <span className="block truncate px-1 py-1 text-[10px] font-medium">{item.name}</span>
+                      </button>
+                    )
+                  })}
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-[var(--rm-secondary)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--rm-primary)] transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
+                {pendingItem && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rm-btn-secondary px-3 py-1.5 text-xs"
+                      onClick={() => autoPlaceFurniture(pendingItem)}
+                    >
+                      Meilleur endroit
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-[var(--rm-muted)] underline"
+                      onClick={() => {
+                        setPendingItem(null)
+                        setCursor(null)
+                      }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+              </section>
 
-            {stage === 'placing' && (
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rm-btn-primary"
-                  disabled={readyCount === 0}
-                  onClick={() => void handleGenerate()}
-                >
-                  Générer {readyCount > 0 ? `(${readyCount} zone${readyCount > 1 ? 's' : ''})` : ''}
-                </button>
-                {zones.length > 0 && (
-                  <button type="button" className="rm-btn-secondary" onClick={() => setZones([])}>
-                    Effacer les épingles
+              <section className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-4">
+                <p className="text-sm font-bold">Lumière (optionnel)</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {COMPOSER_LIGHTS.map(light => {
+                    const active = (lightPin?.id ?? pendingLightId) === light.id
+                    return (
+                      <button
+                        key={light.id}
+                        type="button"
+                        onClick={() => {
+                          setPendingLightId(light.id)
+                          setPendingItem(null)
+                          setPendingWallId(null)
+                        }}
+                        className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                          active
+                            ? 'bg-[var(--rm-primary)] text-white'
+                            : 'bg-[var(--rm-secondary)] text-[var(--rm-text)]'
+                        }`}
+                      >
+                        {light.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {pendingLightId && (
+                  <button
+                    type="button"
+                    className="rm-btn-secondary mt-3 px-3 py-1.5 text-xs"
+                    onClick={() => autoPlaceLight(pendingLightId)}
+                  >
+                    Meilleur endroit
                   </button>
                 )}
-              </div>
-            )}
+              </section>
 
-            {stage === 'results' && variations.length > 0 && (
-              <div className="space-y-4">
-                <p className="text-sm font-semibold text-[var(--rm-primary)]">
-                  Historique empilé (enregistré dans le Drive)
-                </p>
-                <ul className="space-y-4">
-                  {variations.map((src, i) => (
-                    <li
-                      key={savedRows[i]?.id ?? i}
-                      className="overflow-hidden rounded-2xl border border-[var(--rm-text)]/8 bg-[var(--rm-surface)]"
+              {stage === 'ready' && (
+                <section className="rounded-2xl border border-[var(--rm-text)]/8 bg-white p-4">
+                  <p className="text-sm font-bold">Combien de résultats ?</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {([1, 2, 3] as const).map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setVariationCount(n)}
+                        className={`rounded-xl py-2 text-sm font-bold ${
+                          variationCount === n
+                            ? 'bg-[var(--rm-primary)] text-white'
+                            : 'bg-[var(--rm-secondary)] text-[var(--rm-text)]'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="rm-btn-primary mt-4 w-full"
+                    disabled={!canGenerate}
+                    onClick={() => void handleGenerate()}
+                  >
+                    Générer {variationCount} résultat{variationCount > 1 ? 's' : ''}
+                  </button>
+                  {(zones.length > 0 || wallPin || lightPin) && (
+                    <button
+                      type="button"
+                      className="mt-2 w-full text-xs text-[var(--rm-muted)] underline"
+                      onClick={() => {
+                        setZones([])
+                        setWallPin(null)
+                        setLightPin(null)
+                      }}
                     >
-                      <div className="flex items-center justify-between gap-3 border-b border-[var(--rm-text)]/6 px-4 py-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)]">
-                          Génération #{variations.length - i}
-                        </span>
-                        <a
-                          href={savedRows[i]?.public_url ?? src}
-                          download={`generation-${i + 1}.jpg`}
-                          className="text-xs font-medium text-[var(--rm-primary)] underline"
-                        >
-                          Télécharger
-                        </a>
-                      </div>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={`Variation ${i + 1}`} className="w-full object-contain" />
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  className="rm-btn-primary"
-                  onClick={() => {
-                    setZones([])
-                    setVariations([])
-                    setSavedRows([])
-                    setStage('placing')
-                  }}
-                >
-                  Nouvelle génération sur cette image
-                </button>
-              </div>
-            )}
-
-            {stage === 'error' && (
-              <button type="button" className="rm-btn-primary" onClick={() => setStage('placing')}>
-                Réessayer
-              </button>
-            )}
+                      Tout effacer
+                    </button>
+                  )}
+                </section>
+              )}
+            </aside>
           </div>
         )}
+    </div>
+  )
+}
+
+function GhostChip({
+  imageUrl,
+  hex,
+  label,
+}: {
+  imageUrl?: string | null
+  hex?: string
+  label: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-1.5 py-1 shadow-lg ring-2 ring-[#3B82F6]">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+      ) : (
+        <span
+          className="h-8 w-8 rounded-full ring-1 ring-black/10"
+          style={{ background: hex ?? '#1f4d3d' }}
+        />
+      )}
+      <span className="max-w-[7rem] truncate pr-2 text-[11px] font-semibold">{label}</span>
     </div>
   )
 }

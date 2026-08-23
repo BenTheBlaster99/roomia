@@ -27,7 +27,7 @@
     "title": "Tableau de bord Pro",
     "workspace": "Espace de travail",
     "generate": "Générer",
-    "onboardTitle": "Upload → Épingler → Générer",
+    "onboardTitle": "Choisir → Placer → Générer",
     "login": "Connexion",
     "signup": "Créer un compte"
   },
@@ -169,25 +169,51 @@
   },
 
   "styleDetail": {
-    "palette": "Palette de couleur",
-    "materials": "Matériaux",
+    "back": "Retour",
+    "palette": "Palette de couleurs",
+    "materials": "Matériaux clés",
     "traits": "Caractéristiques",
+    "inspirations": "Exemples d’inspirations",
+    "cta": "Appliquer ce style à ma pièce",
     "photoLiving": "Photo d’un séjour",
     "photoBedroom": "Photo d’une chambre",
     "photoKitchen": "Photo d’une cuisine",
+    "materialLabel": {
+      "oak": "Bois clair",
+      "concrete": "Béton",
+      "linen": "Lin",
+      "glass": "Verre",
+      "metal": "Métal mat",
+      "birch": "Bouleau",
+      "wool": "Laine",
+      "steel": "Acier",
+      "reclaimed": "Bois recyclé",
+      "velvet": "Velours",
+      "brass": "Laiton",
+      "marble": "Marbre",
+      "walnut": "Noyer",
+      "rattan": "Rotin",
+      "ceramic": "Céramique",
+      "leather": "Cuir",
+      "chrome": "Chrome",
+      "stone": "Pierre",
+      "teak": "Teck",
+      "damask": "Damassé",
+      "lacquer": "Laque"
+    },
     "minimalism": {
+      "body": "Ce style met l’accent sur les lignes simples, les couleurs neutres et les espaces dégagés.",
       "traits": [
-        "Lignes épurées",
-        "Formes simples",
-        "Mobilier fonctionnel",
-        "Décoration réduite",
-        "Surfaces dégagées",
-        "Rangements intégrés",
-        "Lumière naturelle",
-        "Peu de motifs"
+        { "title": "Simplicité", "body": "Des formes épurées et fonctionnelles." },
+        { "title": "Espace", "body": "Des espaces ouverts et dégagés." },
+        { "title": "Lumière", "body": "Lumière naturelle et ambiances douces." },
+        { "title": "Couleurs neutres", "body": "Une harmonie de tons clairs et apaisants." },
+        { "title": "Moins c’est plus", "body": "Chaque objet a sa place et sa fonction." },
+        { "title": "Intemporalité", "body": "Un style qui traverse le temps." }
       ]
     },
     "scandinavian": {
+      "body": "Bois clairs, textiles chauds et lumière du nord — un intérieur hygge, simple et vivant.",
       "traits": [
         "Bois clairs",
         "Ambiance hygge",
@@ -200,6 +226,7 @@
       ]
     },
     "industrial": {
+      "body": "Brique, métal et béton : l’esprit loft, brut et utile.",
       "traits": [
         "Brique apparente",
         "Métal brut",
@@ -212,6 +239,7 @@
       ]
     },
     "maximalism": {
+      "body": "Couleur, motifs et collections — une pièce qui assume sa personnalité.",
       "traits": [
         "Couleurs saturées",
         "Motifs superposés",
@@ -224,6 +252,7 @@
       ]
     },
     "japandi": {
+      "body": "Le calme japonais rencontre le confort scandinave : bas, naturel, poétique.",
       "traits": [
         "Minimalisme chaud",
         "Meubles bas",
@@ -236,6 +265,7 @@
       ]
     },
     "contemporary": {
+      "body": "Lignes actuelles, textures mixtes et confort raffiné pour un intérieur d’aujourd’hui.",
       "traits": [
         "Lignes actuelles",
         "Textures mixtes",
@@ -248,6 +278,7 @@
       ]
     },
     "traditional": {
+      "body": "Symétrie, moulures et meubles classiques — une élégance qui dure.",
       "traits": [
         "Symétrie",
         "Moulures",
@@ -260,6 +291,7 @@
       ]
     },
     "art_deco": {
+      "body": "Géométrie nette, métaux précieux et glamour des années 1920.",
       "traits": [
         "Géométrie nette",
         "Glamour 1920",
@@ -272,6 +304,7 @@
       ]
     },
     "modern": {
+      "body": "La forme suit la fonction : volumes ouverts, peu d’ornement, lignes tendues.",
       "traits": [
         "Forme utile",
         "Peu d’ornement",
@@ -284,6 +317,7 @@
       ]
     },
     "glamour": {
+      "body": "Velours, brillance et Hollywood Regency — le luxe mis en scène.",
       "traits": [
         "Hollywood Regency",
         "Brillance",
@@ -296,6 +330,7 @@
       ]
     },
     "mid_century": {
+      "body": "Pieds fuseaux, teck et icônes des années 50-60 : chaleur graphique.",
       "traits": [
         "Courbes organiques",
         "Pieds fuseaux",
@@ -308,6 +343,7 @@
       ]
     },
     "rustic": {
+      "body": "Bois brut, pierre et tons terre — un intérieur ancré, imparfait et vivant.",
       "traits": [
         "Bois brut",
         "Pierre naturelle",

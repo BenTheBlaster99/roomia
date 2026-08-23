@@ -45,9 +45,14 @@ const MATERIALS = {
   lacquer: texture('photo-1617104678098-de229db33a38'),
 } as const
 
+export type StyleMaterial = {
+  src: string
+  labelKey: string
+}
+
 export type StyleVisual = {
-  palette: [string, string, string]
-  materials: [string, string, string]
+  palette: string[]
+  materials: StyleMaterial[]
   photos: {
     living: string
     bedroom: string
@@ -55,13 +60,17 @@ export type StyleVisual = {
   }
 }
 
+const mat = (src: string, labelKey: string): StyleMaterial => ({ src, labelKey })
+
 export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   minimalism: {
-    palette: ['#F3EEE6', '#C9BDB0', '#C5C5C3'],
+    palette: ['#F5F0EB', '#E6D5C3', '#C9B8A4', '#8A6E52', '#2C2C2C'],
     materials: [
-      '/styles/minimalism/oak.jpg',
-      '/styles/minimalism/concrete.jpg',
-      '/styles/minimalism/linen.jpg',
+      mat('/styles/minimalism/oak.jpg', 'oak'),
+      mat('/styles/minimalism/concrete.jpg', 'concrete'),
+      mat('/styles/minimalism/linen.jpg', 'linen'),
+      mat(MATERIALS.glass, 'glass'),
+      mat(MATERIALS.steel, 'metal'),
     ],
     photos: {
       living: '/styles/minimalism/living.jpg',
@@ -71,7 +80,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   scandinavian: {
     palette: ['#F7F4EE', '#C9B99A', '#7D8B78'],
-    materials: [MATERIALS.birch, MATERIALS.wool, MATERIALS.linen],
+    materials: [mat(MATERIALS.birch, 'birch'), mat(MATERIALS.wool, 'wool'), mat(MATERIALS.linen, 'linen')],
     photos: {
       living: photo('photo-1616486338812-3dadae4b4ace'),
       bedroom: photo('photo-1616594039964-ae9021a400a0'),
@@ -80,7 +89,11 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   industrial: {
     palette: ['#2F2F2F', '#8B4A32', '#8A8680'],
-    materials: [MATERIALS.concrete, MATERIALS.steel, MATERIALS.reclaimed],
+    materials: [
+      mat(MATERIALS.concrete, 'concrete'),
+      mat(MATERIALS.steel, 'steel'),
+      mat(MATERIALS.reclaimed, 'reclaimed'),
+    ],
     photos: {
       living: photo('photo-1600607687939-ce8a6c25118c'),
       bedroom: photo('photo-1505691938895-1758d7afa779'),
@@ -89,7 +102,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   maximalism: {
     palette: ['#6A1F2B', '#0F4C5C', '#C4A35A'],
-    materials: [MATERIALS.velvet, MATERIALS.brass, MATERIALS.damask],
+    materials: [mat(MATERIALS.velvet, 'velvet'), mat(MATERIALS.brass, 'brass'), mat(MATERIALS.damask, 'damask')],
     photos: {
       living: photo('photo-1618220179428-22790b461013'),
       bedroom: photo('photo-1615874959474-d78a0a14c24c'),
@@ -98,7 +111,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   japandi: {
     palette: ['#EFE8DC', '#A89880', '#3F3A36'],
-    materials: [MATERIALS.oak, MATERIALS.linen, MATERIALS.ceramic],
+    materials: [mat(MATERIALS.oak, 'oak'), mat(MATERIALS.linen, 'linen'), mat(MATERIALS.ceramic, 'ceramic')],
     photos: {
       living: photo('photo-1600210492486-724fe5c67fb0'),
       bedroom: photo('photo-1616628188540-55586f63dbe7'),
@@ -107,7 +120,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   contemporary: {
     palette: ['#E4DDD4', '#8C857C', '#3A3A3A'],
-    materials: [MATERIALS.walnut, MATERIALS.glass, MATERIALS.marble],
+    materials: [mat(MATERIALS.walnut, 'walnut'), mat(MATERIALS.glass, 'glass'), mat(MATERIALS.marble, 'marble')],
     photos: {
       living: photo('photo-1618221195710-dd6b41faaea6'),
       bedroom: photo('photo-1631679706909-1844bbd8728c'),
@@ -116,7 +129,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   traditional: {
     palette: ['#F3E6D4', '#7A2E2A', '#C4A35A'],
-    materials: [MATERIALS.walnut, MATERIALS.damask, MATERIALS.marble],
+    materials: [mat(MATERIALS.walnut, 'walnut'), mat(MATERIALS.damask, 'damask'), mat(MATERIALS.marble, 'marble')],
     photos: {
       living: photo('photo-1615529182854-04c803ada8c4'),
       bedroom: photo('photo-1616593969747-4797dc7029c0'),
@@ -125,7 +138,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   art_deco: {
     palette: ['#111111', '#0F5C4C', '#C6A15B'],
-    materials: [MATERIALS.lacquer, MATERIALS.brass, MATERIALS.marble],
+    materials: [mat(MATERIALS.lacquer, 'lacquer'), mat(MATERIALS.brass, 'brass'), mat(MATERIALS.marble, 'marble')],
     photos: {
       living: photo('photo-1600210491369-e753d80a41f3'),
       bedroom: photo('photo-1617104678098-de229db33a38'),
@@ -134,7 +147,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   modern: {
     palette: ['#F5F5F3', '#1A1A1A', '#C5C5C5'],
-    materials: [MATERIALS.chrome, MATERIALS.leather, MATERIALS.glass],
+    materials: [mat(MATERIALS.chrome, 'chrome'), mat(MATERIALS.leather, 'leather'), mat(MATERIALS.glass, 'glass')],
     photos: {
       living: photo('photo-1600210491892-03d54c0aaf87'),
       bedroom: photo('photo-1560448204-e02f11c3d0e2'),
@@ -143,7 +156,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   glamour: {
     palette: ['#E8C9C1', '#1A1A1A', '#D4C4A8'],
-    materials: [MATERIALS.velvet, MATERIALS.marble, MATERIALS.glass],
+    materials: [mat(MATERIALS.velvet, 'velvet'), mat(MATERIALS.marble, 'marble'), mat(MATERIALS.glass, 'glass')],
     photos: {
       living: photo('photo-1617103996702-96ff29b1c467'),
       bedroom: photo('photo-1615874959471-b2b8e546e77c'),
@@ -152,7 +165,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   mid_century: {
     palette: ['#C9A227', '#6B4F2A', '#6B7A4A'],
-    materials: [MATERIALS.teak, MATERIALS.leather, MATERIALS.walnut],
+    materials: [mat(MATERIALS.teak, 'teak'), mat(MATERIALS.leather, 'leather'), mat(MATERIALS.walnut, 'walnut')],
     photos: {
       living: photo('photo-1555041469-a586c61ea9bc'),
       bedroom: photo('photo-1513694203232-719a280e022f'),
@@ -161,7 +174,7 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   },
   rustic: {
     palette: ['#C47848', '#F0E6D8', '#3D5A45'],
-    materials: [MATERIALS.reclaimed, MATERIALS.stone, MATERIALS.linen],
+    materials: [mat(MATERIALS.reclaimed, 'reclaimed'), mat(MATERIALS.stone, 'stone'), mat(MATERIALS.linen, 'linen')],
     photos: {
       living: photo('photo-1600573472550-8090b5e0741e'),
       bedroom: photo('photo-1505691938895-1758d7afa779'),
@@ -172,4 +185,24 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
 
 export function isStyleId(value: string): value is StyleId {
   return (STYLE_IDS as readonly string[]).includes(value)
+}
+
+export type StyleTrait = {
+  title: string
+  body?: string
+}
+
+export function normalizeStyleTraits(raw: unknown): StyleTrait[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(item => {
+      if (typeof item === 'string') return { title: item }
+      if (item && typeof item === 'object' && 'title' in item) {
+        const title = String((item as { title: unknown }).title)
+        const body = (item as { body?: unknown }).body
+        return { title, body: typeof body === 'string' ? body : undefined }
+      }
+      return null
+    })
+    .filter((item): item is StyleTrait => Boolean(item?.title))
 }

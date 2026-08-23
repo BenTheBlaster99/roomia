@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Roomia Pro — Tableau de bord',
-  description: 'Espace de travail agence — uploads, générations empilées, compositeur Pro.',
+  description: 'Tableau de bord Pro — aperçu, Drive, et restyle d’une pièce.',
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

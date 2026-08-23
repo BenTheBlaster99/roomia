@@ -25,6 +25,7 @@ interface ComposeZone {
   category?: string | null
   fidelity?: ReferenceFidelity | null
   reference_base64?: string | null
+  auto_place?: boolean
 }
 
 interface ComposeAtmosphereBody {
@@ -116,6 +117,7 @@ async function generateVariation(opts: {
       referenceImageIndex,
       x: zone.x,
       y: zone.y,
+      autoPlace: Boolean(zone.auto_place),
     })
   }
 
