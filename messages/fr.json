@@ -132,18 +132,26 @@
     "stylesExpandedTitle": "Comprendre votre goût est le secret d’un espace réussi",
     "stylesExpandedSub": "Parcourez les styles ou répondez à un <quiz>QUIZ</quiz> et découvrez votre style préféré",
     "styleName": {
-      "minimalism": "Minimaliste",
-      "scandinavian": "Scandinave",
-      "industrial": "Industriel",
-      "maximalism": "Maximalisme",
-      "japandi": "Japandi",
-      "contemporary": "Contemporain",
-      "traditional": "Traditionnel",
       "art_deco": "Art Déco",
-      "modern": "Moderne",
+      "bauhaus": "Bauhaus",
+      "bohemian": "Bohème",
+      "contemporary": "Contemporain",
+      "cottagecore": "Cottagecore",
+      "exotic": "Exotique",
       "glamour": "Glamour",
-      "mid_century": "Moderne du milieu du siècle",
-      "rustic": "Rustique"
+      "high_tech": "High Tech",
+      "industrial": "Industriel",
+      "japandi": "Japandi",
+      "maximalism": "Maximalisme",
+      "minimalism": "Minimaliste",
+      "pop_art": "Pop Art",
+      "rustic": "Rustique",
+      "scandinavian": "Scandinave",
+      "traditional": "Traditionnel",
+      "vintage": "Vintage",
+      "international": "International",
+      "modern": "Moderne",
+      "de_stijl": "De Stijl"
     },
     "ctaTitle1": "Votre espace.",
     "ctaTitle2": "Vos règles.",
@@ -173,11 +181,9 @@
     "palette": "Palette de couleurs",
     "materials": "Matériaux clés",
     "traits": "Caractéristiques",
+    "motifs": "Motifs",
     "inspirations": "Exemples d’inspirations",
     "cta": "Appliquer ce style à ma pièce",
-    "photoLiving": "Photo d’un séjour",
-    "photoBedroom": "Photo d’une chambre",
-    "photoKitchen": "Photo d’une cuisine",
     "materialLabel": {
       "oak": "Bois clair",
       "concrete": "Béton",
@@ -195,11 +201,34 @@
       "rattan": "Rotin",
       "ceramic": "Céramique",
       "leather": "Cuir",
-      "chrome": "Chrome",
+      "chrome": "Métal chromé",
       "stone": "Pierre",
       "teak": "Teck",
       "damask": "Damassé",
-      "lacquer": "Laque"
+      "lacquer": "Laque brillante",
+      "polished_wood": "Bois poli",
+      "mirror": "Miroir",
+      "wallpaper": "Papier peint",
+      "tubular_steel": "Acier tubulaire",
+      "plywood": "Contreplaqué",
+      "wood": "Bois",
+      "natural_fibers": "Fibres naturelles",
+      "wrought_iron": "Fer forgé",
+      "wicker": "Osier",
+      "bamboo": "Bambou",
+      "printed_fabrics": "Tissus imprimés",
+      "lacquered_wood": "Bois laqué",
+      "refined_fabrics": "Tissus raffinés",
+      "aluminum": "Aluminium",
+      "plastic": "Plastique",
+      "glossy": "Surfaces brillantes",
+      "brick": "Brique",
+      "dark_wood": "Bois",
+      "warm_light_wood": "Bois chaud clair",
+      "warm_dark_wood": "Bois chaud foncé",
+      "artisan_ceramic": "Céramiques artisanales",
+      "bronze": "Bronze",
+      "untreated_copper": "Cuivre non traité"
     },
     "minimalism": {
       "body": "Ce style met l’accent sur les lignes simples, les couleurs neutres et les espaces dégagés.",
@@ -210,7 +239,8 @@
         { "title": "Couleurs neutres", "body": "Une harmonie de tons clairs et apaisants." },
         { "title": "Moins c’est plus", "body": "Chaque objet a sa place et sa fonction." },
         { "title": "Intemporalité", "body": "Un style qui traverse le temps." }
-      ]
+      ],
+      "motifs": []
     },
     "scandinavian": {
       "body": "Bois clairs, textiles chauds et lumière du nord — un intérieur hygge, simple et vivant.",
@@ -223,20 +253,23 @@
         "Plantes vertes",
         "Confort quotidien",
         "Lumière du nord"
-      ]
+      ],
+      "motifs": []
     },
     "industrial": {
-      "body": "Brique, métal et béton : l’esprit loft, brut et utile.",
+      "body": "Le style industriel en décoration intérieure s'inspire des entrepôts, usines et espaces utilitaires reconvertis, célébrant les matériaux bruts et l'authenticité des structures. Les intérieurs industriels créent un équilibre harmonieux entre charme vintage et confort contemporain en mêlant des éléments traditionnels à un design minimaliste et moderne.",
       "traits": [
-        "Brique apparente",
-        "Métal brut",
-        "Esprit loft",
-        "Tuyauterie visible",
-        "Pièces vintage",
-        "Béton et acier",
-        "Volumes ouverts",
-        "Esthétique atelier"
-      ]
+        "Matériaux bruts",
+        "Béton apparent",
+        "Finitions mates, brossées, vieillies",
+        "Ampoules apparentes",
+        "Mobilier fonctionnel et minimal",
+        "Textiles texturés",
+        "Grandes baies vitrées",
+        "Poutres, conduits et tuyaux d'évacuation apparents",
+        "Vastes espaces ouverts"
+      ],
+      "motifs": []
     },
     "maximalism": {
       "body": "Couleur, motifs et collections — une pièce qui assume sa personnalité.",
@@ -249,20 +282,24 @@
         "Tissus riches",
         "Personnalité forte",
         "Abondance assumée"
-      ]
+      ],
+      "motifs": []
     },
     "japandi": {
-      "body": "Le calme japonais rencontre le confort scandinave : bas, naturel, poétique.",
+      "body": "Le style Japandi mélange la simplicité japonaise avec le confort scandinave. Il cherche à créer des espaces calmes et fonctionnels où chaque objet a une utilité. Le résultat est un intérieur chaleureux, paisible et peu encombré.",
       "traits": [
-        "Minimalisme chaud",
-        "Meubles bas",
-        "Wabi-sabi",
-        "Artisanat visible",
-        "Matières naturelles",
-        "Silence visuel",
-        "Contrastes doux",
-        "Fonction poétique"
-      ]
+        "Espaces ouverts",
+        "Matériaux naturels et textures organiques",
+        "Importance de textures naturelles",
+        "Agencement de meubles flexible",
+        "Mobilier simple et élégant",
+        "Meubles plutôt bas",
+        "Lignes épurées et formes simples",
+        "Peu d’encombrement visuel",
+        "Éclairage doux et chaleureux",
+        "Plantes vivantes"
+      ],
+      "motifs": []
     },
     "contemporary": {
       "body": "Lignes actuelles, textures mixtes et confort raffiné pour un intérieur d’aujourd’hui.",
@@ -275,7 +312,8 @@
         "Art contemporain",
         "Neutres profonds",
         "Détails soignés"
-      ]
+      ],
+      "motifs": []
     },
     "traditional": {
       "body": "Symétrie, moulures et meubles classiques — une élégance qui dure.",
@@ -288,20 +326,128 @@
         "Tapis superposés",
         "Ornement mesuré",
         "Élégance intemporelle"
-      ]
+      ],
+      "motifs": []
     },
     "art_deco": {
-      "body": "Géométrie nette, métaux précieux et glamour des années 1920.",
+      "body": "Le style Art Déco cherche à créer des espaces élégants, luxueux et sophistiqués, en mettant en valeur la géométrie, la symétrie et les détails raffinés. Il célèbre le beau, le décoratif et le savoir-faire, tout en donnant une impression d’ordre et de prestige.",
       "traits": [
-        "Géométrie nette",
-        "Glamour 1920",
-        "Motifs soleil",
-        "Métaux précieux",
-        "Contrastes forts",
-        "Laque et marbre",
-        "Symétrie luxueuse",
-        "Silhouettes graphiques"
+        "Formes et motifs géométriques",
+        "Motifs décoratifs",
+        "Luminaires spectaculaires",
+        "Mobilier élégant",
+        "Finitions brillantes",
+        "Parquets à motif en chevrons ou en damier",
+        "Carrelage à carreaux noirs et blancs ou à motifs cubiques",
+        "Grands tapis aux motifs géométriques",
+        "Ambiance luxueuse"
+      ],
+      "motifs": [
+        "Éventails",
+        "Rayons de soleil",
+        "Chevrons",
+        "Zigzags",
+        "Formes en gradins",
+        "Triangles",
+        "Losanges",
+        "Cercles et demi-cercles",
+        "Lignes géométriques répétées",
+        "Motifs géométriques symétriques",
+        "Feuilles et fleurs stylisées",
+        "Palmes stylisées"
       ]
+    },
+    "bauhaus": {
+      "body": "Le style Bauhaus repose sur le principe fondamental que « la forme suit la fonction », où la fonctionnalité est privilégiée sur l'ornementation. Chaque élément de design devrait avoir un but clair et chaque espace devrait être dépourvu de décoration superflue. Le style est enraciné dans l'idée d'unir l'art et la technologie.",
+      "traits": [
+        "Formes géométriques simples",
+        "Aménagements pratiques et simples",
+        "Mobilier modulaire",
+        "Absence d’ornementation inutile",
+        "Mélange de matériaux industriels et naturels",
+        "Espaces ouverts, lumineux et aérés",
+        "Asymétrie",
+        "Intégration des arts (sculptures, peinture, photographie)",
+        "Structure visible",
+        "Aspect sobre mais dynamique"
+      ],
+      "motifs": []
+    },
+    "bohemian": {
+      "body": "Également appelé boho, ce style exprime le désir d'une vie libre. Il cherche à créer un intérieur personnel et sans règles strictes. Il mélange les influences, les couleurs, les textures et les objets provenant de différentes cultures pour donner au lieu une atmosphère vivante et authentique, évoquant un sentiment de vacances.",
+      "traits": [
+        "Mélange de styles et d’influences",
+        "Mélange de couleurs et de textures",
+        "Mobilier en matériaux naturels",
+        "Objets artisanaux et souvenirs de voyage",
+        "Accumulation maîtrisée d’objets et de décoration",
+        "Nombreuses plantes",
+        "Textiles superposés et confortables",
+        "Ambiance décontractée et chaleureuse"
+      ],
+      "motifs": [
+        "Ethniques",
+        "Floraux",
+        "Géométriques",
+        "Mandalas",
+        "Orientaux",
+        "Inspirés de la nature"
+      ]
+    },
+    "cottagecore": {
+      "body": "Le style « cottagecore » est une nouvelle interprétation de l'esthétique rustique, mettant l'accent sur un mode de vie rural paisible en s’inspirant de la vie à la campagne. Il cherche le charme nostalgique d'une époque plus simple.",
+      "traits": [
+        "Matériaux naturels",
+        "Mobilier ancien ou d’inspiration vintage",
+        "Meubles patinés ou aux finitions naturelles",
+        "Objets artisanaux",
+        "Éléments décoratifs inspirés de la vie à la campagne",
+        "Absence de recoins inutilisables et de finitions trop précieuses",
+        "Motifs floraux et champêtres",
+        "Présence importante de plantes et de fleurs",
+        "Formes douces et légèrement irrégulières",
+        "Textiles superposés",
+        "Ambiance chaleureuse, romantique et légèrement nostalgique"
+      ],
+      "motifs": [
+        "Floraux",
+        "Botaniques",
+        "Vichy / gingham",
+        "Rayures fines",
+        "Carreaux",
+        "Champêtres"
+      ]
+    },
+    "exotic": {
+      "body": "Le style exotique s’inspire de différentes cultures et régions du monde pour créer un intérieur chaleureux, dépaysant et riche en caractère. Il mélange couleurs, matières et objets inspirés de voyages et de traditions lointaines.",
+      "traits": [
+        "Motifs inspirés de la nature ou de différentes cultures",
+        "Plantes vertes et végétation abondante",
+        "Mobilier en bois ou en fibres naturelles",
+        "Textiles colorés et imprimés",
+        "Objets décoratifs artisanaux",
+        "Mélange de textures et de matières"
+      ],
+      "motifs": [
+        "Tropicaux",
+        "Floraux",
+        "Animaliers",
+        "Ethniques",
+        "Géométriques"
+      ]
+    },
+    "high_tech": {
+      "body": "Le style High-Tech met la technologie et l’innovation au centre de l’espace. Il cherche à créer un intérieur fonctionnel et sophistiqué où les équipements technologiques deviennent également des éléments du décor.",
+      "traits": [
+        "Formes géométriques et lignes nettes",
+        "Technologies intégrées et connectées",
+        "Éclairage LED et effets lumineux",
+        "Équipements visibles ou intégrés au mobilier",
+        "Peu de décoration traditionnelle",
+        "Touches de couleurs vives",
+        "Aspect futuriste et sophistiqué"
+      ],
+      "motifs": []
     },
     "modern": {
       "body": "La forme suit la fonction : volumes ouverts, peu d’ornement, lignes tendues.",
@@ -314,33 +460,23 @@
         "Esprit Bauhaus",
         "Noir et blanc",
         "Lignes tendues"
-      ]
+      ],
+      "motifs": []
     },
     "glamour": {
-      "body": "Velours, brillance et Hollywood Regency — le luxe mis en scène.",
+      "body": "Le style glamour cherche à créer une atmosphère élégante, sophistiquée et séduisante. Il met l’accent sur le raffinement et le plaisir visuel, tout en créant un intérieur qui donne une impression de confort, de confiance et de prestige.",
       "traits": [
-        "Hollywood Regency",
-        "Brillance",
-        "Velours",
-        "Miroirs",
-        "Cristal",
-        "Contraste dramatique",
-        "Pièces statement",
-        "Soirée permanente"
-      ]
-    },
-    "mid_century": {
-      "body": "Pieds fuseaux, teck et icônes des années 50-60 : chaleur graphique.",
-      "traits": [
-        "Courbes organiques",
-        "Pieds fuseaux",
-        "Bois teck",
-        "Icônes 50-60",
-        "Profil bas",
-        "Graphisme vintage",
-        "Fonction claire",
-        "Chaleur du bois"
-      ]
+        "Mélange entre formes classiques et touches modernes",
+        "Mobilier élégant et confortable",
+        "Détails dorés ou métalliques",
+        "Miroirs et surfaces brillantes",
+        "Éclairage décoratif et sophistiqué",
+        "Formes arrondies ou sculpturales",
+        "Décoration riche mais soigneusement équilibrée",
+        "Contrastes marqués",
+        "Atmosphère chic et luxueuse"
+      ],
+      "motifs": []
     },
     "rustic": {
       "body": "Bois brut, pierre et tons terre — un intérieur ancré, imparfait et vivant.",
@@ -353,7 +489,28 @@
         "Tons terre",
         "Confort enveloppant",
         "Ancré dans le lieu"
-      ]
+      ],
+      "motifs": []
+    },
+    "pop_art": {
+      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
+      "traits": [],
+      "motifs": []
+    },
+    "vintage": {
+      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
+      "traits": [],
+      "motifs": []
+    },
+    "international": {
+      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
+      "traits": [],
+      "motifs": []
+    },
+    "de_stijl": {
+      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
+      "traits": [],
+      "motifs": []
     }
   },
   "stylesPage": {

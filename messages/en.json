@@ -132,18 +132,26 @@
     "stylesExpandedTitle": "Understanding your taste is the secret to a successful space",
     "stylesExpandedSub": "Browse the styles or take a <quiz>QUIZ</quiz> and discover your favorite",
     "styleName": {
-      "minimalism": "Minimalism",
-      "scandinavian": "Scandinavian",
-      "industrial": "Industrial",
-      "maximalism": "Maximalism",
-      "japandi": "Japandi",
-      "contemporary": "Contemporary",
-      "traditional": "Traditional",
       "art_deco": "Art Deco",
-      "modern": "Modern",
+      "bauhaus": "Bauhaus",
+      "bohemian": "Bohemian",
+      "contemporary": "Contemporary",
+      "cottagecore": "Cottagecore",
+      "exotic": "Exotic",
       "glamour": "Glamour",
-      "mid_century": "Mid-century modern",
-      "rustic": "Rustic"
+      "high_tech": "High Tech",
+      "industrial": "Industrial",
+      "japandi": "Japandi",
+      "maximalism": "Maximalism",
+      "minimalism": "Minimalism",
+      "pop_art": "Pop Art",
+      "rustic": "Rustic",
+      "scandinavian": "Scandinavian",
+      "traditional": "Traditional",
+      "vintage": "Vintage",
+      "international": "International",
+      "modern": "Modern",
+      "de_stijl": "De Stijl"
     },
     "ctaTitle1": "Your space.",
     "ctaTitle2": "Your rules.",
@@ -173,11 +181,9 @@
     "palette": "Color palette",
     "materials": "Key materials",
     "traits": "Characteristics",
+    "motifs": "Motifs",
     "inspirations": "Inspiration examples",
     "cta": "Apply this style to my room",
-    "photoLiving": "Living room photo",
-    "photoBedroom": "Bedroom photo",
-    "photoKitchen": "Kitchen photo",
     "materialLabel": {
       "oak": "Light wood",
       "concrete": "Concrete",
@@ -195,11 +201,34 @@
       "rattan": "Rattan",
       "ceramic": "Ceramic",
       "leather": "Leather",
-      "chrome": "Chrome",
+      "chrome": "Chrome metal",
       "stone": "Stone",
       "teak": "Teak",
       "damask": "Damask",
-      "lacquer": "Lacquer"
+      "lacquer": "Glossy lacquer",
+      "polished_wood": "Polished wood",
+      "mirror": "Mirror",
+      "wallpaper": "Wallpaper",
+      "tubular_steel": "Tubular steel",
+      "plywood": "Plywood",
+      "wood": "Wood",
+      "natural_fibers": "Natural fibers",
+      "wrought_iron": "Wrought iron",
+      "wicker": "Wicker",
+      "bamboo": "Bamboo",
+      "printed_fabrics": "Printed fabrics",
+      "lacquered_wood": "Lacquered wood",
+      "refined_fabrics": "Refined fabrics",
+      "aluminum": "Aluminum",
+      "plastic": "Plastic",
+      "glossy": "Glossy surfaces",
+      "brick": "Brick",
+      "dark_wood": "Wood",
+      "warm_light_wood": "Warm light wood",
+      "warm_dark_wood": "Warm dark wood",
+      "artisan_ceramic": "Artisan ceramics",
+      "bronze": "Bronze",
+      "untreated_copper": "Untreated copper"
     },
     "minimalism": {
       "body": "This style is built on simple lines, neutral colors, and rooms that stay clear.",
@@ -210,7 +239,8 @@
         { "title": "Neutral colors", "body": "A calm mix of pale, quiet tones." },
         { "title": "Less is more", "body": "Every object has a place and a job." },
         { "title": "Timelessness", "body": "A look that holds across years." }
-      ]
+      ],
+      "motifs": []
     },
     "scandinavian": {
       "body": "Light woods, warm textiles, and northern light — a simple hygge interior.",
@@ -223,20 +253,23 @@
         "Houseplants",
         "Everyday comfort",
         "Northern light"
-      ]
+      ],
+      "motifs": []
     },
     "industrial": {
-      "body": "Brick, metal, and concrete: loft spirit, raw and useful.",
+      "body": "Industrial interior design draws on warehouses, factories, and converted utility spaces, celebrating raw materials and honest structure. These rooms balance vintage charm and contemporary comfort by mixing traditional elements with a minimal, modern design.",
       "traits": [
-        "Exposed brick",
-        "Raw metal",
-        "Loft spirit",
-        "Visible pipes",
-        "Vintage pieces",
-        "Concrete and steel",
-        "Open volumes",
-        "Workshop aesthetic"
-      ]
+        "Raw materials",
+        "Exposed concrete",
+        "Matte, brushed, or aged finishes",
+        "Exposed bulbs",
+        "Functional, minimal furniture",
+        "Textured textiles",
+        "Large glazed openings",
+        "Exposed beams, ducts, and pipes",
+        "Vast open rooms"
+      ],
+      "motifs": []
     },
     "maximalism": {
       "body": "Color, pattern, and collections — a room that owns its personality.",
@@ -249,20 +282,24 @@
         "Rich textiles",
         "Strong personality",
         "Intentional abundance"
-      ]
+      ],
+      "motifs": []
     },
     "japandi": {
-      "body": "Japanese calm meets Scandinavian comfort: low, natural, poetic.",
+      "body": "Japandi mixes Japanese simplicity with Scandinavian comfort. It aims for calm, useful rooms where every object has a purpose. The result is warm, peaceful, and uncluttered.",
       "traits": [
-        "Warm minimalism",
-        "Low furniture",
-        "Wabi-sabi",
-        "Visible craft",
-        "Natural materials",
-        "Visual quiet",
-        "Soft contrast",
-        "Poetic function"
-      ]
+        "Open rooms",
+        "Natural materials and organic textures",
+        "Emphasis on natural texture",
+        "Flexible furniture layout",
+        "Simple, elegant furniture",
+        "Rather low furniture",
+        "Clean lines and simple forms",
+        "Little visual clutter",
+        "Soft, warm lighting",
+        "Living plants"
+      ],
+      "motifs": []
     },
     "contemporary": {
       "body": "Current lines, mixed textures, and refined comfort for a room of today.",
@@ -275,7 +312,8 @@
         "Contemporary art",
         "Deep neutrals",
         "Careful details"
-      ]
+      ],
+      "motifs": []
     },
     "traditional": {
       "body": "Symmetry, moldings, and classic furniture — elegance that lasts.",
@@ -288,20 +326,128 @@
         "Layered rugs",
         "Measured ornament",
         "Timeless elegance"
-      ]
+      ],
+      "motifs": []
     },
     "art_deco": {
-      "body": "Sharp geometry, precious metals, and 1920s glamour.",
+      "body": "Art Deco aims to create elegant, luxurious, sophisticated rooms, highlighting geometry, symmetry, and refined detail. It celebrates beauty, decoration, and craft, while giving a sense of order and prestige.",
       "traits": [
-        "Sharp geometry",
-        "1920s glamour",
-        "Sunburst motifs",
-        "Precious metals",
-        "High contrast",
-        "Lacquer and marble",
-        "Luxurious symmetry",
-        "Graphic silhouettes"
+        "Geometric forms and patterns",
+        "Decorative motifs",
+        "Spectacular lighting",
+        "Elegant furniture",
+        "Glossy finishes",
+        "Herringbone or checkerboard parquet",
+        "Black-and-white or cubic tile",
+        "Large geometric rugs",
+        "Luxurious atmosphere"
+      ],
+      "motifs": [
+        "Fans",
+        "Sunbursts",
+        "Chevrons",
+        "Zigzags",
+        "Stepped forms",
+        "Triangles",
+        "Lozenges",
+        "Circles and half-circles",
+        "Repeated geometric lines",
+        "Symmetric geometric patterns",
+        "Stylized leaves and flowers",
+        "Stylized palms"
       ]
+    },
+    "bauhaus": {
+      "body": "Bauhaus rests on the idea that form follows function: usefulness comes before ornament. Every design element should have a clear purpose, and every room should stay free of superfluous decoration. The style unites art and technology.",
+      "traits": [
+        "Simple geometric forms",
+        "Practical, simple layouts",
+        "Modular furniture",
+        "No unnecessary ornament",
+        "Mix of industrial and natural materials",
+        "Open, bright, airy rooms",
+        "Asymmetry",
+        "Arts integrated (sculpture, painting, photography)",
+        "Visible structure",
+        "Sober yet dynamic look"
+      ],
+      "motifs": []
+    },
+    "bohemian": {
+      "body": "Also called boho, this style expresses a desire for a free life. It builds a personal interior without strict rules, mixing influences, colors, textures, and objects from different cultures for a lively, authentic, holiday-like atmosphere.",
+      "traits": [
+        "Mix of styles and influences",
+        "Mix of colors and textures",
+        "Furniture in natural materials",
+        "Craft objects and travel souvenirs",
+        "Controlled accumulation of objects and décor",
+        "Plenty of plants",
+        "Layered, comfortable textiles",
+        "Relaxed, warm atmosphere"
+      ],
+      "motifs": [
+        "Ethnic",
+        "Floral",
+        "Geometric",
+        "Mandalas",
+        "Oriental",
+        "Nature-inspired"
+      ]
+    },
+    "cottagecore": {
+      "body": "Cottagecore is a new take on rustic aesthetics, centered on a peaceful rural way of life and countryside living. It looks for the nostalgic charm of a simpler time.",
+      "traits": [
+        "Natural materials",
+        "Antique or vintage-inspired furniture",
+        "Patina or natural finishes",
+        "Craft objects",
+        "Décor inspired by country life",
+        "No unused corners or overly precious finishes",
+        "Floral and pastoral patterns",
+        "Plenty of plants and flowers",
+        "Soft, slightly irregular forms",
+        "Layered textiles",
+        "Warm, romantic, gently nostalgic mood"
+      ],
+      "motifs": [
+        "Floral",
+        "Botanical",
+        "Gingham",
+        "Fine stripes",
+        "Checks",
+        "Pastoral"
+      ]
+    },
+    "exotic": {
+      "body": "Exotic style draws on cultures and regions around the world to create a warm, transporting interior with character. It mixes colors, materials, and objects inspired by travel and distant traditions.",
+      "traits": [
+        "Patterns inspired by nature or other cultures",
+        "Green plants and abundant vegetation",
+        "Wood or natural-fiber furniture",
+        "Colorful printed textiles",
+        "Artisan decorative objects",
+        "Mix of textures and materials"
+      ],
+      "motifs": [
+        "Tropical",
+        "Floral",
+        "Animal",
+        "Ethnic",
+        "Geometric"
+      ]
+    },
+    "high_tech": {
+      "body": "High-Tech puts technology and innovation at the center of the room. It aims for a functional, sophisticated interior where technical equipment also becomes part of the décor.",
+      "traits": [
+        "Geometric forms and crisp lines",
+        "Integrated, connected technology",
+        "LED lighting and light effects",
+        "Equipment visible or built into furniture",
+        "Little traditional decoration",
+        "Touches of vivid color",
+        "Futuristic, sophisticated look"
+      ],
+      "motifs": []
     },
     "modern": {
       "body": "Form follows function: open volumes, little ornament, taut lines.",
@@ -314,33 +460,23 @@
         "Bauhaus spirit",
         "Black and white",
         "Taut lines"
-      ]
+      ],
+      "motifs": []
     },
     "glamour": {
-      "body": "Velvet, shine, and Hollywood Regency — luxury put on stage.",
+      "body": "Glamour aims for an elegant, sophisticated, seductive atmosphere. It emphasizes refinement and visual pleasure, while the room still feels comfortable, confident, and prestigious.",
       "traits": [
-        "Hollywood Regency",
-        "Shine",
-        "Velvet",
-        "Mirrors",
-        "Crystal",
-        "Dramatic contrast",
-        "Statement pieces",
-        "Evening all day"
-      ]
-    },
-    "mid_century": {
-      "body": "Tapered legs, teak, and 1950s icons: graphic warmth.",
-      "traits": [
-        "Organic curves",
-        "Tapered legs",
-        "Teak wood",
-        "1950s–60s icons",
-        "Low profile",
-        "Vintage graphics",
-        "Clear function",
-        "Warm timber"
-      ]
+        "Mix of classic forms and modern touches",
+        "Elegant, comfortable furniture",
+        "Gold or metallic details",
+        "Mirrors and glossy surfaces",
+        "Decorative, sophisticated lighting",
+        "Rounded or sculptural forms",
+        "Rich décor, carefully balanced",
+        "Strong contrast",
+        "Chic, luxurious atmosphere"
+      ],
+      "motifs": []
     },
     "rustic": {
       "body": "Raw wood, stone, and earth tones — grounded, imperfect, alive.",
@@ -353,7 +489,28 @@
         "Earth tones",
         "Enveloping comfort",
         "Grounded in place"
-      ]
+      ],
+      "motifs": []
+    },
+    "pop_art": {
+      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
+      "traits": [],
+      "motifs": []
+    },
+    "vintage": {
+      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
+      "traits": [],
+      "motifs": []
+    },
+    "international": {
+      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
+      "traits": [],
+      "motifs": []
+    },
+    "de_stijl": {
+      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
+      "traits": [],
+      "motifs": []
     }
   },
   "stylesPage": {

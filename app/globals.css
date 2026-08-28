@@ -517,6 +517,10 @@ body {
   align-items: start;
 }
 
+.rm-style-hero-solo {
+  grid-template-columns: 1fr;
+}
+
 .rm-style-hero-copy {
   min-width: 0;
 }
@@ -562,6 +566,7 @@ body {
 
 .rm-style-palette-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -574,7 +579,8 @@ body {
 
 .rm-style-palette {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex-shrink: 0;
   gap: 0.45rem;
 }
@@ -589,8 +595,9 @@ body {
 
 .rm-style-materials {
   display: flex;
-  justify-content: space-between;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.8rem 0.55rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -600,8 +607,9 @@ body {
   display: grid;
   justify-items: center;
   gap: 0.35rem;
+  width: 4.4rem;
   min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
   font-size: 0.62rem;
   font-weight: 600;
   line-height: 1.2;
@@ -659,10 +667,32 @@ body {
   color: var(--rm-muted);
 }
 
+.rm-style-motifs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rm-style-motifs li {
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rm-primary) 10%, #fff);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--rm-ink);
+}
+
 .rm-style-detail-photos {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+.rm-style-photo-item {
+  min-width: 0;
 }
 
 .rm-style-photo {
@@ -671,6 +701,14 @@ body {
   overflow: hidden;
   border-radius: 0.9rem;
   background: var(--rm-secondary);
+}
+
+.rm-style-photo-kind {
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--rm-muted);
 }
 
 .rm-style-cta {
@@ -731,6 +769,10 @@ body {
     gap: 1.6rem;
   }
 
+  .rm-style-hero-solo {
+    grid-template-columns: 1fr;
+  }
+
   .rm-style-sheet-title {
     font-size: clamp(1.55rem, 2.4vw, 1.9rem);
   }
@@ -762,6 +804,11 @@ body {
 
   .rm-style-materials li {
     flex: 0 0 auto;
+    width: 5.4rem;
+    font-size: 0.82rem;
+  }
+
+  .rm-style-motifs li {
     font-size: 0.82rem;
   }
 

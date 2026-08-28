@@ -4,7 +4,13 @@ import { notFound } from 'next/navigation'
 import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import StyleDetail from '@/components/marketing/StyleDetail'
-import { isStyleId, normalizeStyleTraits, STYLE_IDS, STYLE_VISUALS } from '@/lib/style-details'
+import {
+  isStyleId,
+  normalizeStyleMotifs,
+  normalizeStyleTraits,
+  STYLE_IDS,
+  STYLE_VISUALS,
+} from '@/lib/style-details'
 
 type PageProps = {
   params: Promise<{ locale: string; id: string }>
@@ -30,6 +36,7 @@ export default async function StyleDetailPage({ params }: PageProps) {
   const tHome = await getTranslations('home')
   const tDetail = await getTranslations('styleDetail')
   const traits = tDetail.raw(`${id}.traits`)
+  const motifs = tDetail.raw(`${id}.motifs`)
   const visual = STYLE_VISUALS[id]
 
   return (
@@ -41,16 +48,15 @@ export default async function StyleDetailPage({ params }: PageProps) {
         body={tDetail(`${id}.body`)}
         visual={visual}
         traits={normalizeStyleTraits(traits)}
+        motifs={normalizeStyleMotifs(motifs)}
         labels={{
           back: tDetail('back'),
           palette: tDetail('palette'),
           materials: tDetail('materials'),
           traits: tDetail('traits'),
+          motifs: tDetail('motifs'),
           inspirations: tDetail('inspirations'),
           cta: tDetail('cta'),
-          photoLiving: tDetail('photoLiving'),
-          photoBedroom: tDetail('photoBedroom'),
-          photoKitchen: tDetail('photoKitchen'),
           materialName: key => tDetail(`materialLabel.${key}`),
         }}
       />

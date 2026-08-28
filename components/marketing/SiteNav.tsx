@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link, usePathname } from '@/i18n/navigation'
 import { supabase } from '@/lib/supabase'
-import LanguageSelect from './LanguageToggle'
+import LanguageToggle from './LanguageToggle'
 
 const NAV_LINKS = [
   { href: '/', key: 'home' as const },
@@ -102,23 +102,26 @@ export default function SiteNav({
           })}
         </div>
 
-        <div className="hidden items-center justify-end gap-3 lg:flex">
-          {trailing}
-          {loggedIn ? (
-            <a
-              href="/dashboard"
-              className={`text-sm font-semibold transition-opacity hover:opacity-80 ${dark ? 'text-[#f4efe4]' : 'text-[var(--rm-primary)]'}`}
-            >
-              {t('dashboard')}
-            </a>
-          ) : (
-            <a
-              href="/dashboard/login"
-              className="rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)] transition-opacity hover:opacity-80"
-            >
-              {t('pro')}
-            </a>
-          )}
+        <div className="flex items-center justify-end gap-3">
+          <LanguageToggle dark={dark} />
+          <div className="hidden items-center gap-3 lg:flex">
+            {trailing}
+            {loggedIn ? (
+              <a
+                href="/dashboard"
+                className={`text-sm font-semibold transition-opacity hover:opacity-80 ${dark ? 'text-[#f4efe4]' : 'text-[var(--rm-primary)]'}`}
+              >
+                {t('dashboard')}
+              </a>
+            ) : (
+              <a
+                href="/dashboard/login"
+                className="rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wider text-[var(--rm-accent)] transition-opacity hover:opacity-80"
+              >
+                {t('pro')}
+              </a>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -157,9 +160,6 @@ export default function SiteNav({
                 {t('pro')}
               </a>
             )}
-            <div className="mt-4 pt-4 border-t border-current/10">
-              <LanguageSelect dark={dark} />
-            </div>
           </div>
         </div>
       )}

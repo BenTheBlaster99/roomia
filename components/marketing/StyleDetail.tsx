@@ -1,17 +1,15 @@
 import Image from 'next/image'
 import { Link } from '@/i18n/navigation'
-import type { StyleMaterial, StyleTrait, StyleVisual } from '@/lib/style-details'
+import type { StyleMaterial, StylePhoto, StyleTrait, StyleVisual } from '@/lib/style-details'
 
 type Labels = {
   back: string
   palette: string
   materials: string
   traits: string
+  motifs: string
   inspirations: string
   cta: string
-  photoLiving: string
-  photoBedroom: string
-  photoKitchen: string
   materialName: (key: string) => string
 }
 
@@ -34,12 +32,61 @@ function TraitIcon({ index }: { index: number }) {
   )
 }
 
+function StyleMedia({
+  src,
+  alt,
+  sizes,
+  priority,
+}: {
+  src: string
+  alt: string
+  sizes?: string
+  priority?: boolean
+}) {
+  if (src.startsWith('/')) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes={sizes}
+        className="object-cover"
+        priority={priority}
+      />
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="absolute inset-0 h-full w-full object-cover"
+      referrerPolicy="no-referrer"
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  )
+}
+
+function PhotoFigure({ photo, name }: { photo: StylePhoto; name: string }) {
+  const alt = photo.kind ? `${name} — ${photo.kind}` : name
+  return (
+    <figure className="rm-style-photo-item">
+      <div className="rm-style-photo">
+        <StyleMedia src={photo.src} alt={alt} sizes="(max-width: 768px) 30vw, 18rem" />
+      </div>
+      {photo.kind ? <figcaption className="rm-style-photo-kind">{photo.kind}</figcaption> : null}
+    </figure>
+  )
+}
+
 export default function StyleDetail({
   styleId,
   name,
   body,
   visual,
   traits,
+  motifs,
   labels,
 }: {
   styleId: string
@@ -47,13 +94,10 @@ export default function StyleDetail({
   body: string
   visual: StyleVisual
   traits: StyleTrait[]
+  motifs: string[]
   labels: Labels
 }) {
-  const photos = [
-    { src: visual.photos.living, label: labels.photoLiving },
-    { src: visual.photos.bedroom, label: labels.photoBedroom },
-    { src: visual.photos.kitchen, label: labels.photoKitchen },
-  ]
+  const hero = visual.photos[0]
 
   return (
     <section className="rm-style-detail">
@@ -62,84 +106,98 @@ export default function StyleDetail({
           ‹ {labels.back}
         </Link>
 
-        <div className="rm-style-hero">
+        <div className={hero ? 'rm-style-hero' : 'rm-style-hero rm-style-hero-solo'}>
           <div className="rm-style-hero-copy">
             <h1 className="rm-style-sheet-title">{name}</h1>
             <p className="rm-style-hero-body">{body}</p>
           </div>
-          <figure className="rm-style-hero-photo">
-            <Image
-              src={visual.photos.living}
-              alt={name}
-              fill
-              sizes="(max-width: 768px) 46vw, 28rem"
-              className="object-cover"
-              priority
-            />
-          </figure>
-        </div>
-
-        <hr className="rm-style-rule" />
-
-        <div className="rm-style-palette-row">
-          <h2 className="rm-style-sheet-heading">{labels.palette}</h2>
-          <div className="rm-style-palette">
-            {visual.palette.map((hex, index) => (
-              <span
-                key={`${hex}-${index}`}
-                className="rm-style-dot"
-                style={{ background: hex }}
-                title={hex}
+          {hero ? (
+            <figure className="rm-style-hero-photo">
+              <StyleMedia
+                src={hero.src}
+                alt={name}
+                sizes="(max-width: 768px) 46vw, 28rem"
+                priority
               />
-            ))}
+            </figure>
+          ) : null}
+        </div>
+
+        {visual.palette.length > 0 ? (
+          <>
+            <hr className="rm-style-rule" />
+            <div className="rm-style-palette-row">
+              <h2 className="rm-style-sheet-heading">{labels.palette}</h2>
+              <div className="rm-style-palette">
+                {visual.palette.map((hex, index) => (
+                  <span
+                    key={`${hex}-${index}`}
+                    className="rm-style-dot"
+                    style={{ background: hex }}
+                    title={hex}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {visual.materials.length > 0 ? (
+          <div>
+            <h2 className="rm-style-sheet-heading">{labels.materials}</h2>
+            <ul className="rm-style-materials">
+              {visual.materials.map((material: StyleMaterial) => (
+                <li key={material.labelKey}>
+                  <div className="rm-style-material-swatch">
+                    {material.src ? (
+                      <StyleMedia src={material.src} alt="" sizes="96px" />
+                    ) : null}
+                  </div>
+                  <span>{labels.materialName(material.labelKey)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        ) : null}
 
-        <div>
-          <h2 className="rm-style-sheet-heading">{labels.materials}</h2>
-          <ul className="rm-style-materials">
-            {visual.materials.map((material: StyleMaterial) => (
-              <li key={material.labelKey}>
-                <div className="rm-style-material-swatch">
-                  <Image src={material.src} alt="" fill sizes="96px" className="object-cover" />
-                </div>
-                <span>{labels.materialName(material.labelKey)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="rm-style-sheet-heading">{labels.traits}</h2>
-          <ul className="rm-style-traits">
-            {traits.slice(0, 6).map((trait, index) => (
-              <li key={`${trait.title}-${index}`}>
-                <TraitIcon index={index} />
-                <div>
-                  <p className="rm-style-trait-title">{trait.title}</p>
-                  {trait.body ? <p className="rm-style-trait-body">{trait.body}</p> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="rm-style-sheet-heading">{labels.inspirations}</h2>
-          <div className="rm-style-detail-photos">
-            {photos.map(photo => (
-              <figure key={photo.src} className="rm-style-photo">
-                <Image
-                  src={photo.src}
-                  alt={`${name} — ${photo.label}`}
-                  fill
-                  sizes="(max-width: 768px) 30vw, 18rem"
-                  className="object-cover"
-                />
-              </figure>
-            ))}
+        {traits.length > 0 ? (
+          <div>
+            <h2 className="rm-style-sheet-heading">{labels.traits}</h2>
+            <ul className="rm-style-traits">
+              {traits.map((trait, index) => (
+                <li key={`${trait.title}-${index}`}>
+                  <TraitIcon index={index} />
+                  <div>
+                    <p className="rm-style-trait-title">{trait.title}</p>
+                    {trait.body ? <p className="rm-style-trait-body">{trait.body}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        ) : null}
+
+        {motifs.length > 0 ? (
+          <div>
+            <h2 className="rm-style-sheet-heading">{labels.motifs}</h2>
+            <ul className="rm-style-motifs">
+              {motifs.map(motif => (
+                <li key={motif}>{motif}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {visual.photos.length > 0 ? (
+          <div>
+            <h2 className="rm-style-sheet-heading">{labels.inspirations}</h2>
+            <div className="rm-style-detail-photos">
+              {visual.photos.map((photo, index) => (
+                <PhotoFigure key={`${photo.src}-${index}`} photo={photo} name={name} />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <a href={`/room-composer?style=${encodeURIComponent(styleId)}`} className="rm-style-cta">
           {labels.cta}
