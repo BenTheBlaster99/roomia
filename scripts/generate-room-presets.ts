@@ -79,7 +79,7 @@ async function fetchDbCatalog(url: string, anonKey: string): Promise<CatalogItem
     console.warn('Live catalog load failed, using mock only:', error.message)
     return []
   }
-  return ((data ?? []) as FurnitureItem[]).map(furnitureItemToCatalogItem)
+  return ((data ?? []) as FurnitureItem[]).map(row => furnitureItemToCatalogItem(row))
 }
 
 function pickItems(

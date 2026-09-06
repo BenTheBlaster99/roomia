@@ -141,7 +141,7 @@ export default function PhotoStudioPage() {
     fetchGeneratedCatalog()
       .then(rows => {
         if (!cancelled) {
-          setGeneratedItems(rows.map(furnitureItemToCatalogItem))
+          setGeneratedItems(rows.map(row => furnitureItemToCatalogItem(row)))
         }
       })
       .catch(err => {

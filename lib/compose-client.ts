@@ -36,7 +36,7 @@ export async function composeRoom(
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let gotVariations: string[] | null = null
+  const result: { variations: string[] } = { variations: [] }
   let warning: string | null = null
 
   const applyEvent = (event: {
@@ -55,7 +55,7 @@ export async function composeRoom(
         detail: event.detail ?? event.label,
       })
     } else if (event.type === 'done' && Array.isArray(event.variations)) {
-      gotVariations = event.variations
+      result.variations = event.variations
       onProgress?.({ step: 'results', pct: 100, detail: 'Done' })
       if (event.failed_count && event.failed_count > 0) {
         warning = `${event.variations.length} image(s) ready, ${event.failed_count} failed.`
@@ -86,13 +86,15 @@ export async function composeRoom(
     try {
       applyEvent(JSON.parse(buffer.trim()))
     } catch {
-      if (!gotVariations?.length) throw new Error('Stream ended unexpectedly (no results)')
+      if (result.variations.length === 0) {
+        throw new Error('Stream ended unexpectedly (no results)')
+      }
     }
   }
 
-  if (!gotVariations?.length) {
+  if (result.variations.length === 0) {
     throw new Error('No image returned (API failed or stream cut off)')
   }
 
-  return { variations: gotVariations, warning }
+  return { variations: result.variations, warning }
 }

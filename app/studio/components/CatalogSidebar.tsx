@@ -73,7 +73,7 @@ export default function CatalogSidebar() {
     setGeneratedStatus('loading')
     fetchGeneratedCatalog()
       .then(rows => {
-        setGeneratedItems(rows.map(furnitureItemToCatalogItem))
+        setGeneratedItems(rows.map(row => furnitureItemToCatalogItem(row)))
         setGeneratedStatus(rows.length > 0 ? 'ready' : 'error')
       })
       .catch(err => {
