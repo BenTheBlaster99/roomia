@@ -56,8 +56,16 @@ export default async function StyleDetailPage({ params }: PageProps) {
           traits: tDetail('traits'),
           motifs: tDetail('motifs'),
           inspirations: tDetail('inspirations'),
+          closePhoto: tDetail('closePhoto'),
+          prevPhoto: tDetail('prevPhoto'),
+          nextPhoto: tDetail('nextPhoto'),
           cta: tDetail('cta'),
-          materialName: key => tDetail(`materialLabel.${key}`),
+          materialName: Object.fromEntries(
+            visual.materials.map(material => [
+              material.labelKey,
+              tDetail(`materialLabel.${material.labelKey}`),
+            ]),
+          ),
         }}
       />
       <SiteFooter />

@@ -274,14 +274,6 @@ export const STYLE_LABEL_FR: Record<string, string> = {
   minimalism: 'Minimalisme',
   rustic: 'Rustique',
   scandinavian: 'Scandinave',
-  contemporary: 'Contemporain',
-  high_tech: 'High-tech',
-  traditional: 'Traditionnel',
-  modern: 'Moderne',
-  pop_art: 'Pop Art',
-  vintage: 'Vintage',
-  international: 'International',
-  de_stijl: 'De Stijl',
 }
 
 const ROOM_LABEL_FR: Record<QuizRoomId, string> = {

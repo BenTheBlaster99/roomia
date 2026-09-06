@@ -1,5 +1,8 @@
+'use client'
+
 import Image from 'next/image'
 import { Link } from '@/i18n/navigation'
+import StylePhotoLightbox from '@/components/marketing/StylePhotoLightbox'
 import {
   styleGallery,
   styleHero,
@@ -16,8 +19,11 @@ type Labels = {
   traits: string
   motifs: string
   inspirations: string
+  closePhoto: string
+  prevPhoto: string
+  nextPhoto: string
   cta: string
-  materialName: (key: string) => string
+  materialName: Record<string, string>
 }
 
 function TraitIcon({ index }: { index: number }) {
@@ -75,13 +81,21 @@ function StyleMedia({
   )
 }
 
-function PhotoFigure({ photo, name }: { photo: StylePhoto; name: string }) {
+function PhotoFigure({
+  photo,
+  name,
+  onOpen,
+}: {
+  photo: StylePhoto
+  name: string
+  onOpen: () => void
+}) {
   const alt = photo.kind ? `${name} — ${photo.kind}` : name
   return (
     <figure className="rm-style-photo-item">
-      <div className="rm-style-photo">
+      <button type="button" className="rm-style-photo rm-style-photo-open" onClick={onOpen}>
         <StyleMedia src={photo.src} alt={alt} sizes="(max-width: 768px) 30vw, 18rem" />
-      </div>
+      </button>
       {photo.kind ? <figcaption className="rm-style-photo-kind">{photo.kind}</figcaption> : null}
     </figure>
   )
@@ -106,10 +120,17 @@ export default function StyleDetail({
 }) {
   const hero = styleHero(visual)
   const gallery = styleGallery(visual)
+  const photos = visual.photos
 
   return (
     <section className="rm-style-detail">
-      <div className="rm-style-sheet">
+      <StylePhotoLightbox
+        photos={photos}
+        name={name}
+        labels={{ close: labels.closePhoto, prev: labels.prevPhoto, next: labels.nextPhoto }}
+      >
+        {openAt => (
+          <div className="rm-style-sheet">
         <Link href="/styles" className="rm-style-back">
           ‹ {labels.back}
         </Link>
@@ -120,14 +141,18 @@ export default function StyleDetail({
             <p className="rm-style-hero-body">{body}</p>
           </div>
           {hero ? (
-            <figure className="rm-style-hero-photo">
+            <button
+              type="button"
+              className="rm-style-hero-photo rm-style-photo-open"
+              onClick={() => openAt(0)}
+            >
               <StyleMedia
                 src={hero.src}
                 alt={name}
                 sizes="(max-width: 768px) 46vw, 28rem"
                 priority
               />
-            </figure>
+            </button>
           ) : null}
         </div>
 
@@ -161,7 +186,7 @@ export default function StyleDetail({
                       <StyleMedia src={material.src} alt="" sizes="96px" />
                     ) : null}
                   </div>
-                  <span>{labels.materialName(material.labelKey)}</span>
+                  <span>{labels.materialName[material.labelKey] ?? material.labelKey}</span>
                 </li>
               ))}
             </ul>
@@ -201,7 +226,12 @@ export default function StyleDetail({
             <h2 className="rm-style-sheet-heading">{labels.inspirations}</h2>
             <div className="rm-style-detail-photos">
               {gallery.map((photo, index) => (
-                <PhotoFigure key={`${photo.src}-${index}`} photo={photo} name={name} />
+                <PhotoFigure
+                  key={`${photo.src}-${index}`}
+                  photo={photo}
+                  name={name}
+                  onOpen={() => openAt(index + 1)}
+                />
               ))}
             </div>
           </div>
@@ -210,7 +240,9 @@ export default function StyleDetail({
         <a href={`/room-composer?style=${encodeURIComponent(styleId)}`} className="rm-style-cta">
           {labels.cta}
         </a>
-      </div>
+          </div>
+        )}
+      </StylePhotoLightbox>
     </section>
   )
 }

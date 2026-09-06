@@ -4,53 +4,20 @@ export const STYLE_IDS = [
   'art_deco',
   'bauhaus',
   'bohemian',
-  'contemporary',
   'cottagecore',
   'exotic',
   'glamour',
-  'high_tech',
   'industrial',
   'japandi',
   'maximalism',
   'minimalism',
-  'pop_art',
   'rustic',
   'scandinavian',
-  'traditional',
-  'vintage',
-  'international',
-  'modern',
-  'de_stijl',
 ] as const
 
 export type StyleId = (typeof STYLE_IDS)[number]
 
-const photo = (id: string, width = 1400) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=80`
-
-const texture = (id: string) => photo(id, 600)
-
-const FALLBACK = {
-  oak: texture('photo-1541123356219-364ad6512ce4'),
-  linen: texture('photo-1522771739844-6a9f6d5f14af'),
-  wool: texture('photo-1544966503-7cc5ac882d5f'),
-  birch: texture('photo-1415886541506-5a87e078ef86'),
-  concrete: texture('photo-1545324418-cc1a3fa10c00'),
-  steel: texture('photo-1504328345606-18bbc8c9d7d1'),
-  reclaimed: texture('photo-1475483768296-6163e08872a1'),
-  velvet: texture('photo-1567016432779-094069958ea5'),
-  brass: texture('photo-1615529328331-f8917597711f'),
-  marble: texture('photo-1583845112203-29329902332b'),
-  walnut: texture('photo-1600566753086-00f18fb6b3ea'),
-  ceramic: texture('photo-1578749556568-bc2c40e68b61'),
-  leather: texture('photo-1540574163024-580df3465d7d'),
-  chrome: texture('photo-1558618666-fcd25c85f82e'),
-  glass: texture('photo-1600607687644-c7171b42498f'),
-  stone: texture('photo-1615876234886-fd9a39fda97f'),
-  damask: texture('photo-1617103996702-96ff29b1c467'),
-} as const
-
-/** Shared texture photos from Sarah’s Styles v2 sheet. */
+/** Shared texture photos from Sarah’s Styles finaux sheet. */
 const TX = {
   wood: 'https://i.pinimg.com/736x/bf/2b/3a/bf2b3a217f94e4ae78830b90c2e40ade.jpg',
   marble: 'https://i.pinimg.com/1200x/3d/ad/c8/3dadc895282042a8c36f529c464a23e6.jpg',
@@ -116,20 +83,6 @@ export type StyleVisual = {
 
 const mat = (labelKey: string, src: string | null): StyleMaterial => ({ labelKey, src })
 const pic = (src: string, kind?: string): StylePhoto => (kind ? { src, kind } : { src })
-
-const EMPTY: StyleVisual = { palette: [], materials: [], photos: [] }
-
-const unsplashSheet = (
-  palette: string[],
-  materials: StyleMaterial[],
-  living: string,
-  bedroom: string,
-  kitchen: string,
-): StyleVisual => ({
-  palette,
-  materials,
-  photos: [pic(living), pic(bedroom), pic(kitchen)],
-})
 
 export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
   art_deco: {
@@ -200,13 +153,6 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
       pic('https://i.pinimg.com/1200x/b1/08/f0/b108f063ce684bba68b49c0cf3f69a5a.jpg'),
     ],
   },
-  contemporary: unsplashSheet(
-    ['#E4DDD4', '#8C857C', '#3A3A3A'],
-    [mat('walnut', FALLBACK.walnut), mat('glass', FALLBACK.glass), mat('marble', FALLBACK.marble)],
-    photo('photo-1618221195710-dd6b41faaea6'),
-    photo('photo-1631679706909-1844bbd8728c'),
-    photo('photo-1600566752355-35792bedcfea'),
-  ),
   cottagecore: {
     palette: ['#F4EBDD', '#D8C7A8', '#A9B59A', '#C98F8F', '#F4D6D4', '#7A8FA6', '#B88652', '#FBB59B'],
     materials: [
@@ -279,23 +225,6 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
       pic('https://i.pinimg.com/1200x/0a/4f/99/0a4f992c71e05f82712fa67f6df00dfc.jpg'),
       pic('https://i.pinimg.com/736x/73/e4/2e/73e42ec95d5e8fa534ac03decf314060.jpg'),
       pic('https://i.pinimg.com/1200x/b5/7d/69/b57d6967c6a928cf3770dc18f93b4366.jpg'),
-    ],
-  },
-  high_tech: {
-    palette: ['#F2F3F4', '#9EA3A8', '#181A1B', '#4A90A4', '#6E7B83'],
-    materials: [
-      mat('steel', TX.steel),
-      mat('aluminum', TX.chrome),
-      mat('plastic', null),
-      mat('concrete', TX.concrete),
-      mat('glass', TX.glass),
-      mat('glossy', TX.lacquer),
-    ],
-    photos: [
-      pic('https://i.pinimg.com/1200x/b9/34/fa/b934fab7ab93a953f8f625e0cfa20933.jpg'),
-      pic('https://i.pinimg.com/1200x/f1/e0/76/f1e07632901f0b0eea6f77f0967654d5.jpg'),
-      pic('https://miro.medium.com/v2/resize:fit:2000/format:webp/1*YslSynFBEsk8vICgYkFefg.jpeg'),
-      pic('https://naryafoto.com/wp-content/uploads/2022/02/4.jpg'),
     ],
   },
   industrial: {
@@ -419,7 +348,6 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
       pic('https://i.pinimg.com/736x/84/77/6f/84776f6ac5858df97791581f7066ae06.jpg'),
     ],
   },
-  pop_art: EMPTY,
   rustic: {
     palette: ['#F0E5D0', '#8B6F47', '#6B705C', '#B85C38', '#704214', '#A3A380'],
     materials: [
@@ -461,23 +389,6 @@ export const STYLE_VISUALS: Record<StyleId, StyleVisual> = {
       pic('https://i.pinimg.com/736x/55/4e/ee/554eee88ec6f936711205e3d1844aec4.jpg'),
     ],
   },
-  traditional: unsplashSheet(
-    ['#F3E6D4', '#7A2E2A', '#C4A35A'],
-    [mat('walnut', FALLBACK.walnut), mat('damask', FALLBACK.damask), mat('marble', FALLBACK.marble)],
-    photo('photo-1615529182854-04c803ada8c4'),
-    photo('photo-1616593969747-4797dc7029c0'),
-    photo('photo-1556912173-46c336c7fd55'),
-  ),
-  vintage: EMPTY,
-  international: EMPTY,
-  modern: unsplashSheet(
-    ['#F5F5F3', '#1A1A1A', '#C5C5C5'],
-    [mat('chrome', FALLBACK.chrome), mat('leather', FALLBACK.leather), mat('glass', FALLBACK.glass)],
-    photo('photo-1600210491892-03d54c0aaf87'),
-    photo('photo-1560448204-e02f11c3d0e2'),
-    photo('photo-1556909114-44e3e70034e2'),
-  ),
-  de_stijl: EMPTY,
 }
 
 export function isStyleId(value: string): value is StyleId {

@@ -135,23 +135,15 @@
       "art_deco": "Art Déco",
       "bauhaus": "Bauhaus",
       "bohemian": "Bohème",
-      "contemporary": "Contemporain",
       "cottagecore": "Cottagecore",
       "exotic": "Exotique",
       "glamour": "Glamour",
-      "high_tech": "High Tech",
       "industrial": "Industriel",
       "japandi": "Japandi",
       "maximalism": "Maximalisme",
       "minimalism": "Minimaliste",
-      "pop_art": "Pop Art",
       "rustic": "Rustique",
-      "scandinavian": "Scandinave",
-      "traditional": "Traditionnel",
-      "vintage": "Vintage",
-      "international": "International",
-      "modern": "Moderne",
-      "de_stijl": "De Stijl"
+      "scandinavian": "Scandinave"
     },
     "ctaTitle1": "Votre espace.",
     "ctaTitle2": "Vos règles.",
@@ -183,6 +175,9 @@
     "traits": "Caractéristiques",
     "motifs": "Motifs",
     "inspirations": "Exemples d’inspirations",
+    "closePhoto": "Fermer",
+    "prevPhoto": "Photo précédente",
+    "nextPhoto": "Photo suivante",
     "cta": "Appliquer ce style à ma pièce",
     "materialLabel": {
       "oak": "Bois clair",
@@ -310,34 +305,6 @@
       ],
       "motifs": []
     },
-    "contemporary": {
-      "body": "Lignes actuelles, textures mixtes et confort raffiné pour un intérieur d’aujourd’hui.",
-      "traits": [
-        "Lignes actuelles",
-        "Textures mixtes",
-        "Confort raffiné",
-        "Éclairage sculptural",
-        "Plan ouvert",
-        "Art contemporain",
-        "Neutres profonds",
-        "Détails soignés"
-      ],
-      "motifs": []
-    },
-    "traditional": {
-      "body": "Symétrie, moulures et meubles classiques — une élégance qui dure.",
-      "traits": [
-        "Symétrie",
-        "Moulures",
-        "Meubles classiques",
-        "Tissus riches",
-        "Héritage",
-        "Tapis superposés",
-        "Ornement mesuré",
-        "Élégance intemporelle"
-      ],
-      "motifs": []
-    },
     "art_deco": {
       "body": "Le style Art Déco cherche à créer des espaces élégants, luxueux et sophistiqués, en mettant en valeur la géométrie, la symétrie et les détails raffinés. Il célèbre le beau, le décoratif et le savoir-faire, tout en donnant une impression d’ordre et de prestige.",
       "traits": [
@@ -445,33 +412,6 @@
         "Géométriques"
       ]
     },
-    "high_tech": {
-      "body": "Le style High-Tech met la technologie et l’innovation au centre de l’espace. Il cherche à créer un intérieur fonctionnel et sophistiqué où les équipements technologiques deviennent également des éléments du décor.",
-      "traits": [
-        "Formes géométriques et lignes nettes",
-        "Technologies intégrées et connectées",
-        "Éclairage LED et effets lumineux",
-        "Équipements visibles ou intégrés au mobilier",
-        "Peu de décoration traditionnelle",
-        "Touches de couleurs vives",
-        "Aspect futuriste et sophistiqué"
-      ],
-      "motifs": []
-    },
-    "modern": {
-      "body": "La forme suit la fonction : volumes ouverts, peu d’ornement, lignes tendues.",
-      "traits": [
-        "Forme utile",
-        "Peu d’ornement",
-        "Volumes ouverts",
-        "Géométrie claire",
-        "Matériaux honnêtes",
-        "Esprit Bauhaus",
-        "Noir et blanc",
-        "Lignes tendues"
-      ],
-      "motifs": []
-    },
     "glamour": {
       "body": "Le style glamour cherche à créer une atmosphère élégante, sophistiquée et séduisante. Il met l’accent sur le raffinement et le plaisir visuel, tout en créant un intérieur qui donne une impression de confort, de confiance et de prestige.",
       "traits": [
@@ -502,26 +442,6 @@
         "Décoration inspirée de la nature et de l’artisanat traditionnel",
         "Ambiance de montagne"
       ],
-      "motifs": []
-    },
-    "pop_art": {
-      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
-      "traits": [],
-      "motifs": []
-    },
-    "vintage": {
-      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
-      "traits": [],
-      "motifs": []
-    },
-    "international": {
-      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
-      "traits": [],
-      "motifs": []
-    },
-    "de_stijl": {
-      "body": "Fiche en cours. Sarah complète encore la palette, les matières et les photos de ce style.",
-      "traits": [],
       "motifs": []
     }
   },

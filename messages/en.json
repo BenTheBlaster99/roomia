@@ -135,23 +135,15 @@
       "art_deco": "Art Deco",
       "bauhaus": "Bauhaus",
       "bohemian": "Bohemian",
-      "contemporary": "Contemporary",
       "cottagecore": "Cottagecore",
       "exotic": "Exotic",
       "glamour": "Glamour",
-      "high_tech": "High Tech",
       "industrial": "Industrial",
       "japandi": "Japandi",
       "maximalism": "Maximalism",
       "minimalism": "Minimalism",
-      "pop_art": "Pop Art",
       "rustic": "Rustic",
-      "scandinavian": "Scandinavian",
-      "traditional": "Traditional",
-      "vintage": "Vintage",
-      "international": "International",
-      "modern": "Modern",
-      "de_stijl": "De Stijl"
+      "scandinavian": "Scandinavian"
     },
     "ctaTitle1": "Your space.",
     "ctaTitle2": "Your rules.",
@@ -183,6 +175,9 @@
     "traits": "Characteristics",
     "motifs": "Motifs",
     "inspirations": "Inspiration examples",
+    "closePhoto": "Close",
+    "prevPhoto": "Previous photo",
+    "nextPhoto": "Next photo",
     "cta": "Apply this style to my room",
     "materialLabel": {
       "oak": "Light wood",
@@ -310,34 +305,6 @@
       ],
       "motifs": []
     },
-    "contemporary": {
-      "body": "Current lines, mixed textures, and refined comfort for a room of today.",
-      "traits": [
-        "Current lines",
-        "Mixed textures",
-        "Refined comfort",
-        "Sculptural lighting",
-        "Open plan",
-        "Contemporary art",
-        "Deep neutrals",
-        "Careful details"
-      ],
-      "motifs": []
-    },
-    "traditional": {
-      "body": "Symmetry, moldings, and classic furniture — elegance that lasts.",
-      "traits": [
-        "Symmetry",
-        "Moldings",
-        "Classic furniture",
-        "Rich fabrics",
-        "Heritage feel",
-        "Layered rugs",
-        "Measured ornament",
-        "Timeless elegance"
-      ],
-      "motifs": []
-    },
     "art_deco": {
       "body": "Art Deco aims to create elegant, luxurious, sophisticated rooms, highlighting geometry, symmetry, and refined detail. It celebrates beauty, decoration, and craft, while giving a sense of order and prestige.",
       "traits": [
@@ -445,33 +412,6 @@
         "Geometric"
       ]
     },
-    "high_tech": {
-      "body": "High-Tech puts technology and innovation at the center of the room. It aims for a functional, sophisticated interior where technical equipment also becomes part of the décor.",
-      "traits": [
-        "Geometric forms and crisp lines",
-        "Integrated, connected technology",
-        "LED lighting and light effects",
-        "Equipment visible or built into furniture",
-        "Little traditional decoration",
-        "Touches of vivid color",
-        "Futuristic, sophisticated look"
-      ],
-      "motifs": []
-    },
-    "modern": {
-      "body": "Form follows function: open volumes, little ornament, taut lines.",
-      "traits": [
-        "Form follows function",
-        "Little ornament",
-        "Open volumes",
-        "Clear geometry",
-        "Honest materials",
-        "Bauhaus spirit",
-        "Black and white",
-        "Taut lines"
-      ],
-      "motifs": []
-    },
     "glamour": {
       "body": "Glamour aims for an elegant, sophisticated, seductive atmosphere. It emphasizes refinement and visual pleasure, while the room still feels comfortable, confident, and prestigious.",
       "traits": [
@@ -502,26 +442,6 @@
         "Nature- and craft-inspired décor",
         "Mountain mood"
       ],
-      "motifs": []
-    },
-    "pop_art": {
-      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
-      "traits": [],
-      "motifs": []
-    },
-    "vintage": {
-      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
-      "traits": [],
-      "motifs": []
-    },
-    "international": {
-      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
-      "traits": [],
-      "motifs": []
-    },
-    "de_stijl": {
-      "body": "Sheet in progress. Sarah is still completing the palette, materials, and photos for this style.",
-      "traits": [],
       "motifs": []
     }
   },
