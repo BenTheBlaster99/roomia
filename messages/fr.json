@@ -128,7 +128,7 @@
     "stylesQuizHint": "Ou prenez un <quiz>QUIZ</quiz> et nous vous aiderons à le découvrir",
     "stylesTakeQuiz": "Prendre le QUIZ",
     "quizTeaserTitle": "Vous hésitez encore ?",
-    "quizTeaserBody": "Une question pour commencer",
+    "quizTeaserBody": "Sept questions, puis ta pièce",
     "stylesExpandedTitle": "Comprendre votre goût est le secret d’un espace réussi",
     "stylesExpandedSub": "Parcourez les styles ou répondez à un <quiz>QUIZ</quiz> et découvrez votre style préféré",
     "styleName": {
@@ -172,7 +172,7 @@
     "photoDesc": "Sélectionnez un meuble sur une photo, retirez-le ou remplacez-le par un article du catalogue.",
     "photoCta": "Ouvrir le studio photo",
     "quizTitle": "Pas encore de direction ?",
-    "quizDesc": "Trois questions pour trouver un style — puis ouvrez le studio ou le compositeur.",
+    "quizDesc": "Sept questions pour trouver un style — puis vois-le dans ta photo, avec le catalogue.",
     "quizCta": "Lancer le quiz"
   },
 
@@ -228,31 +228,42 @@
       "warm_dark_wood": "Bois chaud foncé",
       "artisan_ceramic": "Céramiques artisanales",
       "bronze": "Bronze",
-      "untreated_copper": "Cuivre non traité"
+      "untreated_copper": "Cuivre non traité",
+      "dark_inlaid_wood": "Bois foncés, vieillis ou marquetés",
+      "exotic_stone": "Pierres exotiques",
+      "copper": "Cuivre",
+      "gold_leaf": "Feuille d’or",
+      "textured_glass": "Verre texturé ou coloré",
+      "satin": "Satin",
+      "granite": "Granite",
+      "glossy_ceramic_tiles": "Carreaux de céramique brillants",
+      "black_metal": "Métal noir",
+      "solid_wood": "Bois massif",
+      "burlap": "Toile de jute",
+      "light_wood": "Bois clair"
     },
     "minimalism": {
-      "body": "Ce style met l’accent sur les lignes simples, les couleurs neutres et les espaces dégagés.",
+      "body": "Le minimalisme repose sur l’idée que moins peut être mieux. Son objectif est de créer un espace calme et fonctionnel en gardant uniquement ce qui est utile ou important. Chaque élément est choisi avec soin pour obtenir un intérieur simple et équilibré.",
       "traits": [
-        { "title": "Simplicité", "body": "Des formes épurées et fonctionnelles." },
-        { "title": "Espace", "body": "Des espaces ouverts et dégagés." },
-        { "title": "Lumière", "body": "Lumière naturelle et ambiances douces." },
-        { "title": "Couleurs neutres", "body": "Une harmonie de tons clairs et apaisants." },
-        { "title": "Moins c’est plus", "body": "Chaque objet a sa place et sa fonction." },
-        { "title": "Intemporalité", "body": "Un style qui traverse le temps." }
+        "Lignes propres et simples",
+        "Peu de décoration",
+        "Espaces ouverts et dégagés",
+        "Mobilier fonctionnel",
+        "Formes géométriques simples",
+        "Rangements discrets ou intégrés",
+        "Importance de la lumière et des proportions"
       ],
       "motifs": []
     },
     "scandinavian": {
-      "body": "Bois clairs, textiles chauds et lumière du nord — un intérieur hygge, simple et vivant.",
+      "body": "Le style scandinave cherche à créer un intérieur lumineux, chaleureux et confortable. Inspiré des pays nordiques, il privilégie la simplicité, la fonctionnalité et une atmosphère accueillante, tout en laissant entrer un maximum de lumière naturelle.",
       "traits": [
-        "Bois clairs",
-        "Ambiance hygge",
-        "Textiles chaleureux",
-        "Murs blancs",
-        "Formes simples",
-        "Plantes vertes",
-        "Confort quotidien",
-        "Lumière du nord"
+        "Espaces lumineux et aérés",
+        "Mobilier minimal",
+        "Formes douces et épurées",
+        "Ordre et fonctionnalité",
+        "Décoration simple et accueillante",
+        "Importance d’éclairage naturel"
       ],
       "motifs": []
     },
@@ -272,16 +283,14 @@
       "motifs": []
     },
     "maximalism": {
-      "body": "Couleur, motifs et collections — une pièce qui assume sa personnalité.",
+      "body": "Le maximalisme est un chaos maîtrisé. Il célèbre l'individualité, la créativité et l'expression de soi. Il vise à créer des espaces riches en personnalité et en histoires en encourageant les audacieux mélanges d'éléments vintage et moderne.",
       "traits": [
-        "Couleurs saturées",
-        "Motifs superposés",
-        "Objets collectionnés",
-        "Murs d’art",
-        "Mélange d’époques",
-        "Tissus riches",
-        "Personnalité forte",
-        "Abondance assumée"
+        "Motifs et matériaux superposés",
+        "Décor éclectique",
+        "Mélange de textures",
+        "Abondance d’art et souvenirs personnels",
+        "Décoration excessive et maîtrisée",
+        "Ambiance théâtrale"
       ],
       "motifs": []
     },
@@ -479,16 +488,19 @@
       "motifs": []
     },
     "rustic": {
-      "body": "Bois brut, pierre et tons terre — un intérieur ancré, imparfait et vivant.",
+      "body": "En s'inspirant des maisons de campagne et des habitations traditionnelles, le style rustique privilégie les éléments simples et les matériaux naturels pour créer un espace d’une atmosphère authentique et chaleureuse.",
       "traits": [
-        "Bois brut",
-        "Pierre naturelle",
-        "Esprit campagne",
-        "Fait main",
-        "Imparfait vivant",
-        "Tons terre",
-        "Confort enveloppant",
-        "Ancré dans le lieu"
+        "Éléments naturels et vieillis",
+        "Matériaux apparents et texturés",
+        "Finitions brutes ou légèrement travaillées",
+        "Meubles en bois massif",
+        "Mobilier traditionnel, confortable et pratique",
+        "Poutres apparentes en bois",
+        "Murs en pierre",
+        "Étagères apparentes",
+        "Détails métalliques",
+        "Décoration inspirée de la nature et de l’artisanat traditionnel",
+        "Ambiance de montagne"
       ],
       "motifs": []
     },
@@ -526,41 +538,79 @@
   "quiz": {
     "eyebrow": "Quiz style",
     "title": "Quiz",
-    "sub": "Le quiz complet arrive. Pour l’instant, une première question.",
-    "navStudio": "Ouvrir le studio",
+    "sub": "Sept questions. Un style. Puis ta pièce.",
     "stepOf": "{current} / {total}",
-    "q1Title": "Q: Quelle phrase décrit vous le mieux?",
-    "q1Empty": "Je veux très peu de choses. J'aime les espaces vides",
-    "q1Chosen": "Quelques objets soigneusement choisis",
-    "q1Rich": "Je veux un intérieur chaleureux et riche",
-    "roomTitle": "Quelle pièce meublez-vous ?",
-    "roomLiving": "Salon",
-    "roomBedroom": "Chambre",
-    "budgetTitle": "Quel budget mobilier (DA) ?",
-    "budgetHint": "Estimation pour les pièces principales — pas le total maison.",
-    "budgetTight": "Moins de 200 000 DA",
-    "budgetMid": "200 000 – 500 000 DA",
-    "budgetPremium": "Plus de 500 000 DA",
-    "vibeTitle": "Quelle ambiance vous attire ?",
-    "vibeIndustrial": "Brute, métal, loft",
-    "vibeMaximalism": "Audacieuse, colorée, riche",
-    "vibeMinimalism": "Calme, épurée, spacieuse",
-    "vibeTraditional": "Chaleureuse, artisanale, algérienne",
-    "vibeCoastal": "Lumineuse, naturelle, marine",
     "back": "Retour",
-    "resultEyebrow": "Votre match",
-    "resultTitle": "Voici votre style",
-    "resultSub": "Explorez la fiche, ou ouvrez le studio déjà filtré.",
-    "resultDraft": "Premier aperçu — le quiz complet arrive. Cette piste vient de votre réponse.",
-    "ctaStyles": "Voir le style",
-    "ctaStudio": "Créer dans le studio",
+    "qDensity": "Quelle phrase te décrit le mieux ?",
+    "qColor": "Quelle palette te parle ?",
+    "qMaterial": "Quelles matières te font sentir chez toi ?",
+    "qShape": "Quelle forme de meuble tu choisis ?",
+    "qPattern": "Et les motifs ?",
+    "qLight": "Quelle lumière tu veux dans la pièce ?",
+    "qRoom": "Quelle pièce tu veux voir d’abord ?",
+    "opt": {
+      "density": {
+        "empty": "Très peu de choses. J’aime l’espace vide.",
+        "chosen": "Quelques objets, soigneusement choisis.",
+        "rich": "Un intérieur chaleureux et riche."
+      },
+      "color": {
+        "pale": "Bois clair, lin, calme",
+        "earth": "Terre, argile, chaleur",
+        "jewel": "Joyaux, laiton, soir",
+        "metal": "Gris, noir, métal"
+      },
+      "material": {
+        "raw": "Béton, acier, brique",
+        "natural": "Chêne, lin, rotin",
+        "refined": "Velours, marbre, laiton",
+        "mixed": "Mélanges, motifs, collections"
+      },
+      "shape": {
+        "boxy": "Lignes droites, basses",
+        "soft": "Douces, organiques",
+        "ornate": "Courbes, un peu de théâtre",
+        "collected": "Pièces ramassées, pas assorties"
+      },
+      "pattern": {
+        "none": "Aucun. Juste la matière.",
+        "texture": "Une texture calme",
+        "geometric": "Géométrie nette",
+        "botanical": "Végétal, global",
+        "everything": "Tout, en couches"
+      },
+      "light": {
+        "day": "Grand jour, pièce claire",
+        "amber": "Ambre, fin d’après-midi",
+        "gold": "Or, un peu dramatique",
+        "loft": "Loft, lumière froide"
+      },
+      "room": {
+        "living": "Salon",
+        "bedroom": "Chambre",
+        "office": "Bureau"
+      }
+    },
+    "resultEyebrow": "Ton style",
+    "resultTitle": "Voici une direction",
+    "resultSub": "Ce n’est pas une étiquette définitive — une piste pour ta photo, avec de vraies pièces du catalogue.",
+    "alsoClose": "Aussi proche :",
+    "ctaStyles": "Lire la fiche",
+    "ctaComposer": "Voir dans ta pièce",
     "restart": "Refaire le quiz",
     "styleBlurb": {
-      "industrial": "Textures brutes, lignes utiles, contraste fort.",
+      "art_deco": "Géométrie, laiton, un soir un peu chic.",
+      "bauhaus": "Fonction d’abord. Lignes claires, peu d’ornement.",
+      "bohemian": "Couches, voyage, pièces qui ont une histoire.",
+      "cottagecore": "Doux, floral, un peu campagne.",
+      "exotic": "Matières riches, ailleurs, chaleur.",
+      "glamour": "Velours, miroir, lumière qui habite la pièce.",
+      "industrial": "Textures brutes, lignes utiles, contraste.",
+      "japandi": "Calme, bois, peu d’objets — chacun compte.",
       "maximalism": "Couches, motifs et couleur — avec intention.",
-      "minimalism": "Peu d'éléments, beaucoup d'air et de clarté.",
-      "traditional_algerian": "Artisanat, hospitalité et détails décoratifs.",
-      "mediterranean_coastal": "Lumière, matières naturelles, détente."
+      "minimalism": "Peu d’éléments, beaucoup d’air.",
+      "rustic": "Bois massif, pierre, une pièce qui vit.",
+      "scandinavian": "Lumière, bois clair, simplicité chaude."
     }
   },
 

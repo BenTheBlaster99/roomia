@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Always exactly this many GPT Image calls — never zones × variations
-  const numVariations = Math.min(4, Math.max(1, body.num_variations ?? 3))
+  const numVariations = Math.min(4, Math.max(1, body.num_variations ?? 1))
 
   for (const z of body.zones) {
     if (typeof z.x !== 'number' || typeof z.y !== 'number' || !z.prompt) {

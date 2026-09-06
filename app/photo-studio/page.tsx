@@ -353,7 +353,7 @@ export default function PhotoStudioPage() {
         </button>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+      <main className="rm-page space-y-8 py-10">
         <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8 items-start">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-600 mb-3">

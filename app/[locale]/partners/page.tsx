@@ -22,7 +22,7 @@ export default async function PartnersPage({
 
       <section className="relative min-h-[70svh] overflow-hidden">
         <HaikeiBackdrop variant="hero" />
-        <div className="relative mx-auto flex min-h-[70svh] max-w-4xl flex-col justify-end px-5 pb-16 pt-24 md:justify-center md:px-6">
+        <div className="rm-page relative flex min-h-[70svh] flex-col justify-end pb-16 pt-24 md:justify-center">
           <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
             {t('eyebrow')}
           </p>
@@ -45,8 +45,8 @@ export default async function PartnersPage({
         </div>
       </section>
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-20 md:px-6">
-        <div className="mx-auto max-w-4xl">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-20">
+        <div className="rm-page">
           <h2 className="rm-display text-3xl font-bold tracking-tight">{t('how')}</h2>
           <ol className="mt-12 space-y-0 divide-y divide-[var(--rm-text)]/10">
             {[
@@ -67,8 +67,8 @@ export default async function PartnersPage({
         </div>
       </section>
 
-      <section className="px-5 py-20 md:px-6">
-        <div className="mx-auto max-w-4xl">
+      <section className="py-20">
+        <div className="rm-page">
           <h2 className="rm-display text-3xl font-bold tracking-tight">{t('why')}</h2>
           <div className="mt-12 grid gap-10 sm:grid-cols-3">
             {[
@@ -86,8 +86,8 @@ export default async function PartnersPage({
         </div>
       </section>
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-primary)] px-5 py-16 text-[var(--rm-surface)] md:px-6">
-        <div className="mx-auto max-w-4xl">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-primary)] py-16 text-[var(--rm-surface)]">
+        <div className="rm-page">
           <h2 className="rm-display text-2xl font-bold">{t('who')}</h2>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[var(--rm-surface)]/80">
             {[
@@ -107,9 +107,9 @@ export default async function PartnersPage({
         </div>
       </section>
 
-      <section className="relative overflow-hidden px-5 py-24 md:px-6">
+      <section className="relative overflow-hidden py-24">
         <HaikeiBackdrop variant="band" />
-        <div className="relative mx-auto max-w-xl text-center">
+        <div className="rm-page relative text-center">
           <h2 className="rm-display text-3xl font-bold tracking-tight md:text-4xl">
             {t('endTitle')}
           </h2>

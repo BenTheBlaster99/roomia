@@ -47,11 +47,11 @@ export default async function LandingPage({
           <HomeStyles />
         </StackLayer>
         <StackLayer z={7} pin={false}>
-          <section className="rm-home-cta relative overflow-hidden px-5 py-16 md:px-6 md:py-24">
+          <section className="rm-home-cta relative overflow-hidden py-16 md:py-24">
             <div className="pointer-events-none absolute inset-0 hidden lg:block">
               <HaikeiBackdrop variant="band" />
             </div>
-            <div className="relative mx-auto max-w-3xl text-center">
+            <div className="rm-page relative text-center">
               <h2 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">
                 {t('ctaTitle1')}
                 <br />

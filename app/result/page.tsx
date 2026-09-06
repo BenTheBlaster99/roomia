@@ -65,7 +65,7 @@ export default async function ResultPage({ searchParams }: Props) {
         </Link>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-10 space-y-10">
+      <div className="rm-page space-y-10 py-10">
 
         {/* ── Style header ── */}
         <div className="rounded-2xl overflow-hidden border border-zinc-200 bg-white shadow-sm">

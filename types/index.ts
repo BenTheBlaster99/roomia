@@ -23,6 +23,8 @@ export interface FurnitureItem {
   image_keyword: string
   model_url: string | null
   image_url: string | null
+  store_id?: string | null
+  featured?: boolean
   partner_link: string | null
   notes: string | null
   width_m?: number | null

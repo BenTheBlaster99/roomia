@@ -19,7 +19,7 @@ export default async function AboutPage({
 
       <section className="relative overflow-hidden">
         <HaikeiBackdrop variant="hero" />
-        <div className="relative mx-auto max-w-3xl px-5 pb-20 pt-20 md:px-6 md:pt-28">
+        <div className="rm-page relative pb-20 pt-20 md:pt-28">
           <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
             {t('eyebrow')}
           </p>
@@ -32,15 +32,17 @@ export default async function AboutPage({
         </div>
       </section>
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-16 md:px-6">
-        <div className="mx-auto max-w-3xl space-y-6 text-base leading-relaxed text-[var(--rm-muted)]">
-          <p>{t('p1')}</p>
-          <p>{t('p2')}</p>
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-16">
+        <div className="rm-page">
+          <div className="max-w-2xl space-y-6 text-base leading-relaxed text-[var(--rm-muted)]">
+            <p>{t('p1')}</p>
+            <p>{t('p2')}</p>
+          </div>
         </div>
       </section>
 
-      <section className="px-5 py-20 md:px-6">
-        <div className="mx-auto max-w-3xl">
+      <section className="py-20">
+        <div className="rm-page">
           <h2 className="rm-display text-2xl font-bold tracking-tight md:text-3xl">{t('team')}</h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-2">
             {[
@@ -59,9 +61,9 @@ export default async function AboutPage({
         </div>
       </section>
 
-      <section className="relative overflow-hidden border-t border-[var(--rm-text)]/8 px-5 py-20 md:px-6">
+      <section className="relative overflow-hidden border-t border-[var(--rm-text)]/8 py-20">
         <HaikeiBackdrop variant="band" />
-        <div className="relative mx-auto max-w-3xl">
+        <div className="rm-page relative">
           <h2 className="rm-display text-2xl font-bold tracking-tight md:text-3xl">{t('why')}</h2>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-[var(--rm-muted)]">
             {t('whyBody')}

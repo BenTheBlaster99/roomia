@@ -17,26 +17,24 @@ export default async function StylesPage({
     <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
       <SiteNav />
 
-      <main className="px-6 py-16 md:px-10 md:py-24">
-        <div className="mx-auto max-w-[92rem]">
-          <h1 className="rm-display mx-auto max-w-4xl text-center text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
-            {t('stylesExpandedTitle')}
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-[var(--rm-muted)] md:text-base">
-            {t.rich('stylesExpandedSub', {
-              quiz: chunks => <em className="not-italic font-semibold tracking-wide">{chunks}</em>,
-            })}
-          </p>
-          <div className="mt-8 flex justify-center">
-            <Link href="/quiz" className="rm-btn-primary px-12 py-3.5 text-base">
-              {t('stylesTakeQuiz')}
-            </Link>
-          </div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">
-            {STYLE_IDS.map(id => (
-              <StyleChip key={id} id={id} label={t(`styleName.${id}`)} />
-            ))}
-          </div>
+      <main className="rm-page py-16 md:py-24">
+        <h1 className="rm-display mx-auto max-w-4xl text-center text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
+          {t('stylesExpandedTitle')}
+        </h1>
+        <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-[var(--rm-muted)] md:text-base">
+          {t.rich('stylesExpandedSub', {
+            quiz: chunks => <em className="not-italic font-semibold tracking-wide">{chunks}</em>,
+          })}
+        </p>
+        <div className="mt-8 flex justify-center">
+          <Link href="/quiz" className="rm-btn-primary px-12 py-3.5 text-base">
+            {t('stylesTakeQuiz')}
+          </Link>
+        </div>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-5">
+          {STYLE_IDS.map(id => (
+            <StyleChip key={id} id={id} label={t(`styleName.${id}`)} />
+          ))}
         </div>
       </main>
 

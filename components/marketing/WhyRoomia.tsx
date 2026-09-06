@@ -55,7 +55,7 @@ export default function WhyRoomia() {
   return (
     <>
       <section className="rm-why-panel">
-        <div className="mx-auto hidden h-full max-w-[92rem] flex-col px-6 pb-8 pt-12 lg:flex lg:px-10">
+        <div className="rm-page hidden h-full flex-col pb-8 pt-12 lg:flex">
           <h2 className="rm-display text-center text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
             {t('whyTitle')}
           </h2>
@@ -114,7 +114,7 @@ export default function WhyRoomia() {
           </div>
         </div>
 
-        <div className="px-5 py-12 lg:hidden">
+        <div className="rm-page py-12 lg:hidden">
           <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[#f4efe4]">
             {t('whyTitle')}
           </h2>

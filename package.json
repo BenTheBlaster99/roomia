@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node node_modules/next/dist/bin/next dev",
+    "dev": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next dev",
     "back": "cd ../roomia-ai-backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000",
-    "build": "node node_modules/next/dist/bin/next build",
-    "start": "node node_modules/next/dist/bin/next start",
+    "build": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next build",
+    "start": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "generate-presets": "npx tsx scripts/generate-room-presets.ts",
     "generate-presets:dump": "npx tsx scripts/generate-room-presets.ts --dump --out=scripts/data/room-presets.json"

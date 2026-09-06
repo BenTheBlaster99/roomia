@@ -19,7 +19,7 @@ export default async function GenerateurPage({
 
       <section className="relative overflow-hidden">
         <HaikeiBackdrop variant="hero" />
-        <div className="relative mx-auto max-w-4xl px-5 py-20 md:px-6 md:py-28">
+        <div className="rm-page relative py-20 md:py-28">
           <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
             {t('eyebrow')}
           </p>
@@ -32,8 +32,8 @@ export default async function GenerateurPage({
         </div>
       </section>
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-16 md:px-6">
-        <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-16">
+        <div className="rm-page grid gap-6 md:grid-cols-2">
           <a
             href="/room-composer"
             className="group rm-panel block p-8 transition-transform hover:-translate-y-1"

@@ -128,7 +128,7 @@
     "stylesQuizHint": "Or take a <quiz>QUIZ</quiz> and we’ll help you find it",
     "stylesTakeQuiz": "Take the QUIZ",
     "quizTeaserTitle": "Not sure about the style?",
-    "quizTeaserBody": "One question to start",
+    "quizTeaserBody": "Seven questions, then your room",
     "stylesExpandedTitle": "Understanding your taste is the secret to a successful space",
     "stylesExpandedSub": "Browse the styles or take a <quiz>QUIZ</quiz> and discover your favorite",
     "styleName": {
@@ -172,7 +172,7 @@
     "photoDesc": "Select furniture in a photo, remove it or replace it with a catalog item.",
     "photoCta": "Open photo studio",
     "quizTitle": "No direction yet?",
-    "quizDesc": "Three questions to find a style — then open the studio or composer.",
+    "quizDesc": "Seven questions to find a style — then see it in your photo, with the catalog.",
     "quizCta": "Start the quiz"
   },
 
@@ -228,31 +228,42 @@
       "warm_dark_wood": "Warm dark wood",
       "artisan_ceramic": "Artisan ceramics",
       "bronze": "Bronze",
-      "untreated_copper": "Untreated copper"
+      "untreated_copper": "Untreated copper",
+      "dark_inlaid_wood": "Dark, aged, or inlaid wood",
+      "exotic_stone": "Exotic stone",
+      "copper": "Copper",
+      "gold_leaf": "Gold leaf",
+      "textured_glass": "Textured or colored glass",
+      "satin": "Satin",
+      "granite": "Granite",
+      "glossy_ceramic_tiles": "Glossy ceramic tiles",
+      "black_metal": "Black metal",
+      "solid_wood": "Solid wood",
+      "burlap": "Burlap",
+      "light_wood": "Light wood"
     },
     "minimalism": {
-      "body": "This style is built on simple lines, neutral colors, and rooms that stay clear.",
+      "body": "Minimalism is built on the idea that less can be better. The aim is a calm, useful room that keeps only what is needed or important. Every piece is chosen carefully so the interior stays simple and balanced.",
       "traits": [
-        { "title": "Simplicity", "body": "Clean, functional forms." },
-        { "title": "Space", "body": "Open rooms with room to breathe." },
-        { "title": "Light", "body": "Natural light and soft atmospheres." },
-        { "title": "Neutral colors", "body": "A calm mix of pale, quiet tones." },
-        { "title": "Less is more", "body": "Every object has a place and a job." },
-        { "title": "Timelessness", "body": "A look that holds across years." }
+        "Clean, simple lines",
+        "Little decoration",
+        "Open, uncluttered rooms",
+        "Functional furniture",
+        "Simple geometric forms",
+        "Discreet or built-in storage",
+        "Light and proportion matter"
       ],
       "motifs": []
     },
     "scandinavian": {
-      "body": "Light woods, warm textiles, and northern light — a simple hygge interior.",
+      "body": "Scandinavian style aims for a bright, warm, comfortable interior. Inspired by the Nordic countries, it favors simplicity, usefulness, and a welcoming mood, while letting in as much natural light as possible.",
       "traits": [
-        "Light woods",
-        "Hygge mood",
-        "Warm textiles",
-        "White walls",
-        "Simple forms",
-        "Houseplants",
-        "Everyday comfort",
-        "Northern light"
+        "Bright, airy rooms",
+        "Minimal furniture",
+        "Soft, clean forms",
+        "Order and function",
+        "Simple, welcoming décor",
+        "Natural light first"
       ],
       "motifs": []
     },
@@ -272,16 +283,14 @@
       "motifs": []
     },
     "maximalism": {
-      "body": "Color, pattern, and collections — a room that owns its personality.",
+      "body": "Maximalism is controlled chaos. It celebrates individuality, creativity, and self-expression. It aims for rooms rich in personality and stories, mixing vintage and modern pieces with confidence.",
       "traits": [
-        "Saturated color",
-        "Layered pattern",
-        "Collected objects",
-        "Art-filled walls",
-        "Mixed eras",
-        "Rich textiles",
-        "Strong personality",
-        "Intentional abundance"
+        "Layered patterns and materials",
+        "Eclectic décor",
+        "Mixed textures",
+        "Plenty of art and personal souvenirs",
+        "Excess, kept under control",
+        "Theatrical mood"
       ],
       "motifs": []
     },
@@ -479,16 +488,19 @@
       "motifs": []
     },
     "rustic": {
-      "body": "Raw wood, stone, and earth tones — grounded, imperfect, alive.",
+      "body": "Drawing on country houses and traditional homes, rustic style favors simple elements and natural materials to create a room that feels authentic and warm.",
       "traits": [
-        "Raw wood",
-        "Natural stone",
-        "Countryside mood",
-        "Handmade feel",
-        "Lived-in imperfect",
-        "Earth tones",
-        "Enveloping comfort",
-        "Grounded in place"
+        "Natural, aged elements",
+        "Exposed, textured materials",
+        "Raw or lightly worked finishes",
+        "Solid-wood furniture",
+        "Traditional, comfortable, practical pieces",
+        "Exposed wooden beams",
+        "Stone walls",
+        "Open shelving",
+        "Metal details",
+        "Nature- and craft-inspired décor",
+        "Mountain mood"
       ],
       "motifs": []
     },
@@ -526,41 +538,79 @@
   "quiz": {
     "eyebrow": "Style quiz",
     "title": "Quiz",
-    "sub": "The full quiz is still coming. For now, one first question.",
-    "navStudio": "Open studio",
+    "sub": "Seven questions. One style. Then your room.",
     "stepOf": "{current} / {total}",
-    "q1Title": "Q: Which sentence describes you best?",
-    "q1Empty": "I want very few things. I love empty spaces",
-    "q1Chosen": "A few carefully chosen objects",
-    "q1Rich": "I want a warm, rich interior",
-    "roomTitle": "Which room are you furnishing?",
-    "roomLiving": "Living room",
-    "roomBedroom": "Bedroom",
-    "budgetTitle": "What's your furniture budget (DA)?",
-    "budgetHint": "Estimate for the main pieces — not the whole home.",
-    "budgetTight": "Under 200,000 DA",
-    "budgetMid": "200,000 – 500,000 DA",
-    "budgetPremium": "Over 500,000 DA",
-    "vibeTitle": "Which vibe pulls you in?",
-    "vibeIndustrial": "Raw, metal, loft",
-    "vibeMaximalism": "Bold, colorful, layered",
-    "vibeMinimalism": "Calm, clean, spacious",
-    "vibeTraditional": "Warm, craft, Algerian heritage",
-    "vibeCoastal": "Bright, natural, coastal",
     "back": "Back",
-    "resultEyebrow": "Your match",
-    "resultTitle": "Here's your style",
-    "resultSub": "Open the style page, or jump into the studio already filtered.",
-    "resultDraft": "First look — the full quiz is still coming. This is based on your answer.",
-    "ctaStyles": "View style",
-    "ctaStudio": "Create in studio",
-    "restart": "Retake quiz",
+    "qDensity": "Which sentence sounds most like you?",
+    "qColor": "Which palette speaks to you?",
+    "qMaterial": "Which materials feel like home?",
+    "qShape": "Which furniture shape do you pick?",
+    "qPattern": "And pattern?",
+    "qLight": "What light do you want in the room?",
+    "qRoom": "Which room do you want to see first?",
+    "opt": {
+      "density": {
+        "empty": "Very few things. I like empty space.",
+        "chosen": "A few objects, chosen carefully.",
+        "rich": "A warm, layered interior."
+      },
+      "color": {
+        "pale": "Light wood, linen, calm",
+        "earth": "Clay, earth, warmth",
+        "jewel": "Jewels, brass, evening",
+        "metal": "Grey, black, metal"
+      },
+      "material": {
+        "raw": "Concrete, steel, brick",
+        "natural": "Oak, linen, rattan",
+        "refined": "Velvet, marble, brass",
+        "mixed": "Mixes, pattern, collections"
+      },
+      "shape": {
+        "boxy": "Straight, low lines",
+        "soft": "Soft, organic",
+        "ornate": "Curves, a little theatre",
+        "collected": "Gathered pieces, not a set"
+      },
+      "pattern": {
+        "none": "None. Just the material.",
+        "texture": "A quiet texture",
+        "geometric": "Clean geometry",
+        "botanical": "Botanical, global",
+        "everything": "Everything, in layers"
+      },
+      "light": {
+        "day": "Daylight, a bright room",
+        "amber": "Amber, late afternoon",
+        "gold": "Gold, a little drama",
+        "loft": "Loft, cooler light"
+      },
+      "room": {
+        "living": "Living room",
+        "bedroom": "Bedroom",
+        "office": "Office"
+      }
+    },
+    "resultEyebrow": "Your style",
+    "resultTitle": "Here's a direction",
+    "resultSub": "Not a final label — a starting point for your photo, with real catalog pieces.",
+    "alsoClose": "Also close:",
+    "ctaStyles": "Read the sheet",
+    "ctaComposer": "See it in your room",
+    "restart": "Retake the quiz",
     "styleBlurb": {
-      "industrial": "Raw textures, useful lines, strong contrast.",
+      "art_deco": "Geometry, brass, a slightly chic evening.",
+      "bauhaus": "Function first. Clear lines, little ornament.",
+      "bohemian": "Layers, travel, pieces with a story.",
+      "cottagecore": "Soft, floral, a little countryside.",
+      "exotic": "Rich materials, elsewhere, warmth.",
+      "glamour": "Velvet, mirror, light that lives in the room.",
+      "industrial": "Raw textures, useful lines, contrast.",
+      "japandi": "Calm, wood, few objects — each one counts.",
       "maximalism": "Layers, pattern, and color — on purpose.",
-      "minimalism": "Few pieces, lots of air and clarity.",
-      "traditional_algerian": "Craft, hospitality, decorative detail.",
-      "mediterranean_coastal": "Light, natural materials, ease."
+      "minimalism": "Few pieces, a lot of air.",
+      "rustic": "Solid wood, stone, a room that lives.",
+      "scandinavian": "Light, pale wood, warm simplicity."
     }
   },
 

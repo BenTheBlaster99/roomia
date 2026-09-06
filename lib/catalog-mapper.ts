@@ -1,8 +1,10 @@
 import { CATEGORY_COLORS, CATEGORY_DIMS } from '@/lib/studio-constants'
 import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
 import { inferCatalogMaterial } from '@/lib/catalog-material'
+import { styleIdsFromLegacySlug } from '@/lib/style-tags'
 import type { CatalogItem } from '@/lib/mock-catalog'
 import type { FurnitureItem } from '@/types'
+import type { StyleId } from '@/lib/style-details'
 
 /** Placement dims (metres). Undersized values make pieces vanish in photoreal renders. */
 const GENERATED_DIMS: Record<string, { width: number; depth: number; height: number }> = {
@@ -51,9 +53,17 @@ const GENERATED_MODEL_URLS: Record<string, string> = {
   'Generated Chair': '/models/generated-chair.glb',
 }
 
-export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
-  const style = SLUG_TO_STYLE[item.style_id] ?? 'Industrial'
-  const rooms = item.room.split(',').map(r => r.trim()).filter(Boolean)
+export function furnitureItemToCatalogItem(
+  item: FurnitureItem,
+  store?: { name: string; slug: string } | null,
+  taggedStyles?: StyleId[] | null,
+): CatalogItem {
+  const style = SLUG_TO_STYLE[item.style_id ?? ''] ?? 'Industrial'
+  const styleIds = taggedStyles?.length ? taggedStyles : styleIdsFromLegacySlug(item.style_id)
+  const rooms = (item.room ?? '')
+    .split(',')
+    .map(r => r.trim())
+    .filter(Boolean)
   const rawUrl = item.model_url ?? GENERATED_MODEL_URLS[item.name] ?? null
   const modelUrl =
     item.category === 'Light' && rawUrl?.endsWith('/light.glb') ? null : rawUrl
@@ -78,12 +88,16 @@ export function furnitureItemToCatalogItem(item: FurnitureItem): CatalogItem {
     color: CATEGORY_COLORS[item.category] ?? '#888888',
     modelUrl,
     imageUrl: item.image_url ?? null,
-    imageKeyword: item.image_keyword,
+    imageKeyword: item.image_keyword ?? '',
     available: true,
     notes: item.notes ?? undefined,
     material,
     dimensions: sanitizeDimensions(item.category, rawDims),
     fromDatabase: true,
+    storeId: item.store_id ?? null,
+    storeName: store?.name ?? null,
+    storeSlug: store?.slug ?? null,
+    styleIds,
   }
 }
 

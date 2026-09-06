@@ -10,7 +10,7 @@ export default function SiteFooter() {
   return (
     <footer className="relative overflow-hidden border-t border-[var(--rm-text)]/10 bg-[var(--rm-ink)] text-[var(--rm-bg)]">
       <HaikeiBackdrop variant="footer" />
-      <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-5 py-12 md:flex-row md:items-end md:justify-between md:px-6">
+      <div className="rm-page relative flex flex-col gap-8 py-12 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">
             roomia

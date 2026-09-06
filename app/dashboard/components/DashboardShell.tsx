@@ -51,6 +51,12 @@ export default function DashboardShell() {
           >
             Compositeur public →
           </a>
+          <a
+            href="/admin"
+            className="block rounded-lg px-3 py-2 text-sm text-white/65 transition hover:bg-white/10 hover:text-white"
+          >
+            Staff magasins
+          </a>
         </nav>
         <div className="border-t border-white/10 px-4 py-4">
           <p className="truncate text-xs text-white/70">{user?.email}</p>
@@ -104,7 +110,7 @@ export default function DashboardShell() {
         </div>
 
         <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
-          <div className="mx-auto max-w-6xl">
+          <div className="w-full">
             {mode === 'home' && (
               <OverviewView
                 onOpenWorkspace={() => setMode('workspace')}

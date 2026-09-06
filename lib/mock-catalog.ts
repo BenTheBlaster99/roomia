@@ -1,4 +1,5 @@
 import { inferCatalogMaterial, type CatalogMaterial } from '@/lib/catalog-material'
+import { styleIdsFromDisplayStyle } from '@/lib/style-tags'
 
 export type { CatalogMaterial }
 
@@ -21,6 +22,11 @@ export interface CatalogItem {
   dimensions?: { width: number; depth: number; height: number }
   /** Loaded from Supabase furniture_items (not mock catalog). */
   fromDatabase?: boolean
+  storeId?: string | null
+  storeName?: string | null
+  storeSlug?: string | null
+  /** Sarah style slugs this SKU belongs to. A piece can have more than one. */
+  styleIds?: string[]
 }
 
 export const MOCK_CATALOG: CatalogItem[] = [
@@ -115,6 +121,9 @@ export const MOCK_CATALOG: CatalogItem[] = [
 for (const item of MOCK_CATALOG) {
   if (!item.material) {
     item.material = inferCatalogMaterial(item.notes, item.category, item.imageKeyword)
+  }
+  if (!item.styleIds?.length) {
+    item.styleIds = styleIdsFromDisplayStyle(item.style)
   }
 }
 

@@ -128,7 +128,7 @@ export default function RoomCapturePage() {
         </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-4 py-10 space-y-8">
+      <div className="rm-page space-y-8 py-10">
         <div>
           <h1 className="text-2xl font-bold mb-2">Scan your room</h1>
           <p className="text-sm text-zinc-400 leading-relaxed">

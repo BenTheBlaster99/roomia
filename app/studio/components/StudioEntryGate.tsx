@@ -80,7 +80,7 @@ export default function StudioEntryGate({
 
   return (
     <div className="absolute inset-0 z-[100] overflow-y-auto bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <div className="mx-auto max-w-5xl px-5 py-10 md:px-8">
+      <div className="rm-page py-10">
         <Link
           href="/"
           className="font-[family-name:var(--font-display)] text-xl font-bold text-[var(--rm-primary)]"

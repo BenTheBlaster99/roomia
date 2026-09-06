@@ -49,7 +49,7 @@ export function PhotoHero() {
       <div className="rm-hero-scrim-bottom absolute inset-0 bg-gradient-to-t from-[var(--rm-ink)]/50 via-transparent to-[var(--rm-ink)]/20" />
       <div className="rm-grain pointer-events-none absolute inset-0 opacity-[0.18]" />
 
-      <div className="relative z-10 mx-auto flex h-full max-w-6xl items-end px-5 pb-10 pt-16 md:items-center md:px-6 md:pb-16">
+      <div className="rm-page relative z-10 flex h-full items-end pb-10 pt-16 md:items-center md:pb-16">
         <div className="max-w-[36rem] text-[var(--rm-surface)] lg:max-w-[40rem]">
           <h1 className="rm-rise rm-display text-[clamp(1.7rem,4vw,3rem)] font-semibold leading-[1.16] tracking-tight text-pretty">
             {t('heroHeadlineBefore')}
@@ -179,7 +179,7 @@ export function StackedPaths() {
   return (
     <StackLayer z={2}>
       <section className="flex h-full flex-col justify-center bg-[var(--rm-bg)] lg:pt-12">
-        <div className="mx-auto w-full max-w-[92rem] px-5 pb-6 pt-7 text-left md:px-10 lg:pb-8 lg:pt-0 lg:text-center">
+        <div className="rm-page pb-6 pt-7 text-left lg:pb-8 lg:pt-0 lg:text-center">
           <h2 className="rm-display text-[1.85rem] font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-6xl">
             {t('pathsTitle')}
           </h2>
@@ -188,7 +188,7 @@ export function StackedPaths() {
           </p>
         </div>
 
-        <div className="mx-auto grid w-full max-w-[92rem] flex-1 gap-4 px-5 pb-10 md:grid-cols-2 md:gap-7 md:px-10">
+        <div className="rm-page grid flex-1 gap-4 pb-10 md:grid-cols-2 md:gap-7">
           <PathCard
             href="/generateur"
             kicker={t('pathAiKicker')}

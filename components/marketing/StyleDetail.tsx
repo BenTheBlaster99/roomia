@@ -1,6 +1,13 @@
 import Image from 'next/image'
 import { Link } from '@/i18n/navigation'
-import type { StyleMaterial, StylePhoto, StyleTrait, StyleVisual } from '@/lib/style-details'
+import {
+  styleGallery,
+  styleHero,
+  type StyleMaterial,
+  type StylePhoto,
+  type StyleTrait,
+  type StyleVisual,
+} from '@/lib/style-details'
 
 type Labels = {
   back: string
@@ -97,7 +104,8 @@ export default function StyleDetail({
   motifs: string[]
   labels: Labels
 }) {
-  const hero = visual.photos[0]
+  const hero = styleHero(visual)
+  const gallery = styleGallery(visual)
 
   return (
     <section className="rm-style-detail">
@@ -188,11 +196,11 @@ export default function StyleDetail({
           </div>
         ) : null}
 
-        {visual.photos.length > 0 ? (
+        {gallery.length > 0 ? (
           <div>
             <h2 className="rm-style-sheet-heading">{labels.inspirations}</h2>
             <div className="rm-style-detail-photos">
-              {visual.photos.map((photo, index) => (
+              {gallery.map((photo, index) => (
                 <PhotoFigure key={`${photo.src}-${index}`} photo={photo} name={name} />
               ))}
             </div>

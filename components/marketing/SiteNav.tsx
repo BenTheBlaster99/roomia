@@ -58,7 +58,7 @@ export default function SiteNav({
 
   return (
     <header className={headerClass}>
-      <nav className="mx-auto flex min-h-[var(--rm-nav-h)] max-w-6xl items-center justify-between px-5 lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-4 md:px-6">
+      <nav className="rm-page flex min-h-[var(--rm-nav-h)] items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-4">
         <button
           type="button"
           className={`inline-flex h-10 w-10 items-center justify-center rounded-lg lg:hidden ${inkClass}`}
@@ -127,7 +127,7 @@ export default function SiteNav({
 
       {menuOpen && (
         <div className={`border-t px-5 py-5 lg:hidden ${dark ? 'border-white/10 bg-[#1a2f26]' : 'border-[var(--rm-text)]/8 bg-[var(--rm-bg)]'}`}>
-          <div className={`mx-auto flex max-w-6xl flex-col gap-1 text-sm font-medium ${dark ? 'text-[#f4efe4]' : 'text-[var(--rm-text)]'}`}>
+          <div className={`rm-page flex flex-col gap-1 text-sm font-medium ${dark ? 'text-[#f4efe4]' : 'text-[var(--rm-text)]'}`}>
             {NAV_LINKS.map(link => {
               const current = !link.external && isCurrent(link.href)
               return link.external ? (

@@ -47,7 +47,7 @@ export default async function RoomsPage({
 
       <section className="relative overflow-hidden border-b border-[var(--rm-text)]/8">
         <HaikeiBackdrop variant="band" />
-        <div className="relative mx-auto max-w-6xl px-5 py-14 md:px-6">
+        <div className="rm-page relative py-14">
           <h1 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">{t('title')}</h1>
           <p className="mt-3 max-w-xl text-[var(--rm-muted)]">{t('sub')}</p>
           <div className="mt-6">
@@ -58,13 +58,13 @@ export default async function RoomsPage({
         </div>
       </section>
 
-      <main className="mx-auto max-w-6xl px-5 py-12 md:px-6">
+      <main className="rm-page py-12">
         {rows.length === 0 ? (
           <div className="rm-panel border-dashed p-12 text-center">
             <p className="text-[var(--rm-muted)]">{t('empty')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {rows.map(preset => {
               const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? {
                 main: '#E8E4E0',

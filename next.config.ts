@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'miro.medium.com' },
       { protocol: 'https', hostname: 'naryafoto.com' },
       { protocol: 'https', hostname: 'interiordesign.net' },
+      { protocol: 'https', hostname: 'images.too-much-time.com' },
+      { protocol: 'https', hostname: 'preview.redd.it' },
+      { protocol: 'https', hostname: 'static.wixstatic.com' },
+      { protocol: 'https', hostname: 'cdn.home-designing.com' },
+      { protocol: 'https', hostname: 'skyryedesign.com' },
+      { protocol: 'https', hostname: 'nordichomeworx.com' },
     ],
   },
 }

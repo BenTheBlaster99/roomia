@@ -99,7 +99,7 @@ export default function MarketplacePage() {
         }
       />
 
-      <div className="max-w-6xl mx-auto px-6 py-8 flex gap-8">
+      <div className="rm-page flex gap-8 py-8">
         <aside className="w-56 flex-shrink-0 space-y-6 hidden md:block">
           <div>
             <h1 className="rm-display text-xl font-bold mb-1">{t('title')}</h1>
@@ -191,7 +191,7 @@ export default function MarketplacePage() {
               No furniture matches your filters
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 md:pb-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20 md:pb-0">
               {filtered.map(item => (
                 <ProductCard
                   key={item.id}

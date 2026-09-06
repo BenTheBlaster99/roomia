@@ -19,7 +19,7 @@ export default async function ContactPage({
 
       <section className="relative overflow-hidden">
         <HaikeiBackdrop variant="hero" />
-        <div className="relative mx-auto max-w-3xl px-5 pb-16 pt-20 md:px-6 md:pt-28">
+        <div className="rm-page relative pb-16 pt-20 md:pt-28">
           <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
             {t('eyebrow')}
           </p>
@@ -32,8 +32,8 @@ export default async function ContactPage({
         </div>
       </section>
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] px-5 py-16 md:px-6">
-        <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
+      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-16">
+        <div className="rm-page grid gap-6 md:grid-cols-2">
           <div id="launch" className="rm-panel scroll-mt-28 p-8">
             <h2 className="rm-display text-2xl font-bold tracking-tight">{t('launchTitle')}</h2>
             <p className="mt-3 text-sm leading-relaxed text-[var(--rm-muted)]">{t('launchBody')}</p>

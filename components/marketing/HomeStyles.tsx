@@ -8,8 +8,8 @@ export default function HomeStyles() {
   const t = useTranslations('home')
 
   return (
-    <section className="flex h-full min-h-0 flex-col justify-center px-5 pb-12 md:px-10 lg:pb-8">
-      <div className="mx-auto w-full max-w-[92rem]">
+    <section className="flex h-full min-h-0 flex-col justify-center pb-12 lg:pb-8">
+      <div className="rm-page">
         <h2 className="rm-display text-left text-[1.85rem] font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl lg:text-center lg:text-6xl">
           {t('stylesDiscover')}
         </h2>

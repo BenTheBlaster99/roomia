@@ -1,13 +1,15 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Mode = 'signin' | 'signup'
 
 export default function DashboardLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = searchParams.get('next') === '/admin' ? '/admin' : '/dashboard'
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,9 +19,9 @@ export default function DashboardLoginPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace('/dashboard')
+      if (data.session) router.replace(nextPath)
     })
-  }, [router])
+  }, [router, nextPath])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -30,12 +32,12 @@ export default function DashboardLoginPage() {
       if (mode === 'signin') {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password })
         if (err) throw err
-        router.replace('/dashboard')
+        router.replace(nextPath)
       } else {
         const { data, error: err } = await supabase.auth.signUp({ email, password })
         if (err) throw err
         if (data.session) {
-          router.replace('/dashboard')
+          router.replace(nextPath)
         } else {
           setInfo('Compte créé. Vérifiez votre e-mail si la confirmation est activée, puis connectez-vous.')
           setMode('signin')
@@ -67,13 +69,15 @@ export default function DashboardLoginPage() {
             roomia
           </a>
           <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--rm-accent)]">
-            Pro
+            {nextPath === '/admin' ? 'Staff' : 'Pro'}
           </p>
           <h1 className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--rm-ink)]">
             {mode === 'signin' ? 'Connexion' : 'Créer un compte'}
           </h1>
           <p className="mt-1 text-sm text-[var(--rm-muted)]">
-            Restyles photoréalistes, empilés dans votre Drive. Plus de fichiers perdus.
+            {nextPath === '/admin'
+              ? 'Back-office Jack / Sarah — magasins et pièces 2D.'
+              : 'Restyles photoréalistes, empilés dans votre Drive. Plus de fichiers perdus.'}
           </p>
         </div>
 
