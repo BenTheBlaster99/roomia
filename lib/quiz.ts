@@ -235,7 +235,19 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
       },
       {
         id: 'soft',
-        swatches: ['#F7E7F0', '#FADCD9', '#FDE8C8', '#FFF3B0', '#D8F3DC', '#CDE7F5', '#E4D5F5', '#F1EDE3'],
+        swatches: [
+          '#F1EDE3',
+          '#D6C7AE',
+          '#A68A64',
+          '#5F6B55',
+          '#F7E7F0',
+          '#FADCD9',
+          '#FDE8C8',
+          '#FFF3B0',
+          '#D8F3DC',
+          '#CDE7F5',
+          '#E4D5F5',
+        ],
       },
       {
         id: 'earth',
@@ -243,7 +255,7 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
       },
       {
         id: 'bold',
-        swatches: ['#1A0A0A', '#6B0F1A', '#C2410C', '#E85D04', '#D97706', '#C9A227', '#4C1D95', '#1C3A3A'],
+        swatches: ['#0D0D0D', '#6B1E3F', '#C2410C', '#C9A227', '#4C1D95', '#1455A0', '#0D6348', '#1C3A3A'],
       },
     ],
   },

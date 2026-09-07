@@ -213,7 +213,14 @@ export default function QuizFlow() {
                     >
                       {option.image ? <img src={option.image} alt="" /> : null}
                       {option.swatches ? (
-                        <span className={option.image ? 'rm-quiz-swatches' : 'rm-quiz-palette-mosaic'}>
+                        <span
+                          className={option.image ? 'rm-quiz-swatches' : 'rm-quiz-palette-mosaic'}
+                          style={
+                            option.image
+                              ? undefined
+                              : { gridTemplateColumns: `repeat(${option.swatches.length}, minmax(0, 1fr))` }
+                          }
+                        >
                           {option.swatches.map(hex => (
                             <i key={hex} style={{ background: hex }} />
                           ))}
