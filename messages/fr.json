@@ -128,7 +128,7 @@
     "stylesQuizHint": "Ou prenez un <quiz>QUIZ</quiz> et nous vous aiderons à le découvrir",
     "stylesTakeQuiz": "Prendre le QUIZ",
     "quizTeaserTitle": "Vous hésitez encore ?",
-    "quizTeaserBody": "Sept questions, puis ta pièce",
+    "quizTeaserBody": "Huit critères, puis ta pièce",
     "stylesExpandedTitle": "Comprendre votre goût est le secret d’un espace réussi",
     "stylesExpandedSub": "Parcourez les styles ou répondez à un <quiz>QUIZ</quiz> et découvrez votre style préféré",
     "styleName": {
@@ -138,6 +138,7 @@
       "cottagecore": "Cottagecore",
       "exotic": "Exotique",
       "glamour": "Glamour",
+      "high_tech": "High-tech",
       "industrial": "Industriel",
       "japandi": "Japandi",
       "maximalism": "Maximalisme",
@@ -164,7 +165,7 @@
     "photoDesc": "Sélectionnez un meuble sur une photo, retirez-le ou remplacez-le par un article du catalogue.",
     "photoCta": "Ouvrir le studio photo",
     "quizTitle": "Pas encore de direction ?",
-    "quizDesc": "Sept questions pour trouver un style — puis vois-le dans ta photo, avec le catalogue.",
+    "quizDesc": "Huit critères pondérés pour trouver un style — puis vois-le dans ta photo, avec le catalogue.",
     "quizCta": "Lancer le quiz"
   },
 
@@ -458,52 +459,64 @@
   "quiz": {
     "eyebrow": "Quiz style",
     "title": "Quiz",
-    "sub": "Sept questions. Un style. Puis ta pièce.",
+    "sub": "Huit critères. Un style. Puis ta pièce.",
     "stepOf": "{current} / {total}",
     "back": "Retour",
-    "qDensity": "Quelle phrase te décrit le mieux ?",
-    "qColor": "Quelle palette te parle ?",
-    "qMaterial": "Quelles matières te font sentir chez toi ?",
-    "qShape": "Quelle forme de meuble tu choisis ?",
-    "qPattern": "Et les motifs ?",
-    "qLight": "Quelle lumière tu veux dans la pièce ?",
+    "continue": "Continuer",
+    "qComplexity": "Quel niveau de complexité visuelle préférez-vous ?",
+    "qPalette": "Quelle palette de couleurs vous attire ?",
+    "qMood": "Quelles ambiances aimeriez-vous retrouver chez vous ?",
+    "hintMood": "Choisissez jusqu’à deux réponses.",
+    "qFurniture": "Quel mobilier vous parle ?",
+    "qOrnament": "Quelle ornementation préférez-vous ?",
+    "qSymmetry": "Comment l’espace doit-il être composé ?",
+    "qNature": "Quel rapport à la nature voulez-vous dans la pièce ?",
+    "qTech": "Quelle place pour la technologie ?",
     "qRoom": "Quelle pièce tu veux voir d’abord ?",
     "opt": {
-      "density": {
-        "empty": "Très peu de choses. J’aime l’espace vide.",
-        "chosen": "Quelques objets, soigneusement choisis.",
-        "rich": "Un intérieur chaleureux et riche."
+      "complexity": {
+        "minimal": "Minimale",
+        "balanced": "Équilibrée",
+        "abundant": "Abondante"
       },
-      "color": {
-        "pale": "Bois clair, lin, calme",
-        "earth": "Terre, argile, chaleur",
-        "jewel": "Joyaux, laiton, soir",
-        "metal": "Gris, noir, métal"
+      "palette": {
+        "neutral": "Neutre",
+        "soft": "Douce",
+        "earth": "Terreuse",
+        "bold": "Audacieuse"
       },
-      "material": {
-        "raw": "Béton, acier, brique",
-        "natural": "Chêne, lin, rotin",
-        "refined": "Velours, marbre, laiton",
-        "mixed": "Mélanges, motifs, collections"
+      "mood": {
+        "calm": "Calme",
+        "warm": "Chaleureuse",
+        "elegant": "Élégante",
+        "functional": "Fonctionnelle",
+        "dynamic": "Dynamique",
+        "dramatic": "Dramatique"
       },
-      "shape": {
-        "boxy": "Lignes droites, basses",
-        "soft": "Douces, organiques",
-        "ornate": "Courbes, un peu de théâtre",
-        "collected": "Pièces ramassées, pas assorties"
+      "furniture": {
+        "vintage": "Vintage",
+        "modern": "Moderne",
+        "eclectic": "Éclectique"
       },
-      "pattern": {
-        "none": "Aucun. Juste la matière.",
-        "texture": "Une texture calme",
-        "geometric": "Géométrie nette",
-        "botanical": "Végétal, global",
-        "everything": "Tout, en couches"
+      "ornament": {
+        "none": "Aucune",
+        "subtle": "Subtile",
+        "complex": "Complexe"
       },
-      "light": {
-        "day": "Grand jour, pièce claire",
-        "amber": "Ambre, fin d’après-midi",
-        "gold": "Or, un peu dramatique",
-        "loft": "Loft, lumière froide"
+      "symmetry": {
+        "asymmetric": "Asymétrique",
+        "balanced": "Équilibrée",
+        "symmetric": "Symétrique"
+      },
+      "nature": {
+        "low": "Faible",
+        "mid": "Modéré",
+        "high": "Important"
+      },
+      "tech": {
+        "quiet": "Discrète",
+        "integrated": "Intégrée",
+        "featured": "Mise en avant"
       },
       "room": {
         "living": "Salon",
@@ -525,6 +538,7 @@
       "cottagecore": "Doux, floral, un peu campagne.",
       "exotic": "Matières riches, ailleurs, chaleur.",
       "glamour": "Velours, miroir, lumière qui habite la pièce.",
+      "high_tech": "Technologie visible, lignes nettes, peu d’ornement.",
       "industrial": "Textures brutes, lignes utiles, contraste.",
       "japandi": "Calme, bois, peu d’objets — chacun compte.",
       "maximalism": "Couches, motifs et couleur — avec intention.",

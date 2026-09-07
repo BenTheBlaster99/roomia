@@ -128,7 +128,7 @@
     "stylesQuizHint": "Or take a <quiz>QUIZ</quiz> and we’ll help you find it",
     "stylesTakeQuiz": "Take the QUIZ",
     "quizTeaserTitle": "Not sure about the style?",
-    "quizTeaserBody": "Seven questions, then your room",
+    "quizTeaserBody": "Eight criteria, then your room",
     "stylesExpandedTitle": "Understanding your taste is the secret to a successful space",
     "stylesExpandedSub": "Browse the styles or take a <quiz>QUIZ</quiz> and discover your favorite",
     "styleName": {
@@ -138,6 +138,7 @@
       "cottagecore": "Cottagecore",
       "exotic": "Exotic",
       "glamour": "Glamour",
+      "high_tech": "High-tech",
       "industrial": "Industrial",
       "japandi": "Japandi",
       "maximalism": "Maximalism",
@@ -164,7 +165,7 @@
     "photoDesc": "Select furniture in a photo, remove it or replace it with a catalog item.",
     "photoCta": "Open photo studio",
     "quizTitle": "No direction yet?",
-    "quizDesc": "Seven questions to find a style — then see it in your photo, with the catalog.",
+    "quizDesc": "Eight weighted criteria to find a style — then see it in your photo, with the catalog.",
     "quizCta": "Start the quiz"
   },
 
@@ -458,52 +459,64 @@
   "quiz": {
     "eyebrow": "Style quiz",
     "title": "Quiz",
-    "sub": "Seven questions. One style. Then your room.",
+    "sub": "Eight criteria. One style. Then your room.",
     "stepOf": "{current} / {total}",
     "back": "Back",
-    "qDensity": "Which sentence sounds most like you?",
-    "qColor": "Which palette speaks to you?",
-    "qMaterial": "Which materials feel like home?",
-    "qShape": "Which furniture shape do you pick?",
-    "qPattern": "And pattern?",
-    "qLight": "What light do you want in the room?",
+    "continue": "Continue",
+    "qComplexity": "What level of visual complexity do you prefer?",
+    "qPalette": "Which color palette draws you in?",
+    "qMood": "Which atmospheres would you like at home?",
+    "hintMood": "Choose up to two answers.",
+    "qFurniture": "Which furniture feels right?",
+    "qOrnament": "How much ornamentation do you want?",
+    "qSymmetry": "How should the room be composed?",
+    "qNature": "How present should nature be in the room?",
+    "qTech": "What place for technology?",
     "qRoom": "Which room do you want to see first?",
     "opt": {
-      "density": {
-        "empty": "Very few things. I like empty space.",
-        "chosen": "A few objects, chosen carefully.",
-        "rich": "A warm, layered interior."
+      "complexity": {
+        "minimal": "Minimal",
+        "balanced": "Balanced",
+        "abundant": "Abundant"
       },
-      "color": {
-        "pale": "Light wood, linen, calm",
-        "earth": "Clay, earth, warmth",
-        "jewel": "Jewels, brass, evening",
-        "metal": "Grey, black, metal"
+      "palette": {
+        "neutral": "Neutral",
+        "soft": "Soft",
+        "earth": "Earthy",
+        "bold": "Bold"
       },
-      "material": {
-        "raw": "Concrete, steel, brick",
-        "natural": "Oak, linen, rattan",
-        "refined": "Velvet, marble, brass",
-        "mixed": "Mixes, pattern, collections"
+      "mood": {
+        "calm": "Calm",
+        "warm": "Warm",
+        "elegant": "Elegant",
+        "functional": "Functional",
+        "dynamic": "Dynamic",
+        "dramatic": "Dramatic"
       },
-      "shape": {
-        "boxy": "Straight, low lines",
-        "soft": "Soft, organic",
-        "ornate": "Curves, a little theatre",
-        "collected": "Gathered pieces, not a set"
+      "furniture": {
+        "vintage": "Vintage",
+        "modern": "Modern",
+        "eclectic": "Eclectic"
       },
-      "pattern": {
-        "none": "None. Just the material.",
-        "texture": "A quiet texture",
-        "geometric": "Clean geometry",
-        "botanical": "Botanical, global",
-        "everything": "Everything, in layers"
+      "ornament": {
+        "none": "None",
+        "subtle": "Subtle",
+        "complex": "Complex"
       },
-      "light": {
-        "day": "Daylight, a bright room",
-        "amber": "Amber, late afternoon",
-        "gold": "Gold, a little drama",
-        "loft": "Loft, cooler light"
+      "symmetry": {
+        "asymmetric": "Asymmetric",
+        "balanced": "Balanced",
+        "symmetric": "Symmetric"
+      },
+      "nature": {
+        "low": "Low",
+        "mid": "Moderate",
+        "high": "Strong"
+      },
+      "tech": {
+        "quiet": "Discreet",
+        "integrated": "Integrated",
+        "featured": "Front and center"
       },
       "room": {
         "living": "Living room",
@@ -525,6 +538,7 @@
       "cottagecore": "Soft, floral, a little countryside.",
       "exotic": "Rich materials, elsewhere, warmth.",
       "glamour": "Velvet, mirror, light that lives in the room.",
+      "high_tech": "Visible tech, crisp lines, little ornament.",
       "industrial": "Raw textures, useful lines, contrast.",
       "japandi": "Calm, wood, few objects — each one counts.",
       "maximalism": "Layers, pattern, and color — on purpose.",
