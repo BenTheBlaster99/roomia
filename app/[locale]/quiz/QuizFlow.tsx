@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link, useRouter } from '@/i18n/navigation'
 import { isStyleId } from '@/lib/style-details'
@@ -14,6 +14,8 @@ import {
   type QuizQuestion,
 } from '@/lib/quiz'
 
+const QUIZ_SAVE_KEY = 'roomia-quiz'
+
 function pickedIds(value: string | string[] | undefined): string[] {
   if (!value) return []
   return Array.isArray(value) ? value : [value]
@@ -25,7 +27,28 @@ export default function QuizFlow() {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<QuizAnswers>({})
+  const [ready, setReady] = useState(false)
   const advancing = useRef(false)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(QUIZ_SAVE_KEY)
+      if (raw) {
+        const saved = JSON.parse(raw) as { answers?: QuizAnswers; step?: number }
+        if (saved.answers) setAnswers(saved.answers)
+        if (typeof saved.step === 'number') setStep(saved.step)
+      }
+    } catch {
+      /* ignore a broken save */
+    } finally {
+      setReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!ready) return
+    sessionStorage.setItem(QUIZ_SAVE_KEY, JSON.stringify({ answers, step }))
+  }, [answers, step, ready])
 
   const question = QUIZ_QUESTIONS[step]
   const done = step >= QUIZ_QUESTIONS.length
@@ -73,12 +96,21 @@ export default function QuizFlow() {
   }
 
   function restart() {
+    sessionStorage.removeItem(QUIZ_SAVE_KEY)
     setAnswers({})
     setStep(0)
   }
 
   function optionLabel(current: QuizQuestion, option: QuizOption) {
     return t(`opt.${current.id}.${option.id}`)
+  }
+
+  if (!ready) {
+    return (
+      <section className="rm-quiz">
+        <div className="rm-grain pointer-events-none absolute inset-0 opacity-30" />
+      </section>
+    )
   }
 
   return (
@@ -126,7 +158,7 @@ export default function QuizFlow() {
               <p className="mt-4 text-center text-sm text-[#f4efe4]/70">
                 {t('alsoClose')}{' '}
                 {isStyleId(result.runnerUp) ? (
-                  <Link href={`/styles/${result.runnerUp}`} className="font-semibold text-[#f4efe4] underline">
+                  <Link href={`/styles/${result.runnerUp}?from=quiz`} className="font-semibold text-[#f4efe4] underline">
                     {tHome(`styleName.${result.runnerUp}`)}
                   </Link>
                 ) : (
@@ -140,7 +172,7 @@ export default function QuizFlow() {
                 <span className="rm-quiz-card-label text-center">{t('ctaComposer')}</span>
               </a>
               {isStyleId(result.primary) ? (
-                <Link href={`/styles/${result.primary}`} className="rm-quiz-card justify-center">
+                <Link href={`/styles/${result.primary}?from=quiz`} className="rm-quiz-card justify-center">
                   <span className="rm-quiz-card-label text-center">{t('ctaStyles')}</span>
                 </Link>
               ) : null}
@@ -156,7 +188,9 @@ export default function QuizFlow() {
               {question.hintKey ? <p className="rm-quiz-hint">{t(question.hintKey)}</p> : null}
               <div
                 className={
-                  question.layout === 'visual'
+                  question.layout === 'swatches'
+                    ? 'rm-quiz-visual rm-quiz-visual-palette'
+                    : question.layout === 'visual'
                     ? question.options.length === 3
                       ? 'rm-quiz-visual rm-quiz-visual-3'
                       : 'rm-quiz-visual'
@@ -165,23 +199,33 @@ export default function QuizFlow() {
               >
                 {question.options.map(option => {
                   const on = selected.includes(option.id)
-                  return question.layout === 'visual' ? (
+                  const isCard = question.layout === 'visual' || question.layout === 'swatches'
+                  return isCard ? (
                     <button
                       key={option.id}
                       type="button"
-                      className={on ? 'rm-quiz-visual-card is-on' : 'rm-quiz-visual-card'}
+                      className={
+                        on
+                          ? `rm-quiz-visual-card is-on${question.layout === 'swatches' ? ' is-palette' : ''}`
+                          : `rm-quiz-visual-card${question.layout === 'swatches' ? ' is-palette' : ''}`
+                      }
                       onClick={() => pick(option)}
                     >
                       {option.image ? <img src={option.image} alt="" /> : null}
-                      {on ? <span className="rm-quiz-check" aria-hidden>✓</span> : null}
                       {option.swatches ? (
-                        <span className="rm-quiz-swatches">
+                        <span className={option.image ? 'rm-quiz-swatches' : 'rm-quiz-palette-mosaic'}>
                           {option.swatches.map(hex => (
                             <i key={hex} style={{ background: hex }} />
                           ))}
                         </span>
                       ) : null}
-                      <span className="rm-quiz-visual-label">{optionLabel(question, option)}</span>
+                      {on ? <span className="rm-quiz-check" aria-hidden>✓</span> : null}
+                      <span className="rm-quiz-visual-copy">
+                        <span className="rm-quiz-visual-label">{optionLabel(question, option)}</span>
+                        {option.hintKey ? (
+                          <span className="rm-quiz-visual-hint">{t(option.hintKey)}</span>
+                        ) : null}
+                      </span>
                     </button>
                   ) : (
                     <button
@@ -198,6 +242,7 @@ export default function QuizFlow() {
                   )
                 })}
               </div>
+              {question.noteKey ? <p className="rm-quiz-note">{t(question.noteKey)}</p> : null}
             </div>
             <footer className="rm-quiz-footer">
               {maxSelect > 1 ? (

@@ -14,6 +14,7 @@ import {
 
 type PageProps = {
   params: Promise<{ locale: string; id: string }>
+  searchParams: Promise<{ from?: string }>
 }
 
 export function generateStaticParams() {
@@ -27,8 +28,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: t(`styleName.${id}`) }
 }
 
-export default async function StyleDetailPage({ params }: PageProps) {
+export default async function StyleDetailPage({ params, searchParams }: PageProps) {
   const { locale, id } = await params
+  const { from } = await searchParams
   setRequestLocale(locale)
 
   if (!isStyleId(id)) notFound()
@@ -49,6 +51,7 @@ export default async function StyleDetailPage({ params }: PageProps) {
         visual={visual}
         traits={normalizeStyleTraits(traits)}
         motifs={normalizeStyleMotifs(motifs)}
+        backHref={from === 'quiz' ? '/quiz' : '/styles'}
         labels={{
           back: tDetail('back'),
           palette: tDetail('palette'),

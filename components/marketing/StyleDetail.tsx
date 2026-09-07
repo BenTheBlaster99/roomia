@@ -109,6 +109,7 @@ export default function StyleDetail({
   traits,
   motifs,
   labels,
+  backHref = '/styles',
 }: {
   styleId: string
   name: string
@@ -117,6 +118,7 @@ export default function StyleDetail({
   traits: StyleTrait[]
   motifs: string[]
   labels: Labels
+  backHref?: string
 }) {
   const hero = styleHero(visual)
   const gallery = styleGallery(visual)
@@ -131,7 +133,7 @@ export default function StyleDetail({
       >
         {openAt => (
           <div className="rm-style-sheet">
-        <Link href="/styles" className="rm-style-back">
+        <Link href={backHref} className="rm-style-back">
           ‹ {labels.back}
         </Link>
 

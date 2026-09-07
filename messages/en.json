@@ -468,8 +468,9 @@
     "qMood": "Which atmospheres would you like at home?",
     "hintMood": "Choose up to two answers.",
     "qFurniture": "Which furniture feels right?",
-    "qOrnament": "How much ornamentation do you want?",
-    "qSymmetry": "How should the room be composed?",
+    "noteEclectic": "Eclectic: a mix of pieces from different styles and periods, chosen together rather than a matching set.",
+    "qOrnament": "How do you like your walls and ceilings?",
+    "qSymmetry": "Which composition do you prefer?",
     "qNature": "How present should nature be in the room?",
     "qTech": "What place for technology?",
     "qRoom": "Which room do you want to see first?",
@@ -499,14 +500,17 @@
         "eclectic": "Eclectic"
       },
       "ornament": {
-        "none": "None",
-        "subtle": "Subtle",
-        "complex": "Complex"
+        "none": "Very simple",
+        "subtle": "With a few details",
+        "complex": "Very elaborate"
       },
       "symmetry": {
         "asymmetric": "Asymmetric",
+        "asymmetricHint": "Elements arranged freely, with no matching between the two sides.",
         "balanced": "Balanced",
-        "symmetric": "Symmetric"
+        "balancedHint": "A harmonious composition, but without strict symmetry.",
+        "symmetric": "Symmetric",
+        "symmetricHint": "Elements arranged similarly on each side of a central axis."
       },
       "nature": {
         "low": "Low",

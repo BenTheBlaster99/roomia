@@ -1227,6 +1227,46 @@ button.rm-style-photo-open:focus-visible::after {
   color: color-mix(in srgb, #f4efe4 68%, transparent);
 }
 
+.rm-quiz-note {
+  width: min(36rem, 100%);
+  margin: 0.9rem auto 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: center;
+  color: color-mix(in srgb, #f4efe4 72%, transparent);
+}
+
+.rm-quiz-palette-mosaic {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0;
+  height: 11.5rem;
+  overflow: hidden;
+}
+
+.rm-quiz-palette-mosaic i {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+}
+
+.rm-quiz-visual-card.is-palette .rm-quiz-visual-copy {
+  padding: 0.8rem 1rem 0.95rem;
+}
+
+.rm-quiz-visual-card.is-palette .rm-quiz-visual-label {
+  font-size: 1.02rem;
+}
+
+@media (min-width: 640px) {
+  .rm-quiz-visual-palette {
+    width: min(46rem, 100%);
+    grid-template-columns: repeat(2, minmax(0, 21.5rem));
+    gap: 1.2rem;
+  }
+}
+
 .rm-quiz-swatches {
   display: flex;
   gap: 0.35rem;
@@ -1300,6 +1340,10 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-visual-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   overflow: hidden;
   border: 0;
   border-radius: 1.4rem;
@@ -1334,20 +1378,33 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-visual-card img {
   display: block;
+  flex: 0 0 auto;
   width: 100%;
-  aspect-ratio: 4 / 3;
-  max-height: 13.5rem;
+  height: 13.5rem;
   object-fit: cover;
   background: #d9cfc3;
   transition: transform 0.35s ease;
 }
 
+.rm-quiz-visual-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.7rem 0.85rem 0.9rem;
+}
+
 .rm-quiz-visual-label {
-  display: block;
-  padding: 0.7rem 0.85rem 0.85rem;
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.3;
+}
+
+.rm-quiz-visual-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: color-mix(in srgb, #1a2f26 68%, transparent);
 }
 
 .rm-quiz-check {

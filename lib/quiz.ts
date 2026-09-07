@@ -37,6 +37,7 @@ export type QuizOption = {
   id: string
   image?: string
   swatches?: string[]
+  hintKey?: string
   density?: DensityId
   room?: QuizRoomId
 }
@@ -45,7 +46,8 @@ export type QuizQuestion = {
   id: CriterionId | 'room'
   titleKey: string
   hintKey?: string
-  layout: 'list' | 'visual' | 'room'
+  noteKey?: string
+  layout: 'list' | 'visual' | 'room' | 'swatches'
   maxSelect?: number
   criterion?: CriterionId
   options: QuizOption[]
@@ -225,27 +227,23 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 'palette',
     criterion: 'palette',
     titleKey: 'qPalette',
-    layout: 'visual',
+    layout: 'swatches',
     options: [
       {
         id: 'neutral',
-        image: hero('minimalism'),
-        swatches: ['#F2F0EB', '#D6D3CC', '#8B8175', '#333333'],
+        swatches: ['#FAFAF8', '#F2F0EB', '#E8E4DC', '#D6D3CC', '#A8A29E', '#8B8175', '#5C5854', '#2A2A2A'],
       },
       {
         id: 'soft',
-        image: hero('japandi'),
-        swatches: ['#F1EDE3', '#D6C7AE', '#A68A64', '#5F6B55'],
+        swatches: ['#F7E7F0', '#FADCD9', '#FDE8C8', '#FFF3B0', '#D8F3DC', '#CDE7F5', '#E4D5F5', '#F1EDE3'],
       },
       {
         id: 'earth',
-        image: hero('rustic'),
-        swatches: ['#F0E5D0', '#8B6F47', '#B85C38', '#6B705C'],
+        swatches: ['#F0E5D0', '#D4A574', '#C4A574', '#8B6F47', '#B85C38', '#6B705C', '#704214', '#5C4033'],
       },
       {
         id: 'bold',
-        image: hero('art_deco'),
-        swatches: ['#0D0D0D', '#6B1E3F', '#C9A227', '#1C3A3A'],
+        swatches: ['#1A0A0A', '#6B0F1A', '#C2410C', '#E85D04', '#D97706', '#C9A227', '#4C1D95', '#1C3A3A'],
       },
     ],
   },
@@ -269,6 +267,7 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 'furniture',
     criterion: 'furniture',
     titleKey: 'qFurniture',
+    noteKey: 'noteEclectic',
     layout: 'list',
     options: [
       { id: 'vintage' },
@@ -291,11 +290,23 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 'symmetry',
     criterion: 'symmetry',
     titleKey: 'qSymmetry',
-    layout: 'list',
+    layout: 'visual',
     options: [
-      { id: 'asymmetric' },
-      { id: 'balanced' },
-      { id: 'symmetric' },
+      {
+        id: 'asymmetric',
+        image: hero('bohemian'),
+        hintKey: 'opt.symmetry.asymmetricHint',
+      },
+      {
+        id: 'balanced',
+        image: hero('japandi'),
+        hintKey: 'opt.symmetry.balancedHint',
+      },
+      {
+        id: 'symmetric',
+        image: hero('art_deco'),
+        hintKey: 'opt.symmetry.symmetricHint',
+      },
     ],
   },
   {
