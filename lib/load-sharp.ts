@@ -1,7 +1,9 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-let cached: ((input?: unknown, opts?: unknown) => SharpInstance) | null = null
+type SharpFn = (input?: unknown, opts?: unknown) => SharpInstance
+
+let cached: SharpFn | null = null
 
 type SharpInstance = {
   metadata: () => Promise<{ width?: number; height?: number }>
@@ -20,9 +22,11 @@ type SharpInstance = {
 }
 
 /** Load sharp from disk. Never write `import 'sharp'` — Turbopack invents a fake package on the DATA cache. */
-export function loadSharp() {
+export function loadSharp(): SharpFn {
   if (cached) return cached
   const req = createRequire(join(process.cwd(), 'package.json'))
-  cached = req(join(process.cwd(), 'node_modules/sharp')) as typeof cached
+  const loaded = req(join(process.cwd(), 'node_modules/sharp')) as SharpFn | null
+  if (!loaded) throw new Error('sharp is not available')
+  cached = loaded
   return cached
 }
