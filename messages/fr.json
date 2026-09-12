@@ -164,6 +164,9 @@
     "photoTitle": "Studio photo IA",
     "photoDesc": "Sélectionnez un meuble sur une photo, retirez-le ou remplacez-le par un article du catalogue.",
     "photoCta": "Ouvrir le studio photo",
+    "kitchenTitle": "Look cuisine",
+    "kitchenDesc": "Photo, style, briques et matières — un look, pas un plan technique.",
+    "kitchenCta": "Ouvrir le modèle cuisine",
     "quizTitle": "Pas encore de direction ?",
     "quizDesc": "Huit critères pondérés pour trouver un style — puis vois-le dans ta photo, avec le catalogue.",
     "quizCta": "Lancer le quiz"

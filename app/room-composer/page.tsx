@@ -18,6 +18,7 @@ import SiteNav from '@/components/marketing/SiteNav'
 import SiteFooter from '@/components/marketing/SiteFooter'
 import ComposerCatalog from './ComposerCatalog'
 import ComposerResults from './ComposerResults'
+import KitchenComposer from './KitchenComposer'
 import { LOOKS, MAX_ZONES, type LookId } from './looks'
 import {
   densityHintFr,
@@ -117,6 +118,7 @@ export default function RoomComposerPage() {
   const [seedStyleId, setSeedStyleId] = useState<string | null>(null)
   const [seedRoom, setSeedRoom] = useState<QuizRoomId | null>(null)
   const [seedDensity, setSeedDensity] = useState<DensityId | null>(null)
+  const [kitchenMode, setKitchenMode] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -128,6 +130,7 @@ export default function RoomComposerPage() {
     if (seeded.styleId) setSeedStyleId(seeded.styleId)
     if (seeded.room) setSeedRoom(seeded.room as QuizRoomId)
     if (seeded.density) setSeedDensity(seeded.density as DensityId)
+    if (params.get('mode') === 'kitchen') setKitchenMode(true)
   }, [])
 
   useEffect(() => {
@@ -454,6 +457,8 @@ export default function RoomComposerPage() {
                 : slots.length > 0
                   ? `Encore une pièce ? Catalogue, puis tape la photo (${slots.length}/${MAX_ZONES}).`
                   : 'Catalogue → tape la photo. Un point = un emplacement.'
+
+  if (kitchenMode) return <KitchenComposer />
 
   const catalogHint =
     activeLook === 'b'

@@ -164,6 +164,9 @@
     "photoTitle": "AI photo studio",
     "photoDesc": "Select furniture in a photo, remove it or replace it with a catalog item.",
     "photoCta": "Open photo studio",
+    "kitchenTitle": "Kitchen look",
+    "kitchenDesc": "Photo, style, parts and finishes — a look, not a technical plan.",
+    "kitchenCta": "Open kitchen template",
     "quizTitle": "No direction yet?",
     "quizDesc": "Eight weighted criteria to find a style — then see it in your photo, with the catalog.",
     "quizCta": "Start the quiz"

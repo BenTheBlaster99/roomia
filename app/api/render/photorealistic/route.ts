@@ -3,7 +3,7 @@ import { toFile } from 'openai'
 import { GPT_IMAGE_MODEL, getOpenAIClient } from '@/lib/openai-client'
 import { extractImageBase64 } from '@/lib/extract-image-b64'
 import { buildRenderPrompt } from '@/lib/render-prompt'
-import { decodeImageBase64, sniffImageMime } from '@/lib/sam-mask-to-alpha'
+import { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180

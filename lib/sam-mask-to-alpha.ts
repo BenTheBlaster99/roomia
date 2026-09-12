@@ -1,9 +1,7 @@
-import sharp from 'sharp'
+import { stripDataUrl } from '@/lib/image-bytes'
+import { loadSharp } from '@/lib/load-sharp'
 
-function stripDataUrl(b64: string): string {
-  const i = b64.indexOf(',')
-  return i >= 0 ? b64.slice(i + 1) : b64
-}
+export { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
 
 /**
  * Convert a SAM2 grayscale mask (white = selected furniture) into an RGBA PNG
@@ -28,6 +26,7 @@ export async function unionSamMasksToAlphaPng(
     throw new Error('At least one mask is required')
   }
 
+  const sharp = loadSharp()
   const feather = Math.max(0, options?.featherPx ?? 4)
   const decoded = await Promise.all(
     maskBase64List.map(async b64 => {
@@ -70,7 +69,6 @@ export async function unionSamMasksToAlphaPng(
     rgba[i * 4] = 0
     rgba[i * 4 + 1] = 0
     rgba[i * 4 + 2] = 0
-    // white object → alpha 0 (edit); black → alpha 255 (keep)
     rgba[i * 4 + 3] = 255 - lum
   }
 
@@ -80,6 +78,7 @@ export async function unionSamMasksToAlphaPng(
 }
 
 export async function dilateSamMask(maskBase64: string, radiusPx: number): Promise<string> {
+  const sharp = loadSharp()
   const input = Buffer.from(stripDataUrl(maskBase64), 'base64')
   const radius = Math.max(1, radiusPx)
   const buf = await sharp(input)
@@ -89,14 +88,4 @@ export async function dilateSamMask(maskBase64: string, radiusPx: number): Promi
     .png()
     .toBuffer()
   return buf.toString('base64')
-}
-export function decodeImageBase64(imageBase64: string): Buffer {
-  return Buffer.from(stripDataUrl(imageBase64), 'base64')
-}
-
-/** Guess image mime from magic bytes (default jpeg). */
-export function sniffImageMime(buf: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' {
-  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50) return 'image/png'
-  if (buf.length >= 12 && buf[0] === 0x52 && buf[1] === 0x49 && buf[8] === 0x57) return 'image/webp'
-  return 'image/jpeg'
 }

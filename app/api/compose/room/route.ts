@@ -8,12 +8,9 @@ import {
   type ComposeAtmosphere,
   type ReferenceFidelity,
 } from '@/lib/render-prompt'
-import {
-  decodeImageBase64,
-  sniffImageMime,
-  unionSamMasksToAlphaPng,
-  dilateSamMask,
-} from '@/lib/sam-mask-to-alpha'
+import { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
+import { fullFrameEditMaskPng } from '@/lib/full-frame-mask'
+import { unionSamMasksToAlphaPng, dilateSamMask } from '@/lib/sam-mask-to-alpha'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -44,6 +41,7 @@ interface ComposeBody {
   zones: ComposeZone[]
   atmosphere?: ComposeAtmosphereBody | null
   num_variations?: number
+  full_frame?: boolean
 }
 
 type ProgressStep = 'masking' | 'generating' | 'results'
@@ -219,26 +217,39 @@ export async function POST(req: NextRequest) {
           pct: 12,
         })
 
-        const maskList: string[] = []
-        if (body.zones.length > 0) {
-          maskList.push(
-            ...(await Promise.all(body.zones.map(z => segmentMask(body.image_base64, z.x, z.y)))),
-          )
+        const useFullFrame = Boolean(body.full_frame)
+        let combinedMaskPng: Buffer
+        if (useFullFrame) {
+          send({
+            type: 'progress',
+            step: 'masking' satisfies ProgressStep,
+            label: 'Step 1 · Kitchen',
+            detail: 'Preparing a full-kitchen restyle (no object click)…',
+            pct: 18,
+          })
+          combinedMaskPng = fullFrameEditMaskPng(body.image_base64)
+        } else {
+          const maskList: string[] = []
+          if (body.zones.length > 0) {
+            maskList.push(
+              ...(await Promise.all(body.zones.map(z => segmentMask(body.image_base64, z.x, z.y)))),
+            )
+          }
+          if (wall && typeof wall.x === 'number' && typeof wall.y === 'number') {
+            const wallMask = await segmentMask(body.image_base64, wall.x, wall.y)
+            maskList.push(await dilateSamMask(wallMask, 10))
+          }
+          if (lighting && typeof lighting.x === 'number' && typeof lighting.y === 'number') {
+            const lightMask = await segmentMask(body.image_base64, lighting.x, lighting.y)
+            maskList.push(await dilateSamMask(lightMask, 42))
+          }
+          if (maskList.length === 0) {
+            throw new Error('Could not build an edit mask')
+          }
+          combinedMaskPng = await unionSamMasksToAlphaPng(maskList, {
+            featherPx: hasAtmosphere ? 8 : 5,
+          })
         }
-        if (wall && typeof wall.x === 'number' && typeof wall.y === 'number') {
-          const wallMask = await segmentMask(body.image_base64, wall.x, wall.y)
-          maskList.push(await dilateSamMask(wallMask, 10))
-        }
-        if (lighting && typeof lighting.x === 'number' && typeof lighting.y === 'number') {
-          const lightMask = await segmentMask(body.image_base64, lighting.x, lighting.y)
-          maskList.push(await dilateSamMask(lightMask, 42))
-        }
-        if (maskList.length === 0) {
-          throw new Error('Could not build an edit mask')
-        }
-        const combinedMaskPng = await unionSamMasksToAlphaPng(maskList, {
-          featherPx: hasAtmosphere ? 8 : 5,
-        })
 
         send({
           type: 'progress',

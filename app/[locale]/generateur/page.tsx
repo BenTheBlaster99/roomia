@@ -33,7 +33,7 @@ export default async function GenerateurPage({
       </section>
 
       <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-16">
-        <div className="rm-page grid gap-6 md:grid-cols-2">
+        <div className="rm-page grid gap-6 md:grid-cols-3">
           <a
             href="/room-composer"
             className="group rm-panel block p-8 transition-transform hover:-translate-y-1"
@@ -50,11 +50,27 @@ export default async function GenerateurPage({
             </span>
           </a>
 
+          <a
+            href="/room-composer?mode=kitchen"
+            className="group rm-panel block p-8 transition-transform hover:-translate-y-1"
+          >
+            <span className="font-mono text-xs text-[var(--rm-accent)]">02</span>
+            <h2 className="rm-display mt-3 text-2xl font-bold group-hover:text-[var(--rm-primary)]">
+              {t('kitchenTitle')}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--rm-muted)]">
+              {t('kitchenDesc')}
+            </p>
+            <span className="mt-6 inline-block text-sm font-semibold text-[var(--rm-primary)]">
+              {t('kitchenCta')} →
+            </span>
+          </a>
+
           <Link
             href="/quiz"
             className="group rm-panel block p-8 transition-transform hover:-translate-y-1"
           >
-            <span className="font-mono text-xs text-[var(--rm-accent)]">02</span>
+            <span className="font-mono text-xs text-[var(--rm-accent)]">03</span>
             <h2 className="rm-display mt-3 text-2xl font-bold group-hover:text-[var(--rm-primary)]">
               {t('quizTitle')}
             </h2>

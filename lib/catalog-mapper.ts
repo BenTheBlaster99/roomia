@@ -34,6 +34,10 @@ const MIN_DIMS: Record<string, { width: number; depth: number; height: number }>
   Rug: { width: 1.2, depth: 0.8, height: 0.01 },
   Light: { width: 0.15, depth: 0.15, height: 0.18 },
   Curtains: { width: 1.0, depth: 0.04, height: 2.0 },
+  Doors: { width: 0.5, depth: 0.02, height: 0.6 },
+  Worktop: { width: 0.5, depth: 0.5, height: 0.03 },
+  Handles: { width: 0.1, depth: 0.02, height: 0.02 },
+  Hood: { width: 0.6, depth: 0.4, height: 0.5 },
 }
 
 export function sanitizeDimensions(

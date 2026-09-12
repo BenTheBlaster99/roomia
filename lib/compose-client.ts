@@ -15,6 +15,7 @@ export type ComposeRoomBody = {
     lighting?: { prompt: string; kind: string; x: number; y: number } | null
   } | null
   num_variations?: number
+  full_frame?: boolean
 }
 
 export async function composeRoom(
@@ -29,7 +30,8 @@ export async function composeRoom(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error((err as { detail?: string }).detail ?? `Compose error ${res.status}`)
+    const detail = (err as { detail?: string }).detail
+    throw new Error(detail || `Compose error ${res.status}`)
   }
   if (!res.body) throw new Error('Compose stream unavailable')
 

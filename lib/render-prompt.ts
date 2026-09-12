@@ -38,7 +38,7 @@ export function buildRenderPrompt(opts: {
  */
 export type ReferenceFidelity = 'strict' | 'placement_adaptive'
 
-const PLACEMENT_ADAPTIVE_CATEGORIES = new Set(['Rug', 'Curtains'])
+const PLACEMENT_ADAPTIVE_CATEGORIES = new Set(['Rug', 'Curtains', 'Kitchen', 'Doors', 'Worktop', 'Handles', 'Hood'])
 
 export function getReferenceFidelity(category?: string | null): ReferenceFidelity {
   if (category && PLACEMENT_ADAPTIVE_CATEGORIES.has(category)) {
@@ -164,7 +164,14 @@ export function buildMultiZoneComposePrompt(opts: {
   if (restyle.length > 0) {
     lines.push('ROOM RESTYLE (must be clearly visible — this is the wow):', ...restyle)
   }
-  if (itemLines.length > 0) {
+  const kitchenOnly = opts.zones.length > 0 && opts.zones.every(z => z.category === 'Kitchen')
+  if (kitchenOnly) {
+    lines.push(
+      'KITCHEN RESTYLE: change the kitchen look across the photo — cabinets, worktop, handles, splash, hood finish.',
+      ...itemLines,
+      'Keep the same room, walls that are not kitchen, windows, and camera. Do not invent a different apartment.',
+    )
+  } else if (itemLines.length > 0) {
     lines.push(
       `FURNITURE (${itemLines.length}) — map each product to the masked blob nearest its click:`,
       ...itemLines,

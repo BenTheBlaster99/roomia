@@ -11,6 +11,10 @@ export const CATEGORY_DIMS: Record<string, { width: number; depth: number; heigh
   'Rug':           { width: 2.00, depth: 1.40, height: 0.02 },
   'Bookshelf':     { width: 0.80, depth: 0.30, height: 1.80 },
   'Curtains':      { width: 1.50, depth: 0.05, height: 2.40 },
+  'Doors':         { width: 0.60, depth: 0.02, height: 0.72 },
+  'Worktop':       { width: 0.60, depth: 0.60, height: 0.04 },
+  'Handles':       { width: 0.16, depth: 0.03, height: 0.03 },
+  'Hood':          { width: 0.90, depth: 0.50, height: 0.70 },
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -26,6 +30,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Rug':          '#CF6679',
   'Bookshelf':    '#7D9B5E',
   'Curtains':     '#B8A9C9',
+  'Doors':        '#C4A882',
+  'Worktop':      '#D8D0C4',
+  'Handles':      '#8A8A8A',
+  'Hood':         '#5A5A6E',
 }
 
 export const FLOOR_MATERIALS: Record<string, { label: string; color: string }> = {
@@ -43,9 +51,10 @@ export const WALL_PRESETS = [
   '#1A1A1A', '#2F2F2F', '#4A4A4A',
 ]
 
-export const ROOM_TYPES = ['Living Room', 'Bedroom'] as const
+export const ROOM_TYPES = ['Living Room', 'Bedroom', 'Kitchen'] as const
 
 export const CATEGORIES_BY_ROOM: Record<string, string[]> = {
   'Living Room': ['Sofa', 'Coffee Table', 'Chair', 'Dining Table', 'TV Unit', 'Rug', 'Light', 'Curtains', 'Bookshelf'],
   'Bedroom':     ['Bed', 'Wardrobe', 'Side Table', 'Chair', 'Light', 'Rug', 'Curtains'],
+  'Kitchen':     ['Doors', 'Worktop', 'Handles', 'Hood'],
 }

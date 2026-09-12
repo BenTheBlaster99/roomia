@@ -18,7 +18,13 @@ const CATEGORIES = [
   'Rug',
   'Light',
   'Curtains',
+  'Doors',
+  'Worktop',
+  'Handles',
+  'Hood',
 ]
+
+const KITCHEN_CATEGORIES = new Set(['Doors', 'Worktop', 'Handles', 'Hood'])
 
 type StoreRow = {
   id: string
@@ -173,7 +179,7 @@ function StoreProducts() {
         .insert({
           name: name.trim(),
           category,
-          room: 'Living Room',
+          room: KITCHEN_CATEGORIES.has(category) ? 'Kitchen' : 'Living Room',
           store_id: storeId,
           price: Number(price.replace(/\s/g, '')) || 0,
           featured: featuredNew,
