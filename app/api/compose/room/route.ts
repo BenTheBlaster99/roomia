@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { toFile } from 'openai'
-import { GPT_IMAGE_MODEL, aiBackendHeaders, getAiBackendUrl, getOpenAIClient } from '@/lib/openai-client'
+import { GPT_IMAGE_MODEL, getOpenAIClient } from '@/lib/openai-client'
 import { extractImageBase64 } from '@/lib/extract-image-b64'
 import {
   buildMultiZoneComposePrompt,
@@ -11,6 +11,7 @@ import {
 import { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
 import { fullFrameEditMaskPng } from '@/lib/full-frame-mask'
 import { unionSamMasksToAlphaPng, dilateSamMask } from '@/lib/sam-mask-to-alpha'
+import { hasReplicateSam2, segmentClicks } from '@/lib/sam2'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -45,34 +46,6 @@ interface ComposeBody {
 }
 
 type ProgressStep = 'masking' | 'generating' | 'results'
-
-async function segmentMask(
-  imageBase64: string,
-  x: number,
-  y: number,
-): Promise<string> {
-  const backend = getAiBackendUrl()
-  const res = await fetch(`${backend}/segment`, {
-    method: 'POST',
-    headers: aiBackendHeaders(),
-    body: JSON.stringify({ image_base64: imageBase64, x, y }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const detail =
-      typeof err === 'object' && err && 'detail' in err
-        ? String((err as { detail: unknown }).detail)
-        : `SAM2 segment failed (${res.status})`
-    throw new Error(detail)
-  }
-
-  const data = (await res.json()) as { mask_base64?: string }
-  if (!data.mask_base64) {
-    throw new Error('SAM2 returned no mask')
-  }
-  return data.mask_base64
-}
 
 /**
  * Exactly ONE GPT Image call per variation, regardless of how many pins/zones.
@@ -158,8 +131,13 @@ async function generateVariation(opts: {
 
 function errorDetail(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Compose failed'
+  if (message.includes('REPLICATE_API_TOKEN')) {
+    return 'SAM2 is not hosted. Set REPLICATE_API_TOKEN (docs/SAM2-GPU-TUNNEL.txt).'
+  }
   if (message.includes('ECONNREFUSED') || message.toLowerCase().includes('fetch failed')) {
-    return 'Could not reach SAM2. On this PC: npm run back. Live site needs the GPU tunnel (docs/SAM2-GPU-TUNNEL.txt).'
+    return hasReplicateSam2()
+      ? 'Could not reach Replicate SAM2. Check REPLICATE_API_TOKEN.'
+      : 'Could not reach SAM2. On this PC: npm run back. Live site needs REPLICATE_API_TOKEN or the GPU tunnel (docs/SAM2-GPU-TUNNEL.txt).'
   }
   return message
 }
@@ -229,19 +207,28 @@ export async function POST(req: NextRequest) {
           })
           combinedMaskPng = fullFrameEditMaskPng(body.image_base64)
         } else {
+          const clicks: Array<{ x: number; y: number }> = [
+            ...body.zones.map(z => ({ x: z.x, y: z.y })),
+            ...(wall && typeof wall.x === 'number' && typeof wall.y === 'number'
+              ? [{ x: wall.x, y: wall.y }]
+              : []),
+            ...(lighting && typeof lighting.x === 'number' && typeof lighting.y === 'number'
+              ? [{ x: lighting.x, y: lighting.y }]
+              : []),
+          ]
+          const segmented = await segmentClicks(body.image_base64, clicks)
           const maskList: string[] = []
+          let i = 0
           if (body.zones.length > 0) {
-            maskList.push(
-              ...(await Promise.all(body.zones.map(z => segmentMask(body.image_base64, z.x, z.y)))),
-            )
+            maskList.push(...segmented.slice(i, i + body.zones.length))
+            i += body.zones.length
           }
           if (wall && typeof wall.x === 'number' && typeof wall.y === 'number') {
-            const wallMask = await segmentMask(body.image_base64, wall.x, wall.y)
-            maskList.push(await dilateSamMask(wallMask, 10))
+            maskList.push(await dilateSamMask(segmented[i], 10))
+            i += 1
           }
           if (lighting && typeof lighting.x === 'number' && typeof lighting.y === 'number') {
-            const lightMask = await segmentMask(body.image_base64, lighting.x, lighting.y)
-            maskList.push(await dilateSamMask(lightMask, 42))
+            maskList.push(await dilateSamMask(segmented[i], 42))
           }
           if (maskList.length === 0) {
             throw new Error('Could not build an edit mask')
