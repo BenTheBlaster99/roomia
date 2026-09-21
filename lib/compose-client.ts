@@ -1,5 +1,15 @@
 type ProgressStep = 'masking' | 'generating' | 'results'
 
+function publicProgressDetail(detail: string | undefined, step?: ProgressStep): string {
+  if (detail && /gpt|openai|sam-?2|replicate/i.test(detail)) {
+    return step === 'masking' ? 'Préparation…' : 'Génération en cours…'
+  }
+  if (step === 'generating') return 'Génération en cours…'
+  if (step === 'masking') return detail?.trim() || 'Préparation…'
+  if (step === 'results') return detail?.trim() || 'Finalisation…'
+  return detail?.trim() || 'Génération en cours…'
+}
+
 export type ComposeRoomBody = {
   image_base64: string
   zones: Array<{
@@ -54,11 +64,11 @@ export async function composeRoom(
       onProgress?.({
         step: event.step,
         pct: event.pct,
-        detail: event.detail ?? event.label,
+        detail: publicProgressDetail(event.detail ?? event.label, event.step),
       })
     } else if (event.type === 'done' && Array.isArray(event.variations)) {
       result.variations = event.variations
-      onProgress?.({ step: 'results', pct: 100, detail: 'Done' })
+      onProgress?.({ step: 'results', pct: 100, detail: 'Terminé' })
       if (event.failed_count && event.failed_count > 0) {
         warning = `${event.variations.length} image(s) ready, ${event.failed_count} failed.`
       }

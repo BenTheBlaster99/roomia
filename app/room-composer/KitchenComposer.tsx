@@ -535,7 +535,7 @@ export default function KitchenComposer() {
               />
               {stage === 'generating' ? (
                 <div className="rm-panel p-4">
-                  <p className="text-sm font-semibold">{progressDetail}</p>
+                  <p className="text-sm font-semibold">Génération en cours…</p>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--rm-secondary)]">
                     <div className="h-full bg-[var(--rm-accent)]" style={{ width: `${progressPct}%` }} />
                   </div>
@@ -596,7 +596,7 @@ export default function KitchenComposer() {
                 ) : null}
                 {tweaking ? (
                   <div className="absolute inset-x-4 bottom-4 rounded-xl bg-white/95 p-3 shadow">
-                    <p className="text-sm font-semibold">{progressDetail}</p>
+                    <p className="text-sm font-semibold">Génération en cours…</p>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--rm-secondary)]">
                       <div className="h-full bg-[var(--rm-accent)]" style={{ width: `${progressPct}%` }} />
                     </div>

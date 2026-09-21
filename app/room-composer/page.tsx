@@ -863,7 +863,7 @@ export default function RoomComposerPage() {
               {stage === 'generating' && (
                 <div className="space-y-2 rounded-2xl border border-[var(--rm-text)]/10 bg-white px-4 py-4">
                   <div className="flex justify-between text-sm">
-                    <span className="font-semibold">{progressDetail}</span>
+                    <span className="font-semibold">Génération en cours…</span>
                     <span className="tabular-nums text-[var(--rm-muted)]">{Math.round(progressPct)}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--rm-text)]/10">

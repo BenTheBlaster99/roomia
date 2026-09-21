@@ -189,9 +189,7 @@ export async function POST(req: NextRequest) {
           type: 'progress',
           step: 'masking' satisfies ProgressStep,
           label: 'Step 1 · Masking',
-          detail: hasAtmosphere
-            ? 'Reading walls, light, and furniture in the photo…'
-            : `Segmenting ${body.zones.length} furniture spot(s) with SAM2…`,
+          detail: 'Préparation…',
           pct: 12,
         })
 
@@ -202,7 +200,7 @@ export async function POST(req: NextRequest) {
             type: 'progress',
             step: 'masking' satisfies ProgressStep,
             label: 'Step 1 · Kitchen',
-            detail: 'Preparing a full-kitchen restyle (no object click)…',
+            detail: 'Préparation…',
             pct: 18,
           })
           combinedMaskPng = fullFrameEditMaskPng(body.image_base64)
@@ -242,7 +240,7 @@ export async function POST(req: NextRequest) {
           type: 'progress',
           step: 'generating' satisfies ProgressStep,
           label: 'Step 2 · Generating',
-          detail: `Sending ${numVariations} restyles to GPT Image 2…`,
+          detail: 'Génération en cours…',
           pct: 40,
         })
 
@@ -303,8 +301,8 @@ export async function POST(req: NextRequest) {
           label: 'Step 3 · Results',
           detail:
             failures.length > 0
-              ? `${variations.length}/${numVariations} succeeded — showing available results`
-              : 'Packaging variations…',
+              ? `${variations.length}/${numVariations} image(s) prête(s)`
+              : 'Finalisation…',
           pct: 92,
         })
 
