@@ -11,6 +11,7 @@ type SharpInstance = {
   raw: () => SharpInstance
   blur: (sigma: number) => SharpInstance
   threshold: (value: number) => SharpInstance
+  resize: (width: number, height: number, opts?: { fit?: string }) => SharpInstance
   png: () => SharpInstance
   toBuffer: {
     (): Promise<Buffer>
