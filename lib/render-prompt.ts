@@ -167,9 +167,11 @@ export function buildMultiZoneComposePrompt(opts: {
   const kitchenOnly = opts.zones.length > 0 && opts.zones.every(z => z.category === 'Kitchen')
   if (kitchenOnly) {
     lines.push(
-      'KITCHEN RESTYLE: change the kitchen look across the photo — cabinets, worktop, handles, splash, hood finish.',
+      'KITCHEN LOOK (full-frame mask, but do NOT rebuild the apartment).',
+      'Preserve non-kitchen pixels: floor, ceiling, windows, curtains, dining table, chairs, TV, wall clock, room size, camera.',
+      'Only recabinet the existing kitchen run (doors, worktop, splash, hood, handles).',
       ...itemLines,
-      'Keep the same room, walls that are not kitchen, windows, and camera. Do not invent a different apartment.',
+      'Do not invent a vacant new-build, a glass facade, or a different home. Layout chips are intentions on existing walls only.',
     )
   } else if (itemLines.length > 0) {
     lines.push(

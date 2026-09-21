@@ -14,10 +14,30 @@ export const KITCHEN_STYLE_IDS = [
 export type KitchenStyleId = (typeof KITCHEN_STYLE_IDS)[number]
 
 export const KITCHEN_SHAPES = [
-  { id: 'straight', label: 'Linéaire', prompt: 'straight single-run kitchen along one wall, no island' },
-  { id: 'l', label: 'En L', prompt: 'L-shaped kitchen along two walls, open corner, no island unless space clearly has one' },
-  { id: 'u', label: 'En U', prompt: 'U-shaped kitchen wrapping three sides' },
-  { id: 'island', label: 'Avec îlot', prompt: 'kitchen with a central island, seating on one side if the room allows' },
+  {
+    id: 'straight',
+    label: 'Linéaire',
+    prompt:
+      'layout intention: keep a single-run kitchen on the wall(s) that already hold cabinets in this photo — do not add returns into empty floor',
+  },
+  {
+    id: 'l',
+    label: 'En L',
+    prompt:
+      'layout intention: L-shape ONLY if two walls already meet in this photo; wrap onto existing walls, never invent a new wing in empty space',
+  },
+  {
+    id: 'u',
+    label: 'En U',
+    prompt:
+      'layout intention: U-shape ONLY on walls already visible. If this kitchen is one run (with a table or TV in the rest of the room), KEEP that run — do not turn the dining area into more cabinets or a showroom U',
+  },
+  {
+    id: 'island',
+    label: 'Avec îlot',
+    prompt:
+      'layout intention: add an island only if the open floor in THIS photo can take one without deleting the table or shrinking the room',
+  },
 ] as const
 
 export type KitchenShapeId = (typeof KITCHEN_SHAPES)[number]['id']
@@ -62,7 +82,7 @@ export const KITCHEN_DOORS: KitchenSwatch[] = [
     id: 'black',
     label: 'Noir mat',
     hex: '#1A1A1A',
-    prompt: 'matte black cabinet doors, modern kitchen',
+    prompt: 'refinish the existing cabinet doors in matte black, same boxes and sizes',
   },
 ]
 
@@ -93,7 +113,7 @@ export const KITCHEN_WORKTOPS: KitchenSwatch[] = [
     label: 'Granit',
     hex: '#4A4A4A',
     image: 'https://i.pinimg.com/1200x/59/18/91/59189163b9a577958961b2e712091264.jpg',
-    prompt: 'dark granite worktop, subtle speckle',
+    prompt: 'replace the existing worktop with dark granite, subtle speckle, same depth and run',
   },
   {
     id: 'cream',
@@ -108,7 +128,7 @@ export const KITCHEN_HANDLES: KitchenSwatch[] = [
     id: 'integrated',
     label: 'Intégrées',
     hex: '#D6D3CC',
-    prompt: 'handleless cabinets, integrated j-pull or push-to-open',
+    prompt: 'handleless existing cabinet doors, integrated j-pull or push-to-open — do not resize the cabinets',
   },
   {
     id: 'brass',
@@ -141,12 +161,12 @@ export type KitchenPart = {
 
 export const KITCHEN_BASES: KitchenPart[] = [
   { id: 'doors', label: 'Portes', prompt: 'base cabinets mostly with doors' },
-  { id: 'drawers', label: 'Tiroirs', prompt: 'base cabinets mostly with stacked drawers' },
+  { id: 'drawers', label: 'Tiroirs', prompt: 'on the existing base run, prefer stacked drawers instead of cupboard doors' },
   { id: 'mix', label: 'Mixte', prompt: 'base run mixing doors and drawer banks' },
 ]
 
 export const KITCHEN_UPPERS: KitchenPart[] = [
-  { id: 'full', label: 'Rangée complète', prompt: 'a full row of wall cabinets' },
+  { id: 'full', label: 'Rangée complète', prompt: 'keep or complete a row of wall cabinets along the SAME wall as the existing uppers' },
   { id: 'hob', label: 'Au-dessus du feu', prompt: 'wall cabinets only around the hob and hood, open shelves elsewhere' },
   { id: 'none', label: 'Aucun haut', prompt: 'no wall cabinets, open walls above the worktop' },
 ]
@@ -154,19 +174,65 @@ export const KITCHEN_UPPERS: KitchenPart[] = [
 export const KITCHEN_TALL: KitchenPart[] = [
   { id: 'none', label: 'Aucune', prompt: 'no tall pantry or appliance towers' },
   { id: 'fridge', label: 'Colonne frigo', prompt: 'one tall fridge housing at the end of the run' },
-  { id: 'oven', label: 'Colonne four', prompt: 'one tall oven tower with stacked ovens' },
+  { id: 'oven', label: 'Colonne four', prompt: 'one tall oven tower at the end of the EXISTING run if there is room on that wall — do not place it in the middle of the room' },
   { id: 'both', label: 'Frigo + four', prompt: 'tall fridge housing and a separate oven tower' },
 ]
 
 export const KITCHEN_ISLAND: KitchenPart[] = [
-  { id: 'none', label: 'Pas d’îlot', prompt: 'no kitchen island' },
-  { id: 'simple', label: 'Îlot simple', prompt: 'a simple work island without stools' },
-  { id: 'seating', label: 'Îlot + assises', prompt: 'an island with seating on one side' },
+  { id: 'none', label: 'Pas d’îlot', prompt: 'no kitchen island, no peninsula, no extra block in the middle of the room' },
+  {
+    id: 'central',
+    label: 'Îlot central sans assises',
+    prompt: 'a central kitchen island used as a work surface only, no stools',
+  },
+  {
+    id: 'central-seating',
+    label: 'Îlot central + assises',
+    prompt: 'a central kitchen island with bar stools on one side',
+  },
+  {
+    id: 'bar',
+    label: 'Îlot en bar avec assises',
+    prompt: 'a breakfast-bar island or peninsula with stools along the bar side',
+  },
+]
+
+export const KITCHEN_DISHWASHER: KitchenPart[] = [
+  { id: 'none', label: 'Non', prompt: 'no dishwasher next to the sink' },
+  { id: 'yes', label: 'Oui', prompt: 'an integrated dishwasher beside the sink' },
+]
+
+export const KITCHEN_DISHWASHER_SIDE: KitchenPart[] = [
+  { id: 'left', label: 'À gauche de l’évier', prompt: 'dishwasher immediately to the left of the sink' },
+  { id: 'right', label: 'À droite de l’évier', prompt: 'dishwasher immediately to the right of the sink' },
+]
+
+export const KITCHEN_GLASS: KitchenPart[] = [
+  { id: 'none', label: 'Non', prompt: 'opaque cabinet fronts, no glass doors' },
+  {
+    id: 'elements',
+    label: 'Dans les éléments',
+    prompt: 'some wall cabinets with glass doors, a few plates and glasses visible inside',
+  },
+  {
+    id: 'shelves',
+    label: 'Étagères',
+    prompt: 'open or glass shelves with a few random plates, bowls and glasses as styling',
+  },
+]
+
+export const KITCHEN_UNDERLIGHT: KitchenPart[] = [
+  { id: 'none', label: 'Non', prompt: 'no under-cabinet lighting' },
+  {
+    id: 'on',
+    label: 'Oui',
+    prompt: 'warm LED strip lighting under the wall cabinets, lighting the worktop',
+  },
 ]
 
 export const KITCHEN_HOODS: KitchenPart[] = [
   { id: 'visible', label: 'Visible', prompt: 'a visible chimney or statement hood over the hob' },
-  { id: 'integrated', label: 'Intégrée', prompt: 'hood integrated into a wall cabinet, discreet' },
+  { id: 'integrated', label: 'Intégrée', prompt: 'hood integrated into a wall cabinet on the existing run, discreet — not a new chimney in empty space' },
   { id: 'none', label: 'Aucune', prompt: 'no visible hood' },
 ]
 
@@ -179,13 +245,25 @@ export const KITCHEN_SINKS: KitchenPart[] = [
 export const KITCHEN_SPLASH: KitchenPart[] = [
   { id: 'none', label: 'Aucune', prompt: 'plain painted wall behind the worktop, no tile splashback' },
   { id: 'tile', label: 'Carrelage', prompt: 'tiled splashback behind the hob and sink' },
-  { id: 'stone', label: 'Pierre', prompt: 'stone or matching-worktop splashback' },
+  { id: 'stone', label: 'Pierre', prompt: 'stone or matching-worktop splashback on the existing wall behind the run only' },
 ]
 
 export const KITCHEN_CATEGORIES = ['Doors', 'Worktop', 'Handles', 'Hood'] as const
 
 export function kitchenStyleLabel(id: KitchenStyleId) {
   return STYLE_LABEL_FR[id] ?? id
+}
+
+/** Finish language — never “build a Glamour apartment”. */
+const KITCHEN_STYLE_FINISH: Record<KitchenStyleId, string> = {
+  japandi: 'Japandi finish on these cabinets: quiet wood, soft edges, little clutter. Same home.',
+  scandinavian: 'Scandinavian finish: light warm wood or paint, simple fronts. Same home.',
+  minimalism: 'Minimal finish: flat doors, few objects. Same home — not an empty showroom.',
+  industrial: 'Industrial finish: metal, darker wood, rawer splash. Same home.',
+  rustic: 'Rustic finish: warmer wood grain, lived-in. Same home.',
+  art_deco: 'Art Deco finish: a bit of geometry and shine on doors/handles only. Same home.',
+  glamour:
+    'Glamour as a FINISH on these cabinets only: deeper/darker fronts, richer stone, a little polish. Do not turn this into a vacant luxury listing, penthouse, or a different apartment.',
 }
 
 export function kitchenStylePhoto(id: KitchenStyleId) {
@@ -217,13 +295,25 @@ export function buildKitchenComposePrompt(opts: {
   hood?: KitchenPart | null
   sink?: KitchenPart | null
   splash?: KitchenPart | null
+  dishwasher?: KitchenPart | null
+  dishwasherSide?: KitchenPart | null
+  glass?: KitchenPart | null
+  underlight?: KitchenPart | null
   notes?: string | null
 }) {
   const shape = kitchenShapeById(opts.shapeId)
-  const styleName = kitchenStyleLabel(opts.styleId)
   const notes = opts.notes?.trim()
+  const dishwasher =
+    opts.dishwasher?.id === 'yes'
+      ? opts.dishwasherSide?.prompt ?? opts.dishwasher.prompt
+      : opts.dishwasher?.prompt
+  const underlight = opts.uppers?.id === 'none' ? null : opts.underlight?.prompt
   return [
-    `${styleName} kitchen restyle of the existing kitchen space`,
+    'SAME ROOM LOCK (non-negotiable): keep this exact apartment and camera.',
+    'Keep the floor (pattern and colour), ceiling, windows, curtains, doors, wall clock, TV, dining table and chairs, and any furniture that is not a kitchen cabinet.',
+    'Keep room size and wall positions. Do not invent a bigger empty flat, a glass wall, or a listing photo.',
+    'Only restyle the EXISTING kitchen run: cabinet doors, worktop, splash, hood, handles, maybe one tall unit on that same wall.',
+    KITCHEN_STYLE_FINISH[opts.styleId],
     shape?.prompt,
     opts.bases?.prompt,
     opts.uppers?.prompt,
@@ -231,17 +321,20 @@ export function buildKitchenComposePrompt(opts: {
     opts.island?.prompt,
     opts.hood?.prompt,
     opts.sink?.prompt,
+    dishwasher,
     opts.splash?.prompt,
+    opts.glass?.prompt,
+    underlight,
     opts.doors.prompt,
     opts.worktop.prompt,
     opts.handles?.prompt,
-    notes ? `Client notes to follow as visual intention only, not a measured plan: ${notes}` : null,
-    'This is a look, not a technical kitchen plan. Do not invent dimensions, millimetres, or a bill of quantities.',
-    'keep the room architecture, windows, and camera angle',
-    'photoreal interior, no people, no extra rooms',
+    notes ? `Client notes as visual intention only, not a measured plan: ${notes}` : null,
+    'Keep sink and hob roughly where they already are in the photo.',
+    'This is a look, not a technical kitchen plan. No millimetres, dimension overlays, or bill of quantities.',
+    'Lived-in photoreal photo of THIS room, no people, no extra rooms.',
   ]
     .filter(Boolean)
-    .join(', ')
+    .join('. ')
 }
 
 export type KitchenTweakAction = 'move' | 'change' | 'add'
@@ -254,6 +347,8 @@ export const KITCHEN_SUBJECTS = [
   { id: 'fridge', label: 'Frigo', prompt: 'the fridge housing' },
   { id: 'hood', label: 'Hotte', prompt: 'the hood' },
   { id: 'sink', label: 'Évier', prompt: 'the sink' },
+  { id: 'dishwasher', label: 'Lave-vaisselle', prompt: 'the dishwasher' },
+  { id: 'hob', label: 'Plaque', prompt: 'the hob or cooktop' },
   { id: 'tower', label: 'Colonne', prompt: 'the tall appliance tower' },
   { id: 'uppers', label: 'Hauts', prompt: 'the wall cabinets' },
   { id: 'island', label: 'Îlot', prompt: 'the island' },
@@ -269,6 +364,8 @@ export const KITCHEN_ADDONS = [
   { id: 'stools', label: 'Tabourets', prompt: 'bar stools at the island or peninsula' },
   { id: 'plants', label: 'Plantes', prompt: 'a few small plants as styling' },
   { id: 'light', label: 'Éclairage', prompt: 'pendant or under-cabinet lighting' },
+  { id: 'underlight', label: 'LED sous les hauts', prompt: 'warm under-cabinet lighting on the worktop' },
+  { id: 'glass', label: 'Vitrine', prompt: 'glass cabinet doors or shelves with a few plates visible' },
   { id: 'shelves', label: 'Étagères', prompt: 'open shelves instead of a closed patch' },
   { id: 'tap', label: 'Robinet', prompt: 'a more visible tap at the sink' },
   { id: 'splash', label: 'Crédence', prompt: 'a clearer splashback behind the hob and sink' },
@@ -337,7 +434,7 @@ export function buildKitchenTweakPrompt(tweak: KitchenTweak, notes?: string) {
     'Do both requests in one edit. Do not start a new kitchen.',
     'This is a look edit of the current image, not a technical kitchen plan.',
     'Do not invent millimetres, modules, or a bill of quantities.',
-    'photoreal interior, same architecture and camera',
+    'photoreal interior of THIS same room and camera — not a magazine empty kitchen',
   ]
     .filter(Boolean)
     .join(' ')
@@ -349,6 +446,6 @@ export function buildKitchenRefinePrompt(notes: string) {
     'Keep this kitchen look. Apply only this visual intention, do not start a new kitchen.',
     extra ? `Client visual note: ${extra}` : 'Clarify the current composition slightly.',
     'This is a look edit, not a technical plan. Do not invent dimensions.',
-    'photoreal interior, same architecture and camera',
+    'photoreal interior of THIS same room and camera — not a magazine empty kitchen',
   ].join(' ')
 }
