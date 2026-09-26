@@ -43,6 +43,7 @@ interface ComposeBody {
   atmosphere?: ComposeAtmosphereBody | null
   num_variations?: number
   full_frame?: boolean
+  imagine?: boolean
 }
 
 type ProgressStep = 'masking' | 'generating' | 'results'
@@ -129,6 +130,19 @@ async function generateVariation(opts: {
   return extractImageBase64(response)
 }
 
+async function generateFromPrompt(prompt: string): Promise<string> {
+  const client = getOpenAIClient()
+  const response = await client.images.generate({
+    model: GPT_IMAGE_MODEL,
+    prompt,
+    quality: 'high',
+    output_format: 'jpeg',
+    response_format: 'b64_json',
+    size: '1536x1024',
+  })
+  return extractImageBase64(response)
+}
+
 function errorDetail(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Compose failed'
   if (message.includes('REPLICATE_API_TOKEN')) {
@@ -149,7 +163,8 @@ export async function POST(req: NextRequest) {
   const lighting = body.atmosphere?.lighting
   const hasAtmosphere = Boolean(wall || lighting)
 
-  if (!body.image_base64) {
+  const imagine = Boolean(body.imagine)
+  if (!imagine && !body.image_base64) {
     return Response.json({ detail: 'image_base64 is required' }, { status: 400 })
   }
   if (!Array.isArray(body.zones)) {
@@ -194,8 +209,10 @@ export async function POST(req: NextRequest) {
         })
 
         const useFullFrame = Boolean(body.full_frame)
-        let combinedMaskPng: Buffer
-        if (useFullFrame) {
+        let combinedMaskPng: Buffer | null = null
+        if (imagine) {
+          combinedMaskPng = null
+        } else if (useFullFrame) {
           send({
             type: 'progress',
             step: 'masking' satisfies ProgressStep,
@@ -258,16 +275,22 @@ export async function POST(req: NextRequest) {
         }
 
         const settled = await Promise.allSettled(
-          Array.from({ length: numVariations }, (_, i) =>
-            generateVariation({
+          Array.from({ length: numVariations }, (_, i) => {
+            if (imagine) {
+              const prompt = body.zones[0]?.prompt?.trim()
+              if (!prompt) throw new Error('Missing kitchen prompt')
+              return generateFromPrompt(prompt)
+            }
+            if (!combinedMaskPng) throw new Error('Could not build an edit mask')
+            return generateVariation({
               roomBase64: body.image_base64,
               combinedMaskPng,
               zones: body.zones,
               atmosphere: Object.keys(atmosphereForPrompt).length > 0 ? atmosphereForPrompt : null,
               lightingRefBase64: lighting?.reference_base64 ?? null,
               variationIndex: i,
-            }),
-          ),
+            })
+          }),
         )
 
         const variations: string[] = []

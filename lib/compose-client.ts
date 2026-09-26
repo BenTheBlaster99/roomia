@@ -26,6 +26,8 @@ export type ComposeRoomBody = {
   } | null
   num_variations?: number
   full_frame?: boolean
+  /** No source photo. The prompt is the whole picture. */
+  imagine?: boolean
 }
 
 export async function composeRoom(

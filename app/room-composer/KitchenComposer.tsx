@@ -7,7 +7,10 @@ import { composeRoom } from '@/lib/compose-client'
 import {
   KITCHEN_ADDONS,
   KITCHEN_BASES,
+  KITCHEN_DISHWASHER,
+  KITCHEN_DISHWASHER_SIDE,
   KITCHEN_DOORS,
+  KITCHEN_GLASS,
   KITCHEN_HANDLES,
   KITCHEN_HOODS,
   KITCHEN_ISLAND,
@@ -18,16 +21,19 @@ import {
   KITCHEN_STYLE_IDS,
   KITCHEN_SUBJECTS,
   KITCHEN_TALL,
+  KITCHEN_UNDERLIGHT,
   KITCHEN_UPPERS,
   KITCHEN_WORKTOPS,
   buildKitchenComposePrompt,
   buildKitchenRefinePrompt,
   buildKitchenTweakPrompt,
   kitchenPartById,
+  kitchenPlanSummary,
   kitchenStyleLabel,
   kitchenStylePhoto,
   kitchenSwatchById,
   kitchenTweakLabel,
+  type KitchenOpening,
   type KitchenPart,
   type KitchenPin,
   type KitchenShapeId,
@@ -35,7 +41,7 @@ import {
   type KitchenSwatch,
   type KitchenTweak,
   type KitchenTweakAction,
-} from '@/lib/kitchen-flow'
+} from '@/lib/kitchen-look'
 
 type Stage = 'idle' | 'config' | 'generating' | 'results' | 'error'
 
@@ -112,6 +118,85 @@ function ChoiceButton({
   )
 }
 
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, '').slice(0, 5)
+}
+
+function PlanFields({
+  runMm,
+  heightMm,
+  windowSide,
+  doorSide,
+  required,
+  onRun,
+  onHeight,
+  onWindow,
+  onDoor,
+}: {
+  runMm: string
+  heightMm: string
+  windowSide: KitchenOpening
+  doorSide: KitchenOpening
+  required?: boolean
+  onRun: (value: string) => void
+  onHeight: (value: string) => void
+  onWindow: (value: KitchenOpening) => void
+  onDoor: (value: KitchenOpening) => void
+}) {
+  return (
+    <div className="rm-panel space-y-3 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--rm-accent)]">Plan de base</p>
+      <p className="text-[11px] leading-relaxed text-[var(--rm-muted)]">
+        {required
+          ? 'Sans photo, la longueur et la hauteur sont obligatoires. Le look est inventé à partir de ça.'
+          : 'Cotes du client, en millimètres. Facultatif si une photo est là. Ce n’est pas un plan technique.'}
+      </p>
+      <label className="block text-xs font-semibold text-[var(--rm-ink)]">
+        Longueur du linéaire
+        <input
+          inputMode="numeric"
+          value={runMm}
+          onChange={e => onRun(digitsOnly(e.target.value))}
+          placeholder="3200"
+          className="mt-1 w-full rounded-xl border border-[var(--rm-text)]/10 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-[var(--rm-primary)]"
+        />
+      </label>
+      <label className="block text-xs font-semibold text-[var(--rm-ink)]">
+        Hauteur sous plafond
+        <input
+          inputMode="numeric"
+          value={heightMm}
+          onChange={e => onHeight(digitsOnly(e.target.value))}
+          placeholder="2500"
+          className="mt-1 w-full rounded-xl border border-[var(--rm-text)]/10 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-[var(--rm-primary)]"
+        />
+      </label>
+      <PartRow
+        title="Fenêtre"
+        parts={[
+          { id: 'none', label: 'Aucune', prompt: '' },
+          { id: 'left', label: 'À gauche', prompt: '' },
+          { id: 'center', label: 'Au centre', prompt: '' },
+          { id: 'right', label: 'À droite', prompt: '' },
+        ]}
+        value={windowSide}
+        onChange={id => onWindow(id as KitchenOpening)}
+      />
+      <PartRow
+        title="Porte"
+        parts={[
+          { id: 'none', label: 'Aucune', prompt: '' },
+          { id: 'left', label: 'À gauche', prompt: '' },
+          { id: 'center', label: 'Au centre', prompt: '' },
+          { id: 'right', label: 'À droite', prompt: '' },
+        ]}
+        value={doorSide}
+        onChange={id => onDoor(id as KitchenOpening)}
+      />
+    </div>
+  )
+}
+
 function PartRow({
   title,
   parts,
@@ -142,6 +227,7 @@ export default function KitchenComposer() {
   const [stage, setStage] = useState<Stage>('idle')
   const [originalB64, setOriginalB64] = useState('')
   const [originalSrc, setOriginalSrc] = useState('')
+  const [imagineMode, setImagineMode] = useState(false)
   const [styleId, setStyleId] = useState<KitchenStyleId | null>(null)
   const [shapeId, setShapeId] = useState<KitchenShapeId | null>(null)
   const [doorsId, setDoorsId] = useState<string | null>(null)
@@ -153,7 +239,15 @@ export default function KitchenComposer() {
   const [islandId, setIslandId] = useState('none')
   const [hoodId, setHoodId] = useState('visible')
   const [sinkId, setSinkId] = useState('run')
+  const [dishwasherId, setDishwasherId] = useState('none')
+  const [dishwasherSideId, setDishwasherSideId] = useState('right')
+  const [glassId, setGlassId] = useState('none')
+  const [underlightId, setUnderlightId] = useState('none')
   const [splashId, setSplashId] = useState('none')
+  const [runMm, setRunMm] = useState('')
+  const [heightMm, setHeightMm] = useState('')
+  const [windowSide, setWindowSide] = useState<KitchenOpening>('none')
+  const [doorSide, setDoorSide] = useState<KitchenOpening>('none')
   const [notes, setNotes] = useState('')
   const [resultSrc, setResultSrc] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -178,8 +272,15 @@ export default function KitchenComposer() {
   const island = kitchenPartById(KITCHEN_ISLAND, islandId)
   const hood = kitchenPartById(KITCHEN_HOODS, hoodId)
   const sink = kitchenPartById(KITCHEN_SINKS, sinkId)
+  const dishwasher = kitchenPartById(KITCHEN_DISHWASHER, dishwasherId)
+  const dishwasherSide = kitchenPartById(KITCHEN_DISHWASHER_SIDE, dishwasherSideId)
+  const glass = kitchenPartById(KITCHEN_GLASS, glassId)
+  const underlight = kitchenPartById(KITCHEN_UNDERLIGHT, underlightId)
   const splash = kitchenPartById(KITCHEN_SPLASH, splashId)
-  const canGenerate = Boolean(styleId && shapeId && doors && worktop)
+  const plan = { runMm, heightMm, window: windowSide, door: doorSide }
+  const planSummary = kitchenPlanSummary(plan)
+  const imagineReady = Boolean(runMm.trim() && heightMm.trim())
+  const canGenerate = Boolean(styleId && shapeId && doors && worktop && (!imagineMode || imagineReady))
   const currentTweak: KitchenTweak = {
     action: tweakAction,
     subjectId: tweakSubjectId,
@@ -216,11 +317,16 @@ export default function KitchenComposer() {
     setStage('idle')
     setOriginalB64('')
     setOriginalSrc('')
+    setImagineMode(false)
     setResultSrc('')
     setError(null)
     setHandoffOpen(false)
     setProgressPct(0)
     setAppliedTweaks([])
+    setRunMm('')
+    setHeightMm('')
+    setWindowSide('none')
+    setDoorSide('none')
     clearTweak()
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -251,11 +357,21 @@ export default function KitchenComposer() {
     setTweakTo(null)
   }
 
-  async function runCompose(imageB64: string, prompt: string) {
+  function startImagine() {
+    setImagineMode(true)
+    setOriginalB64('')
+    setOriginalSrc('')
+    setResultSrc('')
+    setError(null)
+    setStage('config')
+  }
+
+  async function runCompose(imageB64: string, prompt: string, imagine = false) {
     const { variations } = await composeRoom(
       {
         image_base64: imageB64,
-        full_frame: true,
+        full_frame: !imagine,
+        imagine,
         zones: [
           {
             x: tweakFrom?.x ?? 0.5,
@@ -284,6 +400,10 @@ export default function KitchenComposer() {
       setError('Choisis un style, une forme, des portes et un plan de travail.')
       return
     }
+    if (imagineMode && !imagineReady) {
+      setError('Sans photo, indique la longueur du linéaire et la hauteur sous plafond.')
+      return
+    }
 
     setStage('generating')
     setError(null)
@@ -292,7 +412,7 @@ export default function KitchenComposer() {
 
     try {
       await runCompose(
-        originalB64,
+        imagineMode ? '' : originalB64,
         buildKitchenComposePrompt({
           styleId,
           shapeId,
@@ -306,8 +426,15 @@ export default function KitchenComposer() {
           hood,
           sink,
           splash,
+          dishwasher,
+          dishwasherSide,
+          glass,
+          underlight,
           notes,
+          plan,
+          imagine: imagineMode,
         }),
+        imagineMode,
       )
       if (notes.trim()) setAppliedTweaks(list => [...list, `Précision · ${notes.trim()}`])
       setNotes('')
@@ -392,6 +519,12 @@ export default function KitchenComposer() {
               <div className="text-xs text-[var(--rm-muted)]">JPG ou PNG — un angle clair suffit</div>
               <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
             </div>
+            <button type="button" onClick={startImagine} className="rm-panel w-full p-5 text-left">
+              <div className="rm-display text-sm font-bold text-[var(--rm-primary)]">Sans photo — imaginer</div>
+              <p className="mt-1 text-xs text-[var(--rm-muted)]">
+                Longueur, hauteur, puis les briques. Roomia invente la cuisine.
+              </p>
+            </button>
             <div className="rm-panel p-5">
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--rm-muted)]">
                 Pour un bon résultat
@@ -414,9 +547,20 @@ export default function KitchenComposer() {
           </div>
         ) : null}
 
-        {(stage === 'config' || stage === 'generating') && originalSrc ? (
+        {(stage === 'config' || stage === 'generating') && (originalSrc || imagineMode) ? (
           <div className="grid gap-6 lg:grid-cols-[minmax(22rem,36%)_minmax(0,1fr)]">
             <div className="space-y-3">
+              <PlanFields
+                runMm={runMm}
+                heightMm={heightMm}
+                windowSide={windowSide}
+                doorSide={doorSide}
+                onRun={setRunMm}
+                onHeight={setHeightMm}
+                required={imagineMode}
+                onWindow={setWindowSide}
+                onDoor={setDoorSide}
+              />
               <ChipRow title="Style">
                 {KITCHEN_STYLE_IDS.map(id => {
                   const on = styleId === id
@@ -444,7 +588,7 @@ export default function KitchenComposer() {
                     on={shapeId === shape.id}
                     onClick={() => {
                       setShapeId(shape.id)
-                      if (shape.id === 'island' && islandId === 'none') setIslandId('seating')
+                      if (shape.id === 'island' && islandId === 'none') setIslandId('central-seating')
                     }}
                   />
                 ))}
@@ -457,7 +601,15 @@ export default function KitchenComposer() {
                 <PartRow title="Meubles bas" parts={KITCHEN_BASES} value={basesId} onChange={setBasesId} />
                 <PartRow title="Meubles hauts" parts={KITCHEN_UPPERS} value={uppersId} onChange={setUppersId} />
                 <PartRow title="Colonnes" parts={KITCHEN_TALL} value={tallId} onChange={setTallId} />
-                <PartRow title="Îlot" parts={KITCHEN_ISLAND} value={islandId} onChange={setIslandId} />
+                <PartRow
+                  title="Îlot"
+                  parts={KITCHEN_ISLAND}
+                  value={islandId}
+                  onChange={id => {
+                    setIslandId(id)
+                    if (id !== 'none' && shapeId !== 'island') setShapeId('island')
+                  }}
+                />
               </div>
 
               <div className="rm-panel space-y-4 p-4">
@@ -466,7 +618,34 @@ export default function KitchenComposer() {
                 </p>
                 <PartRow title="Hotte" parts={KITCHEN_HOODS} value={hoodId} onChange={setHoodId} />
                 <PartRow title="Évier" parts={KITCHEN_SINKS} value={sinkId} onChange={setSinkId} />
+                <PartRow
+                  title="Lave-vaisselle"
+                  parts={KITCHEN_DISHWASHER}
+                  value={dishwasherId}
+                  onChange={setDishwasherId}
+                />
+                {dishwasherId === 'yes' ? (
+                  <PartRow
+                    title="Côté de l’évier"
+                    parts={KITCHEN_DISHWASHER_SIDE}
+                    value={dishwasherSideId}
+                    onChange={setDishwasherSideId}
+                  />
+                ) : null}
                 <PartRow title="Crédence" parts={KITCHEN_SPLASH} value={splashId} onChange={setSplashId} />
+                <PartRow title="Verre (assiettes visibles)" parts={KITCHEN_GLASS} value={glassId} onChange={setGlassId} />
+                {uppersId !== 'none' ? (
+                  <PartRow
+                    title="Lumières sous les hauts"
+                    parts={KITCHEN_UNDERLIGHT}
+                    value={underlightId}
+                    onChange={setUnderlightId}
+                  />
+                ) : null}
+                <p className="text-[11px] leading-relaxed text-[var(--rm-muted)]">
+                  Les millimètres du plan de base sont ceux du client. Ils ne sont pas lus sur la photo, et ils ne
+                  s’affichent pas sur l’image.
+                </p>
               </div>
 
               <div className="rm-panel space-y-4 p-4">
@@ -525,14 +704,20 @@ export default function KitchenComposer() {
             <div className="min-w-0 space-y-4">
               <div className="flex justify-end">
                 <button type="button" onClick={reset} className="text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)]">
-                  Autre photo
+                  {imagineMode ? 'Recommencer' : 'Autre photo'}
                 </button>
               </div>
-              <img
-                src={originalSrc}
-                alt="La cuisine"
-                className="block w-full rounded-[1.25rem] border border-[var(--rm-text)]/10"
-              />
+              {originalSrc ? (
+                <img
+                  src={originalSrc}
+                  alt="La cuisine"
+                  className="block w-full rounded-[1.25rem] border border-[var(--rm-text)]/10"
+                />
+              ) : (
+                <div className="rm-panel flex min-h-64 items-center p-6 text-sm leading-relaxed text-[var(--rm-muted)]">
+                  Pas de photo. Le look part de la longueur, de la hauteur, et des briques.
+                </div>
+              )}
               {stage === 'generating' ? (
                 <div className="rm-panel p-4">
                   <p className="text-sm font-semibold">Génération en cours…</p>
@@ -552,7 +737,9 @@ export default function KitchenComposer() {
               )}
               {!canGenerate && stage === 'config' ? (
                 <p className="text-center text-xs text-[var(--rm-muted)]">
-                  Style, forme, portes et plan de travail — puis on génère.
+                  {imagineMode
+                    ? 'Longueur, hauteur, style, forme, portes et plan de travail — puis on génère.'
+                    : 'Style, forme, portes et plan de travail — puis on génère.'}
                 </p>
               ) : null}
             </div>
@@ -608,6 +795,7 @@ export default function KitchenComposer() {
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--rm-accent)]">Ça vous plaît ?</p>
               <h2 className="rm-display text-2xl font-bold">Ce look, pas encore le plan</h2>
               <ul className="space-y-1 text-sm text-[var(--rm-ink)]">
+                {planSummary ? <li>Plan de base · {planSummary}</li> : null}
                 {styleId ? <li>Style · {kitchenStyleLabel(styleId)}</li> : null}
                 {shapeId ? <li>Forme · {KITCHEN_SHAPES.find(s => s.id === shapeId)?.label}</li> : null}
                 {bases ? <li>Bas · {bases.label}</li> : null}
@@ -616,6 +804,14 @@ export default function KitchenComposer() {
                 {island ? <li>Îlot · {island.label}</li> : null}
                 {hood ? <li>Hotte · {hood.label}</li> : null}
                 {sink ? <li>Évier · {sink.label}</li> : null}
+                {dishwasher ? (
+                  <li>
+                    Lave-vaisselle · {dishwasher.label}
+                    {dishwasherId === 'yes' && dishwasherSide ? ` · ${dishwasherSide.label}` : ''}
+                  </li>
+                ) : null}
+                {glass ? <li>Verre · {glass.label}</li> : null}
+                {uppersId !== 'none' && underlight ? <li>Lumières sous les hauts · {underlight.label}</li> : null}
                 {splash ? <li>Crédence · {splash.label}</li> : null}
                 {doors ? <li>Portes · {doors.label}</li> : null}
                 {worktop ? <li>Plan · {worktop.label}</li> : null}
