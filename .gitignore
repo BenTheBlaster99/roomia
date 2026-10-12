@@ -42,3 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 claude.txt
+
+# Sarah’s SketchUp originals — hundreds of MB, not for git
+/sketchup-tests/
+# uploaded scenes (heavy files)
+/.scenes/

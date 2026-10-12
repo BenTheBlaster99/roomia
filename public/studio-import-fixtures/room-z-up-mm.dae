@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor><authoring_tool>Roomia SketchUp-like fixture</authoring_tool></contributor>
+    <unit name="millimeter" meter="0.001"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="floor-geom">
+      <mesh>
+        <source id="floor-pos">
+          <float_array id="floor-pos-array" count="12">0 0 0 5000 0 0 5000 6000 0 0 6000 0</float_array>
+          <technique_common>
+            <accessor source="#floor-pos-array" count="4" stride="3">
+              <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="floor-verts"><input semantic="POSITION" source="#floor-pos"/></vertices>
+        <triangles count="2">
+          <input semantic="VERTEX" source="#floor-verts" offset="0"/>
+          <p>0 1 2 0 2 3</p>
+        </triangles>
+      </mesh>
+    </geometry>
+    <geometry id="wall-back-geom">
+      <mesh>
+        <source id="wall-back-pos">
+          <float_array id="wall-back-pos-array" count="12">0 0 0 5000 0 0 5000 0 2800 0 0 2800</float_array>
+          <technique_common>
+            <accessor source="#wall-back-pos-array" count="4" stride="3">
+              <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="wall-back-verts"><input semantic="POSITION" source="#wall-back-pos"/></vertices>
+        <triangles count="2">
+          <input semantic="VERTEX" source="#wall-back-verts" offset="0"/>
+          <p>0 1 2 0 2 3</p>
+        </triangles>
+      </mesh>
+    </geometry>
+    <geometry id="wall-left-geom">
+      <mesh>
+        <source id="wall-left-pos">
+          <float_array id="wall-left-pos-array" count="12">0 0 0 0 6000 0 0 6000 2800 0 0 2800</float_array>
+          <technique_common>
+            <accessor source="#wall-left-pos-array" count="4" stride="3">
+              <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="wall-left-verts"><input semantic="POSITION" source="#wall-left-pos"/></vertices>
+        <triangles count="2">
+          <input semantic="VERTEX" source="#wall-left-verts" offset="0"/>
+          <p>0 1 2 0 2 3</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Floor" name="Floor"><instance_geometry url="#floor-geom"/></node>
+      <node id="WallBack" name="WallBack"><instance_geometry url="#wall-back-geom"/></node>
+      <node id="WallLeft" name="WallLeft"><instance_geometry url="#wall-left-geom"/></node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

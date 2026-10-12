@@ -7,14 +7,16 @@ import type { StudioQuery } from './studio-query'
 import StudioBootstrap from './StudioBootstrap'
 import TopBar from './components/TopBar'
 import CatalogSidebar from './components/CatalogSidebar'
+import SceneSidebar from './components/SceneSidebar'
+import { CATALOG_ENABLED } from './studio-flags'
 import ViewControls from './components/ViewControls'
 import SelectedPanel from './components/SelectedPanel'
 import RoomSettings from './components/RoomSettings'
 import RenderPanel from './components/RenderPanel'
 import StudioEntryGate from './components/StudioEntryGate'
-import StudioEmptyState from './components/StudioEmptyState'
 import StudioScene from './StudioScene'
 import CartDrawer from '@/components/CartDrawer'
+import { ImportedRoomBar } from './components/StudioRoomImport'
 
 export default function Studio({
   initialPreset,
@@ -81,14 +83,16 @@ export default function Studio({
           <div className="relative flex flex-1 overflow-hidden">
             <div className="relative flex-1">
               <StudioScene />
-              <StudioEmptyState />
+              <ImportedRoomBar />
               <ViewControls />
               <SelectedPanel />
               <RoomSettings />
               <RenderPanel />
             </div>
 
-            {catalogOpen && (
+            <SceneSidebar />
+
+            {CATALOG_ENABLED && catalogOpen && (
               <div className="w-80 flex-shrink-0 overflow-hidden border-l border-[var(--rm-text)]/10">
                 <CatalogSidebar />
               </div>

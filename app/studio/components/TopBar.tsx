@@ -4,6 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { saveStudioDesign } from '@/lib/studio-design-storage'
 import { useStudioStore } from '@/store/useStudioStore'
+import StudioRoomImport from './StudioRoomImport'
+import { CATALOG_ENABLED } from '../studio-flags'
 
 export default function TopBar() {
   const [saveLabel, setSaveLabel] = useState('Save')
@@ -20,6 +22,8 @@ export default function TopBar() {
     setCartOpen,
     setRenderPanelOpen,
   } = useStudioStore()
+  // An imported scene is rendered from its saved views; the furniture tools don't apply to it.
+  const sceneMode = useStudioStore(state => Boolean(state.importedRoom?.sceneId))
   const cartCount = cart.reduce((sum, c) => sum + c.quantity, 0)
   const cartTotal = useStudioStore(s => s.cartTotal())
   const isUndoable = canUndo()
@@ -50,40 +54,52 @@ export default function TopBar() {
 
         <div className="hidden sm:block w-px h-5 bg-[var(--rm-text)]/12" />
 
-        <button onClick={undo} disabled={!isUndoable} title="Undo (Ctrl+Z)" className={btn}>
-          Undo
-        </button>
-        <button onClick={redo} disabled={!isRedoable} title="Redo (Ctrl+Y)" className={btn}>
-          Redo
-        </button>
+        {!sceneMode && (
+          <>
+            <button onClick={undo} disabled={!isUndoable} title="Undo (Ctrl+Z)" className={btn}>
+              Undo
+            </button>
+            <button onClick={redo} disabled={!isRedoable} title="Redo (Ctrl+Y)" className={btn}>
+              Redo
+            </button>
 
-        <div className="hidden sm:block w-px h-5 bg-[var(--rm-text)]/12" />
+            <div className="hidden sm:block w-px h-5 bg-[var(--rm-text)]/12" />
 
-        <button onClick={() => setRoomSettingsOpen(true)} className={btn}>
-          Room
-        </button>
+            <button onClick={() => setRoomSettingsOpen(true)} className={btn}>
+              Room
+            </button>
+          </>
+        )}
 
-        <button
-          onClick={() => {
-            if (window.confirm('Clear all furniture from the room?')) clearRoom()
-          }}
-          className={`${btn} hover:border-red-300 hover:text-red-700`}
-        >
-          Clear
-        </button>
+        <StudioRoomImport className={btn} label={sceneMode ? 'Importer une autre scène' : 'Importer'} compact />
+
+        {!sceneMode && (
+          <button
+            onClick={() => {
+              if (window.confirm('Clear all furniture from the room?')) clearRoom()
+            }}
+            className={`${btn} hover:border-red-300 hover:text-red-700`}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={toggleCatalog}
-          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-            catalogOpen
-              ? 'border-[var(--rm-primary)] text-[var(--rm-primary)] bg-[var(--rm-secondary)]'
-              : btn
-          }`}
-        >
-          Catalog
-        </button>
+        {!sceneMode && (
+          <>
+        {CATALOG_ENABLED && (
+          <button
+            onClick={toggleCatalog}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              catalogOpen
+                ? 'border-[var(--rm-primary)] text-[var(--rm-primary)] bg-[var(--rm-secondary)]'
+                : btn
+            }`}
+          >
+            Catalog
+          </button>
+        )}
 
         <Link href="/room-composer" className={`hidden sm:inline ${btn}`}>
           Compose
@@ -123,6 +139,8 @@ export default function TopBar() {
             <span className="font-normal hidden sm:inline">{cartTotal.toLocaleString()} DZD</span>
           )}
         </button>
+          </>
+        )}
       </div>
     </div>
   )

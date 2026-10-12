@@ -12,13 +12,21 @@ const VIEWS: { mode: ViewMode; label: string }[] = [
   { mode: 'right', label: 'Droite' },
 ]
 
+/** Imported scenes are explored from the saved views; only two overview angles make sense. */
+const SCENE_VIEWS: { mode: ViewMode; label: string }[] = [
+  { mode: 'perspective', label: 'Vue d’ensemble' },
+  { mode: 'top', label: 'Vue du dessus' },
+]
+
 export default function ViewControls() {
   const { viewMode, setViewMode } = useStudioStore()
+  const sceneMode = useStudioStore(state => Boolean(state.importedRoom?.sceneId))
+  const views = sceneMode ? SCENE_VIEWS : VIEWS
 
   return (
     <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2">
       <div className="flex items-center gap-1 rounded-xl border border-[var(--rm-text)]/12 bg-[var(--rm-surface)]/95 p-1 shadow-md backdrop-blur">
-        {VIEWS.map(v => (
+        {views.map(v => (
           <button
             key={v.mode}
             type="button"
@@ -35,7 +43,9 @@ export default function ViewControls() {
         ))}
       </div>
       <p className="hidden rounded-full bg-black/45 px-3 py-1 text-[10px] text-white/85 sm:block">
-        Glisser = orbit · Clic droit = pan · Molette = zoom · Mobile : 1 doigt = meuble · 2 doigts = orbit/zoom
+        {sceneMode
+          ? 'Glisser = tourner · Clic droit = déplacer · Molette = avancer / reculer vers le curseur · Mobile : 2 doigts'
+          : 'Glisser = orbit · Clic droit = pan · Molette = zoom · Mobile : 1 doigt = meuble · 2 doigts = orbit/zoom'}
       </p>
     </div>
   )

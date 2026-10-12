@@ -9,12 +9,22 @@ import * as THREE from 'three'
 const { ACTION } = CameraControlsImpl
 import { useStudioStore } from '@/store/useStudioStore'
 import Room from './components/Room'
+import ImportedRoom from './components/ImportedRoom'
 import FurniturePiece from './components/FurniturePiece'
+
+function resetFov(camera: THREE.Camera) {
+  if (camera instanceof THREE.PerspectiveCamera && camera.fov !== 50) {
+    camera.fov = 50
+    camera.updateProjectionMatrix()
+  }
+}
 
 function CameraController() {
   const ccRef = useRef<CameraControls>(null!)
+  const camera = useThree(state => state.camera)
   const viewMode = useStudioStore(s => s.viewMode)
   const room = useStudioStore(s => s.room)
+  const sceneMode = useStudioStore(s => Boolean(s.importedRoom?.sceneId))
   const draggingId = useStudioStore(s => s.draggingId)
   const isRotating = useStudioStore(s => s.isRotating)
   const { width, length, height } = room
@@ -36,8 +46,11 @@ function CameraController() {
       capture: [cx - pad * 0.35, 1.55, cz + pad * 0.55, cx + pad * 0.15, 1.2, cz - pad * 0.1],
     }
     const v = views[viewMode]
-    if (v) cc.setLookAt(v[0], v[1], v[2], v[3], v[4], v[5], true)
-  }, [viewMode, width, length, height, cx, cz, pad])
+    if (v) {
+      resetFov(camera)
+      cc.setLookAt(v[0], v[1], v[2], v[3], v[4], v[5], true)
+    }
+  }, [viewMode, width, length, height, cx, cz, pad, camera])
 
   // Free look in 3D / photo modes; orthographic-ish presets stay constrained
   const lockedTop = viewMode === 'top'
@@ -50,6 +63,7 @@ function CameraController() {
       makeDefault
       minDistance={0.8}
       maxDistance={pad * 6}
+      dollyToCursor={sceneMode}
       dollySpeed={0.85}
       truckSpeed={1.2}
       polarRotateSpeed={freeLook ? 0.9 : 0.35}
@@ -139,11 +153,29 @@ function RotationCapturePlane() {
   )
 }
 
+/**
+ * Imported SketchUp scenes carry the designer's real (often very dark) materials. Film-style tone
+ * mapping crushes those to black, so imported scenes are drawn flat and bright like SketchUp does.
+ */
+function setToneMapping(renderer: THREE.WebGLRenderer, mode: THREE.ToneMapping) {
+  renderer.toneMapping = mode
+}
+
+function ImportedSceneLook() {
+  const gl = useThree(state => state.gl)
+  useEffect(() => {
+    setToneMapping(gl, THREE.NoToneMapping)
+    return () => setToneMapping(gl, THREE.ACESFilmicToneMapping)
+  }, [gl])
+  return null
+}
+
 export default function StudioScene() {
   const room = useStudioStore(s => s.room)
   const items = useStudioStore(s => s.items)
   const selectItem = useStudioStore(s => s.selectItem)
   const captureMode = useStudioStore(s => s.captureMode)
+  const importedRoom = useStudioStore(s => s.importedRoom)
   const { width, length, height } = room
 
   return (
@@ -166,7 +198,8 @@ export default function StudioScene() {
         <Suspense fallback={null}>
           <color attach="background" args={['#eae6df']} />
 
-          <ambientLight intensity={0.65} />
+          {importedRoom && <ImportedSceneLook />}
+          <ambientLight intensity={importedRoom ? 1.4 : 0.65} />
           <hemisphereLight args={['#ffffff', '#d4cfc6', 0.5]} />
           <directionalLight
             position={[width * 0.8, height * 3, length * 0.8]}
@@ -184,7 +217,7 @@ export default function StudioScene() {
             color="#FFF5E0"
           />
 
-          <Room />
+          {importedRoom ? <ImportedRoom /> : <Room />}
 
           {!captureMode && (
             <Grid

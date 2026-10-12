@@ -5,6 +5,9 @@ import { clampToRoom } from '@/lib/studio-footprint'
 import { SLUG_TO_STYLE } from '@/lib/style-room-presentation'
 import type { CatalogItem } from '@/lib/mock-catalog'
 import type { RoomPresetPayload } from '@/types/room-preset'
+import type { ImportedRoomMeta } from '@/lib/studio-import/import-room'
+import type { ImportLengthUnit } from '@/lib/studio-import/fit-imported-room'
+import { clearImportedSource } from '@/lib/studio-import/imported-room-cache'
 
 export type ViewMode = 'perspective' | 'top' | 'front' | 'back' | 'left' | 'right' | 'capture'
 export type FloorMaterial = 'wood' | 'tile' | 'concrete' | 'carpet' | 'marble'
@@ -47,6 +50,18 @@ interface StudioState {
   setRoom: (updates: Partial<RoomConfig>) => void
   loadPreset: (payload: RoomPresetPayload) => void
   loadSavedDesign: (design: { room: RoomConfig; items: PlacedItem[] }) => void
+
+  importedRoom: ImportedRoomMeta | null
+  importStatus: 'idle' | 'loading' | 'ready' | 'error'
+  importError: string | null
+  commitImportedRoom: (payload: {
+    meta: ImportedRoomMeta
+    room: { width: number; length: number; height: number }
+  }) => void
+  setImportStatus: (status: StudioState['importStatus'], error?: string | null) => void
+  setImportFit: (updates: { zUp?: boolean; unit?: ImportLengthUnit }) => void
+  applyImportedRoomDims: (dims: { width: number; length: number; height: number }) => void
+  clearImportedRoom: () => void
 
   items: PlacedItem[]
   addItemFromCatalog: (catalog: CatalogItem) => void
@@ -134,6 +149,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
 
   loadPreset: payload => {
+    clearImportedSource()
     const styleName = payload.styleId ? SLUG_TO_STYLE[payload.styleId] : null
     const furniture = Array.isArray(payload.furniture) ? payload.furniture : []
     const defaults: RoomConfig = {
@@ -165,16 +181,83 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       cart: [],
       past: [],
       future: [],
+      importedRoom: null,
+      importStatus: 'idle',
+      importError: null,
     })
   },
 
   loadSavedDesign: design => {
+    clearImportedSource()
     set({
       room: design.room,
       items: design.items,
       selectedId: null,
       past: [],
       future: [],
+      importedRoom: null,
+      importStatus: 'idle',
+      importError: null,
+    })
+  },
+
+  importedRoom: null,
+  importStatus: 'idle',
+  importError: null,
+
+  commitImportedRoom: payload => {
+    set(state => ({
+      importedRoom: payload.meta,
+      importStatus: 'ready',
+      importError: null,
+      room: {
+        ...state.room,
+        width: payload.room.width,
+        length: payload.room.length,
+        height: payload.room.height,
+      },
+    }))
+  },
+
+  setImportStatus: (status, error = null) =>
+    set({
+      importStatus: status,
+      importError: status === 'error' ? error : null,
+    }),
+
+  setImportFit: updates => {
+    const current = get().importedRoom
+    if (!current) return
+    set({
+      importedRoom: { ...current, ...updates },
+    })
+  },
+
+  applyImportedRoomDims: dims => {
+    const room = get().room
+    if (
+      Math.abs(room.width - dims.width) < 0.001 &&
+      Math.abs(room.length - dims.length) < 0.001 &&
+      Math.abs(room.height - dims.height) < 0.001
+    ) {
+      return
+    }
+    set(state => ({
+      room: {
+        ...state.room,
+        width: dims.width,
+        length: dims.length,
+        height: dims.height,
+      },
+    }))
+  },
+
+  clearImportedRoom: () => {
+    clearImportedSource()
+    set({
+      importedRoom: null,
+      importStatus: 'idle',
+      importError: null,
     })
   },
 

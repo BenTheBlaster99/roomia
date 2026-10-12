@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
-import { toFile } from 'openai'
-import { GPT_IMAGE_MODEL, getOpenAIClient } from '@/lib/openai-client'
-import { extractImageBase64 } from '@/lib/extract-image-b64'
+import { accessDenied } from '@/lib/access-guard'
+import { getOpenAIClient } from '@/lib/openai-client'
 import { buildRenderPrompt } from '@/lib/render-prompt'
-import { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
+import { decodeImageBase64 } from '@/lib/image-bytes'
+import { generatePhotoreal, renderErrorDetail } from '@/lib/photoreal'
+import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -17,13 +18,9 @@ interface RenderBody {
 
 type ProgressStep = 'capturing' | 'generating' | 'results'
 
-function errorDetail(err: unknown): string {
-  const message = err instanceof Error ? err.message : 'Render failed'
-  if (message.includes('OPENAI_API_KEY')) return 'OPENAI_API_KEY is not configured'
-  return message
-}
-
 export async function POST(req: NextRequest) {
+  const denied = await accessDenied(req)
+  if (denied) return denied
   const body = (await req.json()) as RenderBody
 
   if (!body.image_base64) {
@@ -33,7 +30,7 @@ export async function POST(req: NextRequest) {
   try {
     getOpenAIClient()
   } catch (err) {
-    return Response.json({ detail: errorDetail(err) }, { status: 500 })
+    return Response.json({ detail: renderErrorDetail(err) }, { status: 500 })
   }
 
   const encoder = new TextEncoder()
@@ -60,7 +57,6 @@ export async function POST(req: NextRequest) {
           pct: 45,
         })
 
-        const client = getOpenAIClient()
         const { prompt, negative } = buildRenderPrompt({
           floorMaterial: body.floor_material,
           wallColor: body.wall_color,
@@ -77,29 +73,8 @@ export async function POST(req: NextRequest) {
           'ALLOWED: realistic materials, lighting, shadows, and photographic detail on the same scene.',
         ].join(' ')
 
-        const buf = decodeImageBase64(body.image_base64)
-        const mime = sniffImageMime(buf)
-        const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
-
-        const response = await client.images.edit({
-          model: GPT_IMAGE_MODEL,
-          image: await toFile(buf, `studio.${ext}`, { type: mime }),
-          prompt: fullPrompt,
-          quality: 'high',
-          background: 'opaque',
-          output_format: 'jpeg',
-          // Prefer inline base64; gateways that ignore this may still return url
-          response_format: 'b64_json',
-          size: 'auto',
-        })
-
-        let b64: string
-        try {
-          b64 = await extractImageBase64(response)
-        } catch (extractErr) {
-          console.error('render extract failed; raw response:', JSON.stringify(response)?.slice(0, 800))
-          throw extractErr
-        }
+        if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
+        const { base64: b64 } = await generatePhotoreal(decodeImageBase64(body.image_base64), fullPrompt)
 
         send({
           type: 'progress',
@@ -112,7 +87,7 @@ export async function POST(req: NextRequest) {
         send({ type: 'done', result_base64: b64 })
       } catch (err: unknown) {
         console.error('render/photorealistic stream error:', err)
-        send({ type: 'error', detail: errorDetail(err) })
+        send({ type: 'error', detail: renderErrorDetail(err) })
       } finally {
         controller.close()
       }
