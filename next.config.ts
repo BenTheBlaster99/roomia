@@ -7,6 +7,21 @@ const nextConfig: NextConfig = {
   // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
   allowedDevOrigins: ['*.trycloudflare.com', '*.coconutstudio.io'],
   serverExternalPackages: ['sharp'],
+  // Scene routes build a path from the project root, and the file tracer follows it.
+  // That packs the scene folder and the compiler binaries into every server function.
+  // The upload then dies at "Deploying outputs" once a function passes 250 MB.
+  outputFileTracingExcludes: {
+    '/*': [
+      './.scenes/**',
+      './public/models/**',
+      './d5-tests/**',
+      './store Hotelia Space/**',
+      './node_modules/@next/swc-*/**',
+      './node_modules/@swc/core*/**',
+      './node_modules/@esbuild/**',
+      './node_modules/typescript/**',
+    ],
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'i.pinimg.com' },

@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
 
 type SharpFn = (input?: unknown, opts?: unknown) => SharpInstance
 
@@ -31,11 +30,13 @@ export function loadSharp(): SharpFn {
   if (cached) return cached
   // The production bundler cannot compile createRequire(): it turns the call into `(void 0)` and
   // photo generation then fails at runtime. Use its own require there.
+  // createRequire(process.cwd()) makes the file tracer walk the whole project.
+  // import.meta.url keeps the trace on sharp itself.
   const req =
     typeof __non_webpack_require__ === 'function'
       ? __non_webpack_require__
-      : createRequire(join(/* turbopackIgnore: true */ process.cwd(), 'package.json'))
-  const loaded = req(join(/* turbopackIgnore: true */ process.cwd(), 'node_modules/sharp')) as SharpFn | null
+      : createRequire(import.meta.url)
+  const loaded = req('sharp') as SharpFn | null
   if (!loaded) throw new Error('sharp is not available')
   cached = loaded
   return cached
