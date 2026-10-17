@@ -4,7 +4,8 @@ import path from 'node:path'
 import { toFile } from 'openai'
 import { extractImageBase64 } from './extract-image-b64'
 import { loadSharp } from './load-sharp'
-import { GPT_IMAGE_MODEL, getOpenAIClient } from './openai-client'
+import OpenAI from 'openai'
+import { GPT_IMAGE_MODEL, getBackupImageClient, getOpenAIClient } from './openai-client'
 
 /**
  * The image gateway sits behind Cloudflare, which drops requests that take over ~100 s (HTTP
@@ -14,6 +15,9 @@ import { GPT_IMAGE_MODEL, getOpenAIClient } from './openai-client'
 export const IMAGE_QUALITY = ['low', 'medium', 'high'].includes(process.env.RENDER_IMAGE_QUALITY ?? '')
   ? (process.env.RENDER_IMAGE_QUALITY as 'low' | 'medium' | 'high')
   : 'high'
+
+/** How closely the photo follows the capture. RENDER_INPUT_FIDELITY=low turns it off. */
+const INPUT_FIDELITY: 'high' | undefined = process.env.RENDER_INPUT_FIDELITY === 'low' ? undefined : 'high'
 
 /** One attempt only: each retry of a slow request is another paid generation and another wait. */
 const REQUEST_OPTIONS = { maxRetries: 0, timeout: 170_000 }
@@ -25,14 +29,45 @@ function pickSize(width = 0, height = 0): '1536x1024' | '1024x1536' | '1024x1024
   return '1024x1024'
 }
 
+const timedOut = (err: unknown) => {
+  const status = (err as { status?: number }).status
+  return status === 504 || status === 524 || status === 408 || /timed? ?out/i.test(String((err as Error)?.message))
+}
+
+/** The image service itself is unreachable or failing (not a problem with our request). */
+export function isGatewayDown(err: unknown): boolean {
+  const status = (err as { status?: number }).status
+  const text = `${(err as Error)?.message ?? ''} ${String((err as { cause?: unknown }).cause ?? '')}`
+  return (
+    timedOut(err) ||
+    status === 502 ||
+    status === 503 ||
+    (err as { code?: string }).code === 'upstream_unavailable' ||
+    /connection error|fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND|upstream/i.test(text)
+  )
+}
+
 export function renderErrorDetail(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Render failed'
   if (message.includes('OPENAI_API_KEY')) return 'OPENAI_API_KEY is not configured'
-  const status = (err as { status?: number }).status
-  if (status === 524 || status === 504 || status === 408 || /timed? ?out/i.test(message)) {
-    return 'Le serveur d’images n’a pas répondu à temps. Réessayez ; en cas d’échec répété, baissez RENDER_IMAGE_QUALITY.'
+  if (timedOut(err)) {
+    return 'Le serveur d’images est trop lent en ce moment et n’a pas répondu à temps. Réessayez dans quelques minutes.'
+  }
+  if (isGatewayDown(err)) {
+    return 'Le serveur d’images est momentanément indisponible. Réessayez dans quelques minutes.'
   }
   return message
+}
+
+/** A gateway answer that is an error body instead of an image (it came back as HTTP 200). */
+class GatewayError extends Error {
+  readonly status = 502
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message)
+  }
 }
 
 export interface PhotorealResult {
@@ -40,6 +75,12 @@ export interface PhotorealResult {
   seconds: number
   quality: string
   size: string
+  /** True when high quality timed out and the photo was made at medium instead. */
+  fellBack: boolean
+  /** How closely the photo was asked to follow the capture. */
+  fidelity: 'high' | 'low'
+  /** 'backup' when the main gateway was down and the backup provider made the photo. */
+  provider: 'gateway' | 'backup'
 }
 
 /**
@@ -68,45 +109,88 @@ export async function generatePhotoreal(image: Buffer, prompt: string): Promise<
   const size = pickSize(dims.width, dims.height)
 
   const started = performance.now()
-  const params = {
-    model: GPT_IMAGE_MODEL,
-    image: await toFile(png, 'studio.png', { type: 'image/png' }),
-    prompt,
-    quality: IMAGE_QUALITY,
-    background: 'opaque' as const,
-    output_format: 'jpeg' as const,
-    // Prefer inline base64; gateways that ignore this may still return url
-    response_format: 'b64_json' as const,
-    size,
-  }
-
-  // The gateway sometimes answers an instant, unbilled "upstream_400 Invalid value for 'image'"
-  // for a picture it accepts a moment later. Retry only that; never retry a timeout.
-  let response: Awaited<ReturnType<typeof client.images.edit>> | undefined
-  for (let attempt = 1; attempt <= 3 && !response; attempt++) {
-    try {
-      response = await client.images.edit(params, REQUEST_OPTIONS)
-    } catch (err) {
-      const flaky = (err as { code?: string }).code === 'upstream_400'
-      if (!flaky || attempt === 3) {
-        if ((err as { status?: number }).status === 400) {
-          // Keep the picture that was rejected so it can be looked at.
-          const dump = path.join(tmpdir(), 'roomia-last-rejected-render-input')
-          await writeFile(dump, png).catch(() => undefined)
-          console.error(`photoreal: rejected input saved to ${dump} (${png.length} bytes)`)
+  // 'high' makes the model stick to the capture (shapes, materials, framing) instead of drifting
+  // from it; the default 'low' let it repaint wood tones and stone patterns.
+  let fidelity: 'high' | undefined = INPUT_FIDELITY
+  const attempt = async (
+    quality: 'low' | 'medium' | 'high',
+    target: { client: OpenAI; model: string } = { client, model: GPT_IMAGE_MODEL },
+  ): Promise<unknown> => {
+    const params = {
+      model: target.model,
+      image: await toFile(png, 'studio.png', { type: 'image/png' }),
+      prompt,
+      quality,
+      ...(fidelity ? { input_fidelity: fidelity } : {}),
+      background: 'opaque' as const,
+      output_format: 'jpeg' as const,
+      // Prefer inline base64; gateways that ignore this may still return url
+      response_format: 'b64_json' as const,
+      size,
+    }
+    // The gateway sometimes answers an instant, unbilled "upstream_400 Invalid value for 'image'"
+    // for a picture it accepts a moment later. Retry only that.
+    for (let tries = 1; ; tries++) {
+      try {
+        const response = await target.client.images.edit(params, REQUEST_OPTIONS)
+        const body = response as unknown as { data?: unknown; error?: { message?: string; code?: string } }
+        if (body.error && !body.data) throw new GatewayError(body.error.message ?? 'upstream error', body.error.code)
+        return response
+      } catch (err) {
+        // A gateway that doesn't know input_fidelity refuses instantly (unbilled): go on without it.
+        if (fidelity && (err as { status?: number }).status === 400 && /input_fidelity/i.test(String((err as Error).message))) {
+          console.warn('photoreal: gateway refused input_fidelity, continuing without it')
+          fidelity = undefined
+          return attempt(quality, target)
         }
-        throw err
+        const flaky = (err as { code?: string }).code === 'upstream_400'
+        if (!flaky || tries === 3) {
+          if ((err as { status?: number }).status === 400) {
+            // Keep the picture that was rejected so it can be looked at.
+            const dump = path.join(tmpdir(), 'roomia-last-rejected-render-input')
+            await writeFile(dump, png).catch(() => undefined)
+            console.error(`photoreal: rejected input saved to ${dump} (${png.length} bytes)`)
+          }
+          throw err
+        }
+        console.warn(`photoreal: gateway rejected the image (attempt ${tries}), retrying`)
+        await new Promise(r => setTimeout(r, 1500))
       }
-      console.warn(`photoreal: gateway rejected the image (attempt ${attempt}), retrying`)
-      await new Promise(r => setTimeout(r, 1500))
     }
   }
-  if (!response) throw new Error('Render failed')
+
+  // High quality on a complex view can take longer than the gateway's ~100 s Cloudflare limit
+  // (504 / 524). Rather than fail, try once more at medium quality, which takes about 60-70 s.
+  let usedQuality: 'low' | 'medium' | 'high' = IMAGE_QUALITY
+  let fellBack = false
+  let provider: 'gateway' | 'backup' = 'gateway'
+  let response: unknown
+  try {
+    try {
+      response = await attempt(IMAGE_QUALITY)
+    } catch (err) {
+      if (IMAGE_QUALITY !== 'high' || !timedOut(err)) throw err
+      const status = (err as { status?: number }).status
+      console.warn(`photoreal: high quality timed out (${status ?? 'timeout'}) after ${((performance.now() - started) / 1000).toFixed(0)}s; retrying once at medium`)
+      usedQuality = 'medium'
+      fellBack = true
+      response = await attempt('medium')
+    }
+  } catch (err) {
+    // The gateway is down (outage, 524 even at medium, unreachable): one try on the backup provider.
+    const backup = getBackupImageClient()
+    if (!backup || !isGatewayDown(err)) throw err
+    console.warn(`photoreal: gateway down (${(err as Error).message?.slice(0, 80)}); trying the backup provider`)
+    provider = 'backup'
+    usedQuality = IMAGE_QUALITY
+    fellBack = false
+    response = await attempt(IMAGE_QUALITY, backup)
+  }
   const seconds = (performance.now() - started) / 1000
-  console.log(`photoreal: ${IMAGE_QUALITY} ${size} in ${seconds.toFixed(1)}s`)
+  console.log(`photoreal: ${usedQuality}${fellBack ? ' (fallback)' : ''}${provider === 'backup' ? ' via backup' : ''} ${size} fidelity ${fidelity ?? 'low'} in ${seconds.toFixed(1)}s`)
 
   try {
-    return { base64: await extractImageBase64(response), seconds, quality: IMAGE_QUALITY, size }
+    return { base64: await extractImageBase64(response), seconds, quality: usedQuality, size, fellBack, fidelity: fidelity ?? 'low', provider }
   } catch (extractErr) {
     console.error('photoreal extract failed; raw response:', JSON.stringify(response)?.slice(0, 800))
     throw extractErr

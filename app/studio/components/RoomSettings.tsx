@@ -5,6 +5,7 @@ import { useStudioStore, type FloorMaterial } from '@/store/useStudioStore'
 
 export default function RoomSettings() {
   const { roomSettingsOpen, setRoomSettingsOpen, room, setRoom } = useStudioStore()
+  const imported = useStudioStore(s => Boolean(s.importedRoom))
   if (!roomSettingsOpen) return null
 
   return (
@@ -51,6 +52,12 @@ export default function RoomSettings() {
           <p className="text-xs text-zinc-500 mt-2">
             Floor area: {(room.width * room.length).toFixed(1)} m²
           </p>
+          {imported && (
+            <p className="text-xs text-amber-800 mt-2 leading-relaxed">
+              Dimensions prises sur le fichier SketchUp (boîte englobante). Retirer l’import pour
+              revenir à la pièce boîte.
+            </p>
+          )}
         </div>
 
         <div>

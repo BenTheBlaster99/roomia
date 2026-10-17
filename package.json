@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next dev",
     "back": "cd ../roomia-ai-backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000",
-    "build": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next build",
-    "start": "node scripts/ensure-next-cache.mjs && node node_modules/next/dist/bin/next start",
+    "build": "node scripts/ensure-next-cache.mjs && NODE_PATH=$PWD/node_modules node node_modules/next/dist/bin/next build --webpack",
+    "start": "node scripts/ensure-next-cache.mjs && NODE_PATH=$PWD/node_modules node node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "generate-presets": "npx tsx scripts/generate-room-presets.ts",
     "generate-presets:dump": "npx tsx scripts/generate-room-presets.ts --dump --out=scripts/data/room-presets.json",
     "test:studio-import": "npx tsx scripts/test-studio-import.ts",
+    "runs-report": "npx tsx scripts/runs-report.ts",
     "prepare-scene": "NODE_OPTIONS=--max-old-space-size=8192 npx tsx scripts/prepare-scene.ts"
   },
   "dependencies": {

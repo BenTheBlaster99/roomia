@@ -1,12 +1,12 @@
 import { stat } from 'node:fs/promises'
-import { Document, NodeIO, Primitive } from '@gltf-transform/core'
+import { Document, Logger, NodeIO, Primitive } from '@gltf-transform/core'
 import { ALL_EXTENSIONS, EXTMeshGPUInstancing, type InstancedMesh } from '@gltf-transform/extensions'
 import {
   dedup,
   getBounds,
   instance,
-  normals,
   prune,
+  quantize,
   simplify,
   textureCompress,
   weld,
@@ -20,6 +20,10 @@ type Log = (line: string) => void
 /** Studio refuses above 800k triangles; aim lower so the copy loads comfortably. */
 const TARGET_TRIANGLES = 600_000
 /** Simplifier error steps, relative to each mesh's size. Flat panels barely move at any of these. */
+/**
+ * Beyond 2% the simplifier barely removes anything more but visibly warps big walls and floors
+ * (it allows an error relative to each mesh's size). Past that point, small objects are dropped instead.
+ */
 const ERROR_STEPS = [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.02]
 const TEXTURE_SIZE = 1024
 
@@ -100,6 +104,35 @@ function stripSeamAttributes(doc: Document): void {
 }
 
 /**
+ * Last resort when simplifying is not enough: the smallest objects are dropped from the preview
+ * (never from the full-quality file) until the scene fits. A viewer orbiting a whole site does
+ * not miss a 5 cm fitting; renders still use every object.
+ */
+function dropSmallestObjects(doc: Document, targetTriangles: number): { dropped: number; largestDropped: number } {
+  const candidates: { node: ReturnType<Document['createNode']>; tris: number; size: number }[] = []
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh()
+    if (!mesh) continue
+    let tris = 0
+    for (const prim of mesh.listPrimitives()) tris += primitiveTriangles(prim)
+    const { min, max } = getBounds(node)
+    candidates.push({ node, tris, size: Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]) })
+  }
+  candidates.sort((a, b) => a.size - b.size)
+  let drawn = drawnTriangles(doc)
+  let dropped = 0
+  let largestDropped = 0
+  for (const c of candidates) {
+    if (drawn <= targetTriangles) break
+    c.node.setMesh(null)
+    drawn -= c.tris
+    dropped += 1
+    largestDropped = c.size
+  }
+  return { dropped, largestDropped }
+}
+
+/**
  * Heavy GLB in → light GLB out for the Studio viewport. The input is never modified and
  * the output keeps the same world coordinates, so a camera picked on it is valid for the
  * heavy source. Throws if Studio would not accept or misread the result.
@@ -109,11 +142,13 @@ export async function makeViewportGlb(input: string, output: string, log: Log = 
   const lap = (label: string, since: number) =>
     log(`  ${label.padEnd(22)} ${((performance.now() - since) / 1000).toFixed(1)}s`)
 
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
+  // The transforms warn once per object (hundreds of lines for a big scene); only errors matter here.
+  const quiet = new Logger(Logger.Verbosity.ERROR)
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).setLogger(quiet)
   await MeshoptSimplifier.ready
 
   let t = performance.now()
-  const doc = await io.read(input)
+  const doc = (await io.read(input)).setLogger(quiet)
   lap('read', t)
 
   const trianglesIn = drawnTriangles(doc)
@@ -132,7 +167,13 @@ export async function makeViewportGlb(input: string, output: string, log: Log = 
     await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: 0, error }))
     log(`     simplify error=${error}: ${drawnTriangles(doc)} drawn tris`)
   }
-  await doc.transform(prune(), normals({ overwrite: true }))
+  if (drawnTriangles(doc) > TARGET_TRIANGLES) {
+    const { dropped, largestDropped } = dropSmallestObjects(doc, TARGET_TRIANGLES)
+    log(`     dropped ${dropped} smallest objects from the preview (largest ${(largestDropped * 100).toFixed(0)} cm): ${drawnTriangles(doc)} drawn tris`)
+  }
+  // No normals on purpose: rebuilding them would split every shared vertex apart (3x the size).
+  // Studio shades a mesh without normals flat, like SketchUp.
+  await doc.transform(prune(), quantize())
   lap('simplify', t)
 
   t = performance.now()

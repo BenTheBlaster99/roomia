@@ -11,7 +11,8 @@ type SharpInstance = {
   raw: () => SharpInstance
   blur: (sigma: number) => SharpInstance
   threshold: (value: number) => SharpInstance
-  resize: (width: number, height: number, opts?: { fit?: string }) => SharpInstance
+  resize: (width: number, height: number, opts?: { fit?: string; withoutEnlargement?: boolean }) => SharpInstance
+  stats: () => Promise<{ channels: { mean: number; stdev: number }[] }>
   png: () => SharpInstance
   toBuffer: {
     (): Promise<Buffer>
@@ -23,10 +24,18 @@ type SharpInstance = {
 }
 
 /** Load sharp from disk. Never write `import 'sharp'` — Turbopack invents a fake package on the DATA cache. */
+/** Webpack (the production build) provides the real Node require under this name; Turbopack and tsx do not. */
+declare const __non_webpack_require__: NodeJS.Require | undefined
+
 export function loadSharp(): SharpFn {
   if (cached) return cached
-  const req = createRequire(join(process.cwd(), 'package.json'))
-  const loaded = req(join(process.cwd(), 'node_modules/sharp')) as SharpFn | null
+  // The production bundler cannot compile createRequire(): it turns the call into `(void 0)` and
+  // photo generation then fails at runtime. Use its own require there.
+  const req =
+    typeof __non_webpack_require__ === 'function'
+      ? __non_webpack_require__
+      : createRequire(join(/* turbopackIgnore: true */ process.cwd(), 'package.json'))
+  const loaded = req(join(/* turbopackIgnore: true */ process.cwd(), 'node_modules/sharp')) as SharpFn | null
   if (!loaded) throw new Error('sharp is not available')
   cached = loaded
   return cached

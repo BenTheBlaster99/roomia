@@ -17,6 +17,8 @@ export interface StudioCheck {
 export type ExpectedBounds = number[]
 
 const BOUNDS_TOLERANCE_M = 0.02
+/** Heavy simplification may nudge the outermost vertices; camera mapping does not depend on the bounds. */
+const BOUNDS_TOLERANCE_RELATIVE = 0.005
 
 /**
  * Loads a prepared file with the same loader and fitting code Studio uses and reports
@@ -56,7 +58,8 @@ export async function checkStudioCompat(glbPath: string, expected: ExpectedBound
   const box = new THREE.Box3().setFromObject(scene)
   const got = [...box.min.toArray(), ...box.max.toArray()]
   const drift = Math.max(...got.map((v, i) => Math.abs(v - expected[i])))
-  if (!(drift <= BOUNDS_TOLERANCE_M)) {
+  const extent = Math.max(...expected.slice(3).map((v, i) => v - expected[i]))
+  if (!(drift <= Math.max(BOUNDS_TOLERANCE_M, extent * BOUNDS_TOLERANCE_RELATIVE))) {
     problems.push(`Studio measures the scene ${(drift * 100).toFixed(0)} cm away from the source (stray geometry?)`)
   }
 

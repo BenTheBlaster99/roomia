@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useEffect, useRef, useState } from 'react'
+import { useThree, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Html } from '@react-three/drei'
 import { useStudioStore } from '@/store/useStudioStore'
@@ -9,6 +9,7 @@ import { fitImportedRoom } from '@/lib/studio-import/fit-imported-room'
 import { getImportedSource } from '@/lib/studio-import/imported-room-cache'
 import { registerCameraMover, registerHeavyCapture } from '@/lib/studio-import/heavy-view-camera'
 import { verticalFov } from '@/lib/scene-cameras'
+import { registerMaterialAccess } from '@/lib/studio-import/material-picker'
 
 interface LookAtControls {
   setLookAt: (px: number, py: number, pz: number, tx: number, ty: number, tz: number, animate?: boolean) => unknown
@@ -28,6 +29,7 @@ export default function ImportedRoom() {
   const camera = useThree(state => state.camera)
   const controls = useThree(state => state.controls) as LookAtControls | null
   const size = useThree(state => state.size)
+  const pickHandler = useRef<((name: string) => void) | null>(null)
 
   const objectUrl = importedRoom?.objectUrl
   const zUp = importedRoom?.zUp
@@ -81,14 +83,85 @@ export default function ImportedRoom() {
       model.getWorldQuaternion(modelQ)
       modelQ.invert().multiply(camQ)
       const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 50
+      const aspect = size.width / Math.max(size.height, 1)
       return {
         position: [pos.x, pos.y, pos.z],
         quaternion: [modelQ.x, modelQ.y, modelQ.z, modelQ.w],
         fov,
+        // Horizontal span of the screen, so a 3:2 photo of this view frames what was on screen.
+        hfov: (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * aspect) * 180) / Math.PI,
       }
     })
     return () => registerHeavyCapture(null)
-  }, [camera, object])
+  }, [camera, object, size.width, size.height])
+
+  // Matériaux panel: list the scene's materials, make one glow, and pick one by clicking a surface.
+  useEffect(() => {
+    if (!object) {
+      registerMaterialAccess(null)
+      return
+    }
+    const byName = new Map<string, THREE.MeshStandardMaterial[]>()
+    const meshes = new Map<string, number>()
+    object.traverse(node => {
+      const mesh = node as THREE.Mesh
+      if (!mesh.isMesh) return
+      for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!material?.name) continue
+        const list = byName.get(material.name) ?? []
+        if (!list.includes(material as THREE.MeshStandardMaterial)) list.push(material as THREE.MeshStandardMaterial)
+        byName.set(material.name, list)
+        meshes.set(material.name, (meshes.get(material.name) ?? 0) + 1)
+      }
+    })
+    let lit: { material: THREE.MeshStandardMaterial; emissive: THREE.Color; intensity: number }[] = []
+    const restore = () => {
+      for (const { material, emissive, intensity } of lit) {
+        material.emissive.copy(emissive)
+        material.emissiveIntensity = intensity
+      }
+      lit = []
+    }
+    registerMaterialAccess({
+      list: () =>
+        [...byName].map(([name, materials]) => ({
+          name,
+          color: materials[0].color ? `#${materials[0].color.getHexString()}` : '#999999',
+          textured: Boolean(materials[0].map),
+          seeThrough: materials[0].transparent && materials[0].opacity < 0.9,
+          meshes: meshes.get(name) ?? 0,
+        })),
+      highlight: name => {
+        restore()
+        for (const material of (name && byName.get(name)) || []) {
+          if (!material.emissive) continue
+          lit.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity })
+          material.emissive.set('#ff7a00')
+          material.emissiveIntensity = 0.9
+        }
+      },
+      setPickHandler: handler => {
+        pickHandler.current = handler
+        document.body.style.cursor = handler ? 'crosshair' : ''
+      },
+    })
+    return () => {
+      restore()
+      pickHandler.current = null
+      document.body.style.cursor = ''
+      registerMaterialAccess(null)
+    }
+  }, [object])
+
+  function pickMaterial(event: ThreeEvent<MouseEvent>) {
+    const handler = pickHandler.current
+    if (!handler) return
+    event.stopPropagation()
+    const mesh = event.object as THREE.Mesh
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    const material = materials[event.face?.materialIndex ?? 0] ?? materials[0]
+    if (material?.name) handler(material.name)
+  }
 
   // Jump to a saved SketchUp scene: its camera is in the file's frame, Studio's room is shifted.
   useEffect(() => {
@@ -117,7 +190,7 @@ export default function ImportedRoom() {
 
   return (
     <group>
-      <primitive object={object} />
+      <primitive object={object} onClick={pickMaterial} />
       {!captureMode && (
         <>
           <Html position={[cx, -0.3, length + 0.1]} center>

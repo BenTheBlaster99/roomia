@@ -59,6 +59,27 @@ export function verticalFov(hfov: number, aspect: number): number {
   return (2 * Math.atan(Math.tan((hfov * Math.PI) / 360) / aspect) * 180) / Math.PI
 }
 
+/**
+ * Lens choices for a photo, as full-frame focal lengths (what designers know). 'file' keeps the
+ * view's saved field of view; SketchUp's default 35° crops a room much tighter than a 24 mm render.
+ */
+export const LENSES = [
+  { id: 'file', label: 'Fichier' },
+  { id: '35', label: '35 mm' },
+  { id: '24', label: '24 mm' },
+  { id: '18', label: '18 mm' },
+] as const
+export type LensId = (typeof LENSES)[number]['id']
+export const DEFAULT_LENS: LensId = '24'
+
+export const isLensId = (v: unknown): v is LensId => LENSES.some(l => l.id === v)
+
+/** Horizontal field of view (degrees) of a lens on a view: 24 mm → 73.7°. */
+export function lensHfov(lens: LensId, camera: SceneCamera): number {
+  if (lens === 'file') return camera.hfov
+  return (2 * Math.atan(18 / Number(lens)) * 180) / Math.PI
+}
+
 /** "skp_camera_Scène_1" → "Scène 1". */
 export function cleanCameraName(raw: string): string {
   const name = raw.replace(/^skp_camera_/, '').replace(/_/g, ' ').trim()

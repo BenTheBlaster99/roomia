@@ -1,7 +1,10 @@
 export interface HeavyViewCamera {
   position: [number, number, number]
   quaternion: [number, number, number, number]
+  /** Vertical field of view of the screen camera, degrees. */
   fov: number
+  /** Horizontal field of view of the screen camera, degrees. */
+  hfov: number
 }
 
 let capture: (() => HeavyViewCamera | null) | null = null

@@ -8,6 +8,7 @@ import { loadStudioDesign, type SavedStudioDesign } from '@/lib/studio-design-st
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import { useStudioStore } from '@/store/useStudioStore'
 import type { RoomPresetRow } from '@/types/room-preset'
+import StudioRoomImport from './StudioRoomImport'
 
 type PresetRow = Pick<
   RoomPresetRow,
@@ -20,6 +21,9 @@ const COPY = {
   sub: 'Choisissez un preset curaté, ou créez votre propre pièce.',
   create: 'Créer le vôtre',
   createHint: 'Pièce vide prête à meubler',
+  importSketch: 'Importer une pièce SketchUp',
+  importHint:
+    'Format conseillé : GLB, exporté depuis SketchUp (un seul fichier, textures incluses, bien plus léger). Un export COLLADA (.dae) fonctionne aussi, mais seulement s’il fait moins de 450 Mo ; ajoutez le .skp dans un zip pour récupérer les textures.',
   resume: 'Reprendre',
   resumeHint: 'Dernière sauvegarde dans ce navigateur',
   floorPlan: 'Scanner un plan',
@@ -44,6 +48,7 @@ export default function StudioEntryGate({
     Boolean(searchParams.get('preset')) ||
     searchParams.get('create') === '1' ||
     searchParams.get('saved') === '1' ||
+    Boolean(searchParams.get('scene')) ||
     Boolean(searchParams.get('width')) ||
     Boolean(searchParams.get('length'))
 
@@ -143,6 +148,27 @@ export default function StudioEntryGate({
             <div className="rm-display text-xl font-bold">{COPY.create}</div>
             <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.createHint}</p>
           </button>
+
+          <div className="rm-panel p-6 text-left">
+            <div className="rm-display text-xl font-bold">{COPY.importSketch}</div>
+            <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.importHint}</p>
+            <StudioRoomImport
+              className="rm-btn-primary mt-4 px-4 py-2 text-sm"
+              label="Choisir un fichier 3D"
+              onImported={() => {
+                setDismissed(true)
+                useStudioStore.getState().setEntryGateOpen(false)
+                onEnterBlank()
+                const url = new URL(window.location.href)
+                url.searchParams.set('create', '1')
+                url.searchParams.delete('saved')
+                url.searchParams.delete('width')
+                url.searchParams.delete('length')
+                url.searchParams.delete('height')
+                window.history.replaceState({}, '', url.toString())
+              }}
+            />
+          </div>
 
           <Link
             href="/configure"

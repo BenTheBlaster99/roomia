@@ -1,0 +1,12 @@
+[Unit]
+Description=Roomia Studio (production)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/media/jackhammer/DATA/Linux-Work/Projects/roomia
+Environment=PATH=/home/jackhammer/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/jackhammer/.nvm/versions/node/v24.18.0/bin/npm start
+Restart=on-failure
+RestartSec=5
+
+# Deliberately NOT enabled at boot: start it yourself with `systemctl --user start roomia-studio`.

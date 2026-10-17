@@ -1,4 +1,4 @@
-export type Room = 'Living Room' | 'Bedroom'
+export type Room = 'Living Room' | 'Bedroom' | 'Kitchen'
 export type BudgetTier = 'tight' | 'comfortable' | 'premium'
 export type * from './floor-plan'
 

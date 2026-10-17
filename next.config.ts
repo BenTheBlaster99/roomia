@@ -4,6 +4,8 @@ import createNextIntlPlugin from 'next-intl/plugin'
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
 
 const nextConfig: NextConfig = {
+  // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
+  allowedDevOrigins: ['*.trycloudflare.com', '*.coconutstudio.io'],
   serverExternalPackages: ['sharp'],
   images: {
     remotePatterns: [

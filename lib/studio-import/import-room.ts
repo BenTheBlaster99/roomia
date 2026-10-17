@@ -9,7 +9,7 @@ import {
 import { countTriangles, fitImportedRoom, type ImportLengthUnit } from './fit-imported-room'
 import { clearImportedSource, setImportedSource } from './imported-room-cache'
 import { loadRoomObject, loadRoomObjectFromGlbBuffer } from './load-room-file'
-import { canPrepareOnServer, prepareOnServer } from './server-prep'
+import { canPrepareOnServer, prepareOnServer, waitForScene } from './server-prep'
 
 export interface ImportedRoomMeta {
   fileName: string
@@ -57,6 +57,22 @@ export async function importRoomFile(
   if (!local.ok && local.tooHeavy && canPrepareOnServer(file.name)) {
     return importViaServer(file, options)
   }
+  return local.ok ? local : { ok: false, message: local.message }
+}
+
+/** Opens a scene that is already prepared on the server (a shared `?scene=` link). */
+export async function importSceneById(sceneId: string, options: ImportRoomOptions = {}): Promise<ImportRoomResult> {
+  const prepared = await waitForScene(sceneId, options.onPhase ?? (() => {}))
+  if (!prepared.ok) return prepared
+  const inspected = inspectRoomFile({ name: 'viewport.glb', size: prepared.viewport.byteLength })
+  if (!inspected.ok) return { ok: false, message: inspected.message }
+  const local = await importLocal(null, inspected, {
+    fileName: prepared.fileName ?? 'scene.glb',
+    sceneId,
+    buffer: prepared.viewport,
+    missingTextures: prepared.missingTextures.length,
+    note: 'Aperçu allégé : le rendu final utilisera votre fichier d’origine, sans rien supprimer.',
+  })
   return local.ok ? local : { ok: false, message: local.message }
 }
 

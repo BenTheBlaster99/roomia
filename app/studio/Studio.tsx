@@ -7,6 +7,7 @@ import type { StudioQuery } from './studio-query'
 import StudioBootstrap from './StudioBootstrap'
 import TopBar from './components/TopBar'
 import CatalogSidebar from './components/CatalogSidebar'
+import OpenSceneFromLink from './components/OpenSceneFromLink'
 import SceneSidebar from './components/SceneSidebar'
 import { CATALOG_ENABLED } from './studio-flags'
 import ViewControls from './components/ViewControls'
@@ -74,6 +75,7 @@ export default function Studio({
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[var(--rm-bg)]">
       <StudioBootstrap initialPreset={initialPreset} query={query} />
+      <OpenSceneFromLink />
       <StudioEntryGate skipGate={skipGate} onEnterBlank={() => {}} />
 
       {!entryGateOpen && (
@@ -81,7 +83,7 @@ export default function Studio({
           <TopBar />
 
           <div className="relative flex flex-1 overflow-hidden">
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <StudioScene />
               <ImportedRoomBar />
               <ViewControls />

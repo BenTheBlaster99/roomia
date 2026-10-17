@@ -1,6 +1,6 @@
 import { rm, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import { convertDaeToGlb } from './dae-to-glb'
+import { assertDaeReadable, convertDaeToGlb } from './dae-to-glb'
 import { readFile } from 'node:fs/promises'
 import { fromSketchUpScenes, type SceneCamera } from '../scene-cameras'
 import { buildTextureIndex, emptyTextureIndex } from './textures'
@@ -20,6 +20,8 @@ export interface PreparedScene {
     embeddedTextures: number
     missingTextures: string[]
     cameraCount: number
+    /** Textures the exporter replaced with an "invalid Texture" image; removed from the scene. */
+    placeholderTextures: number
   }
 }
 
@@ -51,6 +53,7 @@ export async function prepareScene(
   let embeddedTextures = 0
   let missingTextures: string[] = []
   let cameras: SceneCamera[] = []
+  let placeholderTextures = 0
 
   if (ext === '.zip') {
     const unzipped = join(outDir, 'unzipped')
@@ -60,6 +63,7 @@ export async function prepareScene(
       const dae = await largest(files, '.dae')
       const glb = await largest(files, '.glb')
       if (dae) {
+        await assertDaeReadable(dae)
         const index = await buildTextureIndex(unzipped)
         // The .skp holds every texture of the model: use it for images the zip doesn't provide.
         const skp = await largest(files, '.skp')
@@ -74,7 +78,7 @@ export async function prepareScene(
         missingTextures = result.missingTextures
         cameras = result.cameras
       } else if (glb) {
-        await normalizeGlb(glb, sourcePath, log)
+        placeholderTextures = await normalizeGlb(glb, sourcePath, log)
       } else {
         throw new Error('Le zip ne contient ni .dae ni .glb')
       }
@@ -96,7 +100,7 @@ export async function prepareScene(
     missingTextures = result.missingTextures
     cameras = result.cameras
   } else if (ext === '.glb') {
-    await normalizeGlb(input, sourcePath, log)
+    placeholderTextures = await normalizeGlb(input, sourcePath, log)
   } else {
     throw new Error(`Unsupported scene format "${ext}" for ${name}: use .zip, .dae or .glb`)
   }
@@ -117,6 +121,7 @@ export async function prepareScene(
       embeddedTextures,
       missingTextures,
       cameraCount: cameras.length,
+      placeholderTextures,
     },
   }
 }

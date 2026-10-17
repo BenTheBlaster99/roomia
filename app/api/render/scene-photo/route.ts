@@ -1,24 +1,17 @@
-import { appendFile } from 'node:fs/promises'
+import { appendFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
-import { BlenderRenderError, renderSceneView, viewFromSceneCamera } from '@/lib/blender-render'
+import { BlenderRenderError } from '@/lib/blender-render'
 import { getOpenAIClient } from '@/lib/openai-client'
 import { generatePhotoreal, renderErrorDetail } from '@/lib/photoreal'
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
-import { isTimeOfDay, type Lighting } from '@/lib/render-lighting'
+import { getCapture, parseCaptureRequest } from '@/lib/scene-capture'
 import { buildSceneRenderPrompt } from '@/lib/scene-render-prompt'
-import { isSceneId, readCameras, readMeta, sceneDir, sourcePath } from '@/lib/scene-store'
+import { isSceneId, readCameras, readMeta, sceneDir } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
-
-interface Body {
-  sceneId?: unknown
-  cameraIndex?: unknown
-  time?: unknown
-  sun?: unknown
-}
 
 /**
  * POST — photo of one of the scene's saved views: Blender captures the view from the full file
@@ -28,21 +21,17 @@ interface Body {
 export async function POST(req: NextRequest) {
   const denied = await accessDenied(req)
   if (denied) return denied
-  const body = (await req.json().catch(() => null)) as Body | null
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   const sceneId = String(body?.sceneId ?? '')
-  const cameraIndex = Number(body?.cameraIndex)
-  const lighting: Lighting = {
-    time: isTimeOfDay(body?.time) ? body.time : 'midi',
-    sun: body?.sun !== false,
-  }
 
   const meta = isSceneId(sceneId) ? await readMeta(sceneId) : null
   if (!meta || meta.status !== 'ready') {
     return Response.json({ detail: 'Scène introuvable ou pas encore prête.' }, { status: 404 })
   }
-  const cameras = await readCameras(sceneId)
-  const camera = Number.isInteger(cameraIndex) ? cameras[cameraIndex] : undefined
-  if (!camera) return Response.json({ detail: 'Vue enregistrée introuvable.' }, { status: 400 })
+  const request = parseCaptureRequest(body, await readCameras(sceneId))
+  if (typeof request === 'string') return Response.json({ detail: request }, { status: 400 })
+  const { lighting, lens } = request
+  const camera = { name: request.name }
   try {
     getOpenAIClient()
   } catch (err) {
@@ -50,30 +39,61 @@ export async function POST(req: NextRequest) {
   }
 
   const encoder = new TextEncoder()
+  let open = true
   const stream = new ReadableStream({
     async start(controller) {
+      // The browser may leave mid-render (reload, dropped connection); then there is nobody to send to.
       const send = (payload: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
+        if (!open) return
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
+        } catch {
+          open = false
+        }
       }
+      // Cloudflare cuts a connection that stays silent for ~100 s, and the photo step is silent for
+      // 100-120 s. A small ping every 10 s keeps the stream alive.
+      const heartbeat = setInterval(() => send({ type: 'ping' }), 10_000)
       const started = performance.now()
       const run: Record<string, unknown> = {
         at: new Date().toISOString(),
         view: camera.name,
         time: lighting.time,
         sun: lighting.sun,
+        interior: lighting.interior,
+        lens,
       }
 
       try {
         send({ type: 'progress', step: 'capturing', label: 'Étape 1 · Capture', detail: `${camera.name} depuis le fichier complet…`, pct: 10 })
-        const capture = await renderSceneView(sourcePath(sceneId), viewFromSceneCamera(camera), lighting)
+        // A capture made by "Vérifier la vue" (or a failed attempt) with the same settings is reused.
+        const capture = await getCapture(sceneId, request)
         run.captureSeconds = Number(capture.seconds.toFixed(1))
+        run.captureReused = capture.reused
         send({ type: 'capture', capture_base64: capture.png.toString('base64'), seconds: run.captureSeconds })
 
         send({ type: 'progress', step: 'generating', label: 'Étape 2 · Photo', detail: 'Génération de la photo (environ 1 à 2 minutes)…', pct: 35 })
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
-        const photo = await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting))
+        // Cloudflare drops a stream that stays silent for ~100s. The photo call is longer than that.
+        const beat = setInterval(() => {
+          try {
+            send({ type: 'ping' })
+          } catch {
+            clearInterval(beat)
+          }
+        }, 15_000)
+        const photo = await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting)).finally(() => clearInterval(beat))
         run.photoSeconds = Number(photo.seconds.toFixed(1))
+        // Keep every finished photo on disk: it was paid for, even if the browser never receives it.
+        const photoName = `${new Date().toISOString().replace(/[:.]/g, '-')}-${camera.name.replace(/\W+/g, '_')}`
+        await mkdir(path.join(sceneDir(sceneId), 'photos'), { recursive: true })
+        await writeFile(path.join(sceneDir(sceneId), 'photos', `${photoName}.jpg`), Buffer.from(photo.base64, 'base64'))
+        await writeFile(path.join(sceneDir(sceneId), 'photos', `${photoName}-capture.png`), capture.png)
+        run.photoFile = `photos/${photoName}.jpg`
         run.quality = photo.quality
+        run.fellBack = photo.fellBack
+        run.fidelity = photo.fidelity
+        run.provider = photo.provider
         run.size = photo.size
 
         run.totalSeconds = Number(((performance.now() - started) / 1000).toFixed(1))
@@ -83,6 +103,7 @@ export async function POST(req: NextRequest) {
           type: 'done',
           result_base64: photo.base64,
           timings: { capture: run.captureSeconds, photo: run.photoSeconds, total: run.totalSeconds },
+          fellBack: photo.fellBack,
         })
       } catch (err: unknown) {
         console.error('render/scene-photo error:', err)
@@ -92,9 +113,17 @@ export async function POST(req: NextRequest) {
         run.totalSeconds = Number(((performance.now() - started) / 1000).toFixed(1))
         send({ type: 'error', detail })
       } finally {
+        clearInterval(heartbeat)
         await appendFile(path.join(sceneDir(sceneId), 'runs.jsonl'), `${JSON.stringify(run)}\n`).catch(() => undefined)
-        controller.close()
+        try {
+          controller.close()
+        } catch {
+          // already closed by the client leaving
+        }
       }
+    },
+    cancel() {
+      open = false
     },
   })
 

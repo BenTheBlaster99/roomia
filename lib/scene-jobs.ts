@@ -48,7 +48,7 @@ function pump(): void {
  * without taking the web server down.
  */
 function runPrepProcess(meta: SceneMeta): Promise<void> {
-  const root = process.cwd()
+  const root = /* turbopackIgnore: true */ process.cwd()
   const tsxCli = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs')
   const script = path.join(root, 'scripts', 'prepare-scene.ts')
   const args = [
@@ -97,6 +97,7 @@ async function run(id: string): Promise<void> {
       trianglesOut: raw.trianglesOut,
       totalSeconds: raw.totalSeconds,
       missingTextures: raw.missingTextures,
+      placeholderTextures: raw.placeholderTextures,
     }
     await writeMeta({ ...meta, status: 'ready', report })
     console.log(`scene ${id} ready in ${((Date.now() - started) / 1000).toFixed(1)}s`)

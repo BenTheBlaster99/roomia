@@ -24,7 +24,7 @@ export const IMPORT_COPY = {
   skpHeavy: ' Les gros fichiers sont acceptés en COLLADA (.dae) ou GLB : Roomia les prépare automatiquement.',
   cad: 'Les fichiers CAO (DWG/DXF) et les formats 3DS/KMZ/WRL ne sont pas supportés. Exportez DAE ou FBX depuis SketchUp.',
   unknown:
-    'Format non reconnu. Exportez COLLADA (.dae) avec son dossier d’images dans un .zip, ou GLB, FBX, OBJ.',
+    'Format non reconnu. Exportez votre scène en GLB (conseillé), ou en COLLADA (.dae) avec son .skp dans un zip.',
   tooBig: (bytes: number) =>
     `Fichier trop lourd (${formatMb(bytes)}) pour ce format. Exportez votre scène en COLLADA (.dae) ou GLB : Roomia prépare automatiquement les gros fichiers, sans rien supprimer.`,
   tooHeavyMesh:

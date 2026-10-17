@@ -47,3 +47,17 @@ claude.txt
 /sketchup-tests/
 # uploaded scenes (heavy files)
 /.scenes/
+
+# pilot-session logs
+/.pilot-logs/
+
+# build cache link (points to ~/.cache on the NTFS drive): never commit it
+/.next
+
+# private notes, briefs, client documents and test logs stay on this PC
+/*.txt
+/*.pdf
+/*.csv
+/docs/*.txt
+/d5-tests/
+/supabase/.temp/

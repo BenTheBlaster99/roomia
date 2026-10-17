@@ -17,6 +17,21 @@ export function getOpenAIClient(): OpenAI {
   })
 }
 
+/**
+ * Second image provider, used only when the main gateway is down (outages on 15 Oct: 15:15 and
+ * 20:50). IMAGE_BACKUP_API_KEY turns it on; IMAGE_BACKUP_BASE_URL defaults to OpenAI itself and
+ * IMAGE_BACKUP_MODEL to the main model. A direct provider has no 100 s Cloudflare cut.
+ */
+export function getBackupImageClient(): { client: OpenAI; model: string } | null {
+  const apiKey = process.env.IMAGE_BACKUP_API_KEY?.trim()
+  if (!apiKey) return null
+  const baseURL = process.env.IMAGE_BACKUP_BASE_URL?.trim() || undefined
+  return {
+    client: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }),
+    model: process.env.IMAGE_BACKUP_MODEL?.trim() || GPT_IMAGE_MODEL,
+  }
+}
+
 /** Local SAM2 / FastAPI host for segmentation (server-side only). */
 export function getAiBackendUrl(): string {
   return (

@@ -12,9 +12,11 @@ export interface Lighting {
   time: TimeOfDay
   /** Direct sunlight coming in (true) or soft diffuse daylight (false). */
   sun: boolean
+  /** The room's own lights (ceiling spots, pendants, LED strips) switched on. */
+  interior: boolean
 }
 
-export const DEFAULT_LIGHTING: Lighting = { time: 'midi', sun: true }
+export const DEFAULT_LIGHTING: Lighting = { time: 'midi', sun: true, interior: true }
 
 export function isTimeOfDay(value: unknown): value is TimeOfDay {
   return typeof value === 'string' && (TIMES_OF_DAY as readonly string[]).includes(value)
@@ -46,17 +48,30 @@ const SKY: Record<TimeOfDay, { worldColor: Rgb; worldStrength: number }> = {
   soiree: { worldColor: [0.12, 0.15, 0.28], worldStrength: 0.5 },
 }
 
+/**
+ * White daylight, the same whatever time is asked: the capture then shows each material's own
+ * colour, and the photo step adds the time-of-day mood (an evening capture is so blue that
+ * light oak came out walnut).
+ */
+export const NEUTRAL_CAPTURE_LIGHT: BlenderLighting = {
+  sunEnergy: 3,
+  sunElevation: 45,
+  sunAzimuth: 35,
+  sunColor: [1, 1, 1],
+  worldColor: [0.9, 0.9, 0.9],
+  worldStrength: 1.0,
+}
+
 export function blenderLighting({ time, sun }: Lighting): BlenderLighting {
   return { ...SUN[time], ...SKY[time], sunEnergy: sun ? SUN[time].sunEnergy : 0 }
 }
 
+// Direct sun lands only where a real window would put it: the capture's own sun patches show where.
 const SUN_ON: Record<TimeOfDay, string> = {
-  matin: 'early-morning light: low warm golden sun entering from the side, long soft shadows, cool fresh air',
-  midi: 'bright midday light: strong clean white sunlight falling through the windows in crisp patches, short shadows',
-  'apres-midi':
-    'late-afternoon light: low orange golden-hour sun streaming in from the side, long warm shadows and glowing highlights',
-  soiree:
-    'dusk: last red-orange sun on the horizon, deep blue sky tones outside, interior lights switched on and glowing warmly',
+  matin: 'morning: soft warm sunlight entering through the existing windows, gentle shadows',
+  midi: 'midday: bright natural daylight, sunlight on the floor only in front of the existing windows, short soft shadows',
+  'apres-midi': 'late afternoon: warm low sunlight entering through the existing windows, longer soft shadows',
+  soiree: 'dusk: deep blue sky outside, the last warm daylight fading, interior lights glowing warmly',
 }
 
 const SUN_OFF: Record<TimeOfDay, string> = {
@@ -66,7 +81,11 @@ const SUN_OFF: Record<TimeOfDay, string> = {
   soiree: 'night: no sun at all, dark blue night outside the windows, the interior lit only by its own warm artificial lights',
 }
 
+const INTERIOR_ON =
+  "the room's own light fittings are switched ON: the ceiling spots, pendants, LED strips and cove lights that exist in the capture glow and cast warm light"
+const INTERIOR_OFF = "the room's own lights are switched off; only daylight lights the space"
+
 /** Sentence for the image model describing the light. */
-export function lightingPrompt({ time, sun }: Lighting): string {
-  return sun ? SUN_ON[time] : SUN_OFF[time]
+export function lightingPrompt({ time, sun, interior }: Lighting): string {
+  return `${sun ? SUN_ON[time] : SUN_OFF[time]}; ${interior ? INTERIOR_ON : INTERIOR_OFF}`
 }

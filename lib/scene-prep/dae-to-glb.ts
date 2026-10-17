@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import {
   Document,
   NodeIO,
@@ -26,6 +26,19 @@ export interface DaeConversion {
   missingTextures: string[]
   /** SketchUp scenes saved in the DAE, in the GLB's frame. */
   cameras: SceneCamera[]
+}
+
+/** Node cannot hold a string longer than ~512M characters, and the DAE is read as one string. */
+const MAX_DAE_BYTES = 480 * 1024 * 1024
+
+export async function assertDaeReadable(file: string): Promise<void> {
+  const { size } = await stat(file)
+  if (size > MAX_DAE_BYTES) {
+    throw new Error(
+      `Ce fichier COLLADA fait ${(size / 1024 / 1024 / 1024).toFixed(1)} Go, trop pour être lu tel quel. ` +
+        'Exportez la scène en GLB depuis SketchUp : le fichier sera bien plus léger.',
+    )
+  }
 }
 
 function floats(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): Float32Array {
@@ -66,6 +79,7 @@ export async function convertDaeToGlb(
   log: Log = () => {},
   textures: TextureIndex = emptyTextureIndex(),
 ): Promise<DaeConversion> {
+  await assertDaeReadable(input)
   const text = await readFile(input, 'utf8')
 
   // ColladaLoader wants a browser: give it an XML parser, and instead of fetching images

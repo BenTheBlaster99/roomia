@@ -60,6 +60,14 @@ function hero(id: StyleId) {
 const HIGH_TECH_HERO =
   'https://i.pinimg.com/1200x/b9/34/fa/b934fab7ab93a953f8f625e0cfa20933.jpg'
 
+const COMPOSITION_PHOTOS = {
+  asymmetric:
+    'https://images.unsplash.com/photo-1617103996702-96ff29b1c467?auto=format&fit=crop&w=1600&q=80',
+  balanced:
+    'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1600&q=80',
+  symmetric: 'https://i.pinimg.com/736x/07/f4/72/07f4723ea54a7e74f23fc46cbd1b758b.jpg',
+}
+
 export const CRITERION_WEIGHT: Record<CriterionId, number> = {
   complexity: 1,
   palette: 1,
@@ -235,19 +243,7 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
       },
       {
         id: 'soft',
-        swatches: [
-          '#F1EDE3',
-          '#D6C7AE',
-          '#A68A64',
-          '#5F6B55',
-          '#F7E7F0',
-          '#FADCD9',
-          '#FDE8C8',
-          '#FFF3B0',
-          '#D8F3DC',
-          '#CDE7F5',
-          '#E4D5F5',
-        ],
+        swatches: ['#F1EDE3', '#F7E7F0', '#FADCD9', '#D8F3DC', '#CDE7F5', '#E4D5F5'],
       },
       {
         id: 'earth',
@@ -306,17 +302,17 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     options: [
       {
         id: 'asymmetric',
-        image: hero('bohemian'),
+        image: COMPOSITION_PHOTOS.asymmetric,
         hintKey: 'opt.symmetry.asymmetricHint',
       },
       {
         id: 'balanced',
-        image: hero('japandi'),
+        image: COMPOSITION_PHOTOS.balanced,
         hintKey: 'opt.symmetry.balancedHint',
       },
       {
         id: 'symmetric',
-        image: hero('art_deco'),
+        image: COMPOSITION_PHOTOS.symmetric,
         hintKey: 'opt.symmetry.symmetricHint',
       },
     ],
