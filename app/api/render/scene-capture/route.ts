@@ -5,7 +5,8 @@ import { getCapture, parseCaptureRequest } from '@/lib/scene-capture'
 import { isSceneId, readCameras, readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
-export const maxDuration = 600
+// Vercel Hobby allows at most 300 seconds on a function.
+export const maxDuration = 300
 
 /**
  * POST — free check of a view: the Blender capture alone, no image generation. Same body as
