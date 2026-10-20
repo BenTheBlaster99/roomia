@@ -21,9 +21,12 @@ export function buildSceneRenderPrompt(lighting: Lighting): string {
     'same fabrics, same paint colours, same metal finishes. A smooth stone stays smooth, a light oak stays light oak.',
     'Light may change how bright or warm a surface looks, never its own colour or material.',
     'Only add photographic realism to the existing surfaces: fine texture, natural reflectance, soft contact shadows.',
-    'MIRRORS: a mirror reflects the room that is actually in front of it, nothing else.',
+    'MIRRORS: a mirror reflects the room that is actually in front of it, nothing else, and stays perfectly sharp and crystal clear like the capture.',
     'GLASS: clear or tinted glass keeps its tint and shows what is behind it.',
     'Through windows show only a simple, soft, slightly out-of-focus outdoor background that matches the time of day.',
+    'OUTSIDE: the blue sky and plain ground seen through windows and glass doors are the open air outside the building',
+    '(a balcony, a garden or the city). Never turn the outside into another room, a corridor or furniture.',
+    'Reflections on tinted glass stay faint reflections of this room, not a room behind the glass.',
     ...(DEFAULT_CAPTURE.neutralLight
       ? [
           'The capture is lit with plain neutral white light on purpose, only to show the true colour of every material:',

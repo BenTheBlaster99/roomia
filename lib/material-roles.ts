@@ -1,6 +1,7 @@
 /**
- * What a material is in real life, set by the designer when its name doesn't say it (Sarah's
- * mirror is called "*33"). 'auto' leaves it to name and transparency detection.
+ * What the designer changed on a material: what it is in real life when its name doesn't say it
+ * (Sarah's mirror is called "*33"), and optionally a new colour and finish. 'auto' leaves the
+ * role to name and transparency detection.
  */
 export const MATERIAL_ROLES = ['auto', 'normal', 'mirror', 'glass', 'light'] as const
 export type MaterialRole = (typeof MATERIAL_ROLES)[number]
@@ -13,22 +14,52 @@ export const ROLE_LABELS: Record<MaterialRole, string> = {
   light: 'Lumière',
 }
 
-/** Material name → role; only roles other than 'auto' are stored. */
-export type MaterialRoles = Record<string, Exclude<MaterialRole, 'auto'>>
+export const FINISHES = ['mat', 'satin', 'brillant'] as const
+export type MaterialFinish = (typeof FINISHES)[number]
 
-const MAX_ROLES = 2000
+export const FINISH_LABELS: Record<MaterialFinish, string> = {
+  mat: 'Mat',
+  satin: 'Satiné',
+  brillant: 'Brillant',
+}
+
+/** Roughness each finish gives the surface in the capture (0 = mirror-smooth, 1 = chalky). */
+export const FINISH_ROUGHNESS: Record<MaterialFinish, number> = { mat: 0.85, satin: 0.4, brillant: 0.08 }
+
+export interface MaterialEdit {
+  role?: Exclude<MaterialRole, 'auto'>
+  /** New base colour, "#rrggbb"; replaces the material's texture with this flat colour. */
+  color?: string
+  finish?: MaterialFinish
+}
+
+/** Material name → what the designer changed; materials left as they are don't appear. */
+export type MaterialRoles = Record<string, MaterialEdit>
+
+const MAX_EDITS = 2000
 const MAX_NAME = 200
+const HEX = /^#[0-9a-f]{6}$/i
 
 export function isMaterialRole(value: unknown): value is MaterialRole {
   return typeof value === 'string' && (MATERIAL_ROLES as readonly string[]).includes(value)
 }
 
-/** Keeps only valid entries of an untrusted roles object. */
+const isFinish = (value: unknown): value is MaterialFinish =>
+  typeof value === 'string' && (FINISHES as readonly string[]).includes(value)
+
+/** Keeps only valid entries of an untrusted edits object. Accepts the older { name: role } form. */
 export function cleanRoles(value: unknown): MaterialRoles {
-  const roles: MaterialRoles = {}
-  if (!value || typeof value !== 'object') return roles
-  for (const [name, role] of Object.entries(value).slice(0, MAX_ROLES)) {
-    if (name && name.length <= MAX_NAME && isMaterialRole(role) && role !== 'auto') roles[name] = role
+  const edits: MaterialRoles = {}
+  if (!value || typeof value !== 'object') return edits
+  for (const [name, raw] of Object.entries(value).slice(0, MAX_EDITS)) {
+    if (!name || name.length > MAX_NAME) continue
+    const given = (typeof raw === 'string' ? { role: raw } : raw) as Record<string, unknown> | null
+    if (!given || typeof given !== 'object') continue
+    const edit: MaterialEdit = {}
+    if (isMaterialRole(given.role) && given.role !== 'auto') edit.role = given.role
+    if (typeof given.color === 'string' && HEX.test(given.color)) edit.color = given.color.toLowerCase()
+    if (isFinish(given.finish)) edit.finish = given.finish
+    if (Object.keys(edit).length) edits[name] = edit
   }
-  return roles
+  return edits
 }

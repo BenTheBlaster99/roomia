@@ -1,0 +1,11 @@
+[Unit]
+Description=Roomia Studio tunnel (https://studio.room-ia.com)
+After=network-online.target roomia-studio.service
+
+[Service]
+ExecStart=/home/jackhammer/.local/bin/cloudflared --no-autoupdate tunnel --config /home/jackhammer/.cloudflared/roomia-studio.yml run roomia-studio
+Restart=on-failure
+RestartSec=5
+
+# Deliberately NOT enabled at boot: start it yourself with `systemctl --user start roomia-tunnel`.
+# The address never changes: https://studio.room-ia.com

@@ -12,8 +12,10 @@ export interface SceneMaterialInfo {
 
 interface MaterialAccess {
   list: () => SceneMaterialInfo[]
-  /** Makes the material's surfaces glow in the 3D view; null clears it. */
-  highlight: (name: string | null) => void
+  /** Makes these materials' surfaces glow in the 3D view; an empty list clears it. */
+  highlight: (names: string[]) => void
+  /** Shows a new flat colour on the material in the 3D view; null puts the original back. */
+  previewColor: (name: string, color: string | null) => void
   /** While set, clicking a surface in the 3D view reports its material instead of doing nothing. */
   setPickHandler: (handler: ((name: string) => void) | null) => void
 }
@@ -25,5 +27,6 @@ export function registerMaterialAccess(next: MaterialAccess | null) {
 }
 
 export const listSceneMaterials = (): SceneMaterialInfo[] => access?.list() ?? []
-export const highlightSceneMaterial = (name: string | null) => access?.highlight(name)
+export const highlightSceneMaterials = (names: string[]) => access?.highlight(names)
+export const previewMaterialColor = (name: string, color: string | null) => access?.previewColor(name, color)
 export const setMaterialPickHandler = (handler: ((name: string) => void) | null) => access?.setPickHandler(handler)

@@ -34,14 +34,22 @@ async function uploadChunked(
   onPhase: (message: string) => void,
 ): Promise<{ id: string } | { error: string }> {
   try {
-    const startRes = await fetch('/api/scenes/uploads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName: file.name, size: file.size }),
-    })
-    const start = (await startRes.json().catch(() => ({}))) as { id?: string; chunkBytes?: number; total?: number; detail?: string }
-    if (!startRes.ok || !start.id || !start.chunkBytes || !start.total) {
-      return { error: start.detail ?? 'Envoi refusé par le serveur.' }
+    // A short drop of the Studio link (seen on 18 Oct) answers with Cloudflare's own error page:
+    // retry a few times, and only stop at once on a real refusal from the Studio (it sends a detail).
+    let start: { id?: string; chunkBytes?: number; total?: number; detail?: string } = {}
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const startRes = await fetch('/api/scenes/uploads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, size: file.size }),
+      }).catch(() => null)
+      start = startRes ? ((await startRes.json().catch(() => ({}))) as typeof start) : {}
+      if (startRes?.ok && start.id) break
+      if (start.detail) return { error: start.detail }
+      if (attempt < 4) await new Promise(r => setTimeout(r, 1500 * attempt))
+    }
+    if (!start.id || !start.chunkBytes || !start.total) {
+      return { error: 'Le Studio ne répond pas pour le moment (connexion interrompue). Réessayez dans un instant.' }
     }
 
     const sendAll = async (indexes: number[]) => {

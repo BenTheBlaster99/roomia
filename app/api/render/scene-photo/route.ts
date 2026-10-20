@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { BlenderRenderError } from '@/lib/blender-render'
 import { getOpenAIClient } from '@/lib/openai-client'
-import { generatePhotoreal, renderErrorDetail } from '@/lib/photoreal'
+import { generatePhotoreal, PhotoChoiceError, renderErrorDetail } from '@/lib/photoreal'
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 import { getCapture, parseCaptureRequest } from '@/lib/scene-capture'
 import { buildSceneRenderPrompt } from '@/lib/scene-render-prompt'
@@ -32,6 +32,10 @@ export async function POST(req: NextRequest) {
   if (typeof request === 'string') return Response.json({ detail: request }, { status: 400 })
   const { lighting, lens } = request
   const camera = { name: request.name }
+  // The Studio sends ask:true: when the image service is slow or down, it asks the user instead of
+  // retrying on its own. quality:'medium' is the answer "continue in medium quality".
+  const ask = body?.ask === true
+  const quality = body?.quality === 'medium' ? 'medium' : undefined
   try {
     getOpenAIClient()
   } catch (err) {
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
             clearInterval(beat)
           }
         }, 15_000)
-        const photo = await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting)).finally(() => clearInterval(beat))
+        const photo = await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting), { ask, quality }).finally(() => clearInterval(beat))
         run.photoSeconds = Number(photo.seconds.toFixed(1))
         // Keep every finished photo on disk: it was paid for, even if the browser never receives it.
         const photoName = `${new Date().toISOString().replace(/[:.]/g, '-')}-${camera.name.replace(/\W+/g, '_')}`
@@ -106,6 +110,15 @@ export async function POST(req: NextRequest) {
           fellBack: photo.fellBack,
         })
       } catch (err: unknown) {
+        if (err instanceof PhotoChoiceError) {
+          // Not a failure: the capture is kept, so the user can continue in medium or hold this render.
+          run.ok = false
+          run.choice = err.reason
+          run.error = `Choix proposé (${err.tried} : ${err.reason === 'slow' ? 'trop lent' : 'indisponible'})`
+          run.totalSeconds = Number(((performance.now() - started) / 1000).toFixed(1))
+          send({ type: 'choice', tried: err.tried, reason: err.reason, detail: err.detail })
+          return
+        }
         console.error('render/scene-photo error:', err)
         const detail = err instanceof BlenderRenderError ? err.message : renderErrorDetail(err)
         run.ok = false
@@ -128,6 +141,12 @@ export async function POST(req: NextRequest) {
   })
 
   return new Response(stream, {
-    headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-cache, no-transform' },
+    // Served as an event stream: Cloudflare (the studio.room-ia.com link) passes those through at
+    // once, while it held other streamed types until the end (no live progress, 18 Oct).
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
   })
 }

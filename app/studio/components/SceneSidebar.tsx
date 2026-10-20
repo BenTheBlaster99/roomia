@@ -8,6 +8,8 @@ import { TIME_LABELS, TIMES_OF_DAY, type TimeOfDay } from '@/lib/render-lighting
 import { DEFAULT_LENS, LENSES, lensHfov, type LensId, type SceneCamera } from '@/lib/scene-cameras'
 import { useStudioStore } from '@/store/useStudioStore'
 import MaterialRolesPanel from './MaterialRolesPanel'
+import type { HeldRender } from '@/lib/held-renders'
+import type { ScenePhoto } from '@/lib/scene-photos'
 
 type Phase = 'idle' | 'checking' | 'running' | 'done' | 'error'
 type Step = 'capture' | 'photo' | null
@@ -66,8 +68,44 @@ export default function SceneSidebar() {
   const [checked, setChecked] = useState(false)
   const [placeholders, setPlaceholders] = useState(0)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  /** The image service was too slow or down: the user chooses medium quality or holding the photo. */
+  const [choice, setChoice] = useState<{ tried: string; reason: string } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [held, setHeld] = useState<HeldRender[]>([])
+  const [photos, setPhotos] = useState<ScenePhoto[]>([])
+  const [showAllPhotos, setShowAllPhotos] = useState(false)
+  /** What the last photo run asked for, and the held item being run again (if any). */
+  const lastRequest = useRef<Record<string, unknown> | null>(null)
+  const heldInUse = useRef<string | null>(null)
   const jsonInput = useRef<HTMLInputElement>(null)
   const autoViewDone = useRef(false)
+
+  async function loadLists() {
+    const [heldRes, photosRes] = await Promise.all([
+      fetch(`/api/scenes/${sceneId}/held`).catch(() => null),
+      fetch(`/api/scenes/${sceneId}/photos`).catch(() => null),
+    ])
+    if (heldRes?.ok) setHeld(((await heldRes.json()) as { held: HeldRender[] }).held)
+    if (photosRes?.ok) setPhotos(((await photosRes.json()) as { photos: ScenePhoto[] }).photos)
+  }
+
+  useEffect(() => {
+    if (!sceneId) return
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/scenes/${sceneId}/held`).then(res => (res.ok ? (res.json() as Promise<{ held: HeldRender[] }>) : null)),
+      fetch(`/api/scenes/${sceneId}/photos`).then(res => (res.ok ? (res.json() as Promise<{ photos: ScenePhoto[] }>) : null)),
+    ])
+      .then(([heldData, photosData]) => {
+        if (cancelled) return
+        if (heldData) setHeld(heldData.held)
+        if (photosData) setPhotos(photosData.photos)
+      })
+      .catch(() => undefined) // the lists just stay empty
+    return () => {
+      cancelled = true
+    }
+  }, [sceneId])
 
   useEffect(() => {
     if (!sceneId) return
@@ -150,10 +188,28 @@ export default function SceneSidebar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       })
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         throw new Error(((await res.json().catch(() => ({}))) as { detail?: string }).detail ?? `Erreur ${res.status}`)
       }
-      setCaptureSrc(URL.createObjectURL(await res.blob()))
+      // NDJSON: pings keep the link alive during a long capture, then the capture or an error.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let capture: string | null = null
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines.filter(Boolean)) {
+          const event = JSON.parse(line) as Record<string, unknown>
+          if (event.type === 'error') throw new Error(String(event.detail ?? 'Capture impossible'))
+          if (event.type === 'done') capture = String(event.capture_base64)
+        }
+      }
+      if (!capture) throw new Error('La capture s’est arrêtée avant la fin. Réessayez.')
+      setCaptureSrc(toUrl(capture, 'image/png'))
       setChecked(true)
       setPhase('idle')
     } catch (err) {
@@ -183,13 +239,21 @@ export default function SceneSidebar() {
     }
   }
 
-  async function generate() {
-    const request = viewRequest()
+  /**
+   * Runs the photo. `request` replaces the current view (running a held photo again), `quality` is
+   * the user's answer "continue in medium", `heldId` is the held photo this run comes from.
+   */
+  async function generate(opts: { request?: Record<string, unknown>; quality?: 'medium'; heldId?: string } = {}) {
+    const request = opts.request ?? viewRequest()
     if (!request) return
+    lastRequest.current = request
+    heldInUse.current = opts.heldId ?? heldInUse.current
     setPhase('running')
     setStep('capture')
     setElapsed(0)
     setError(null)
+    setNotice(null)
+    setChoice(null)
     setPhotoSrc(null)
     setCaptureSrc(null)
     setTimings(null)
@@ -198,7 +262,8 @@ export default function SceneSidebar() {
       const res = await fetch('/api/render/scene-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+        // ask: when the image service is slow or down, the Studio asks instead of retrying on its own.
+        body: JSON.stringify({ ...request, sceneId, ask: true, ...(opts.quality ? { quality: opts.quality } : {}) }),
       })
       if (!res.ok || !res.body) {
         throw new Error(((await res.json().catch(() => ({}))) as { detail?: string }).detail ?? `Erreur ${res.status}`)
@@ -207,6 +272,7 @@ export default function SceneSidebar() {
       const decoder = new TextDecoder()
       let buffer = ''
       let finished = false
+      let asked = false
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -219,8 +285,10 @@ export default function SceneSidebar() {
           else if (event.type === 'capture') {
             setCaptureSrc(toUrl(String(event.capture_base64), 'image/png'))
             setChecked(false)
-          }
-          else if (event.type === 'error') throw new Error(String(event.detail ?? 'Échec du rendu'))
+          } else if (event.type === 'choice') {
+            setChoice({ tried: String(event.tried), reason: String(event.reason) })
+            asked = true
+          } else if (event.type === 'error') throw new Error(String(event.detail ?? 'Échec du rendu'))
           else if (event.type === 'done') {
             setPhotoSrc(toUrl(String(event.result_base64), 'image/jpeg'))
             setTimings(event.timings as Timings)
@@ -229,14 +297,47 @@ export default function SceneSidebar() {
           }
         }
       }
+      if (asked) {
+        setPhase('idle')
+        return
+      }
       if (!finished) throw new Error('Le rendu s’est arrêté avant la fin.')
       setPhase('done')
+      if (heldInUse.current) {
+        await fetch(`/api/scenes/${sceneId}/held?held=${heldInUse.current}`, { method: 'DELETE' }).catch(() => undefined)
+        heldInUse.current = null
+      }
+      void loadLists()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec du rendu')
       setPhase('error')
     } finally {
       setStep(null)
     }
+  }
+
+  /** "Mettre en attente": keeps the settings (the capture is already kept) to run the photo later. */
+  async function holdPhoto() {
+    setChoice(null)
+    if (!heldInUse.current && lastRequest.current) {
+      const res = await fetch(`/api/scenes/${sceneId}/held`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lastRequest.current),
+      }).catch(() => null)
+      if (!res?.ok) {
+        setError('La photo n’a pas pu être mise en attente. Réessayez.')
+        return
+      }
+    }
+    heldInUse.current = null
+    setNotice('Photo mise en attente. Relancez-la depuis « En attente » quand le serveur d’images répond.')
+    void loadLists()
+  }
+
+  async function dropHeld(id: string) {
+    await fetch(`/api/scenes/${sceneId}/held?held=${id}`, { method: 'DELETE' }).catch(() => undefined)
+    void loadLists()
   }
 
   if (!importedRoom?.sceneId) return null
@@ -462,8 +563,63 @@ export default function SceneSidebar() {
             </div>
           )}
 
+          {choice && (
+            <div className="mt-3 space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+              <p className="font-semibold">
+                {choice.reason === 'slow' ? 'Le serveur d’images est trop lent en ce moment.' : 'Le serveur d’images ne répond pas.'}
+              </p>
+              <p>La capture est gardée : rien n’est perdu et aucune photo n’est relancée sans vous. Que voulez-vous faire ?</p>
+              <button
+                type="button"
+                onClick={() => void generate({ request: lastRequest.current ?? undefined, quality: 'medium' })}
+                className="w-full rounded-lg bg-[var(--rm-primary)] px-3 py-2 text-sm font-semibold text-[var(--rm-surface)]"
+              >
+                {choice.tried === 'high' ? 'Continuer en qualité moyenne (environ 40 s)' : 'Réessayer en qualité moyenne'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void holdPhoto()}
+                className="w-full rounded-lg border border-amber-400 bg-white px-3 py-2 text-sm font-medium text-amber-900"
+              >
+                Mettre en attente, je relance plus tard
+              </button>
+            </div>
+          )}
+          {notice && <p className="mt-3 rounded-lg bg-[var(--rm-text)]/6 px-3 py-2 text-xs leading-relaxed text-[var(--rm-text)]">{notice}</p>}
           {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">{error}</p>}
         </section>
+
+        {held.length > 0 && (
+          <section>
+            <SectionTitle>En attente · {held.length}</SectionTitle>
+            <ul className="space-y-1.5">
+              {held.map(item => (
+                <li key={item.id} className="flex items-center gap-2 rounded-lg border border-[var(--rm-text)]/10 bg-[var(--rm-bg)] px-2.5 py-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-[var(--rm-text)]" title={item.label}>
+                    {item.label}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void generate({ request: item.request, heldId: item.id })}
+                    className="shrink-0 rounded-md bg-[var(--rm-primary)] px-2.5 py-1.5 font-semibold text-[var(--rm-surface)] disabled:opacity-50"
+                  >
+                    Relancer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void dropHeld(item.id)}
+                    className="shrink-0 px-1 text-[var(--rm-muted)] hover:text-red-700"
+                    aria-label={`Supprimer ${item.label}`}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-[var(--rm-muted)]">La capture est gardée : relancer ne refait que la photo (environ 1 minute).</p>
+          </section>
+        )}
 
         {(photoSrc || captureSrc) && (
           <section>
@@ -517,6 +673,37 @@ export default function SceneSidebar() {
             >
               Un miroir, une vitre ou une lumière mal rendu ? Corriger un matériau
             </button>
+          </section>
+        )}
+
+        {photos.length > 0 && (
+          <section>
+            <SectionTitle>Mes photos · {photos.length}</SectionTitle>
+            <div className="grid grid-cols-3 gap-1.5">
+              {photos.slice(0, showAllPhotos ? photos.length : 9).map(photo => (
+                <a
+                  key={photo.file}
+                  href={`/api/scenes/${sceneId}/photos/${photo.file}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={[photo.view, photo.time, photo.lens && `${photo.lens} mm`, photo.quality, photo.fellBack && 'qualité moyenne (secours)'].filter(Boolean).join(' · ')}
+                  className="block overflow-hidden rounded-lg border border-[var(--rm-text)]/10"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/scenes/${sceneId}/photos/${photo.file}?w=360`} alt={photo.view ?? 'Photo'} loading="lazy" className="aspect-[3/2] w-full object-cover" />
+                </a>
+              ))}
+            </div>
+            {photos.length > 9 && (
+              <button
+                type="button"
+                onClick={() => setShowAllPhotos(v => !v)}
+                className="mt-2 text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
+              >
+                {showAllPhotos ? 'Voir moins' : `Voir les ${photos.length} photos`}
+              </button>
+            )}
+            <p className="mt-1.5 text-xs text-[var(--rm-muted)]">Toutes les photos de cette scène sont gardées, même si votre connexion coupe.</p>
           </section>
         )}
 

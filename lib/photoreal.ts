@@ -70,6 +70,30 @@ class GatewayError extends Error {
   }
 }
 
+/**
+ * Thrown in "ask" mode when the image service is too slow or down: instead of silently retrying
+ * (a second paid generation), the Studio asks the user: continue in medium quality, or hold the
+ * render until the service is back. The Blender capture is already kept, so neither costs a recapture.
+ */
+export class PhotoChoiceError extends Error {
+  constructor(
+    /** The quality that just failed. */
+    readonly tried: 'low' | 'medium' | 'high',
+    /** 'slow' = timed out (Cloudflare's ~100 s cut), 'down' = unreachable or failing. */
+    readonly reason: 'slow' | 'down',
+    readonly detail: string,
+  ) {
+    super(detail)
+  }
+}
+
+export interface PhotorealOptions {
+  /** First quality to try; defaults to RENDER_IMAGE_QUALITY (high). */
+  quality?: 'low' | 'medium' | 'high'
+  /** Ask the user instead of falling back to medium on its own (see PhotoChoiceError). */
+  ask?: boolean
+}
+
 export interface PhotorealResult {
   base64: string
   seconds: number
@@ -87,8 +111,9 @@ export interface PhotorealResult {
  * Turns a 3D capture into a photoreal image with GPT Image. Throws errors whose message is
  * already readable (use renderErrorDetail for the final text).
  */
-export async function generatePhotoreal(image: Buffer, prompt: string): Promise<PhotorealResult> {
+export async function generatePhotoreal(image: Buffer, prompt: string, options: PhotorealOptions = {}): Promise<PhotorealResult> {
   const client = getOpenAIClient()
+  const startQuality = options.quality ?? IMAGE_QUALITY
 
   // Re-encode the capture as a plain PNG (max 2048 px): browsers can hand over odd JPEGs
   // (huge, progressive, tagged) that the image provider rejects as "Invalid value for 'image'".
@@ -161,15 +186,16 @@ export async function generatePhotoreal(image: Buffer, prompt: string): Promise<
 
   // High quality on a complex view can take longer than the gateway's ~100 s Cloudflare limit
   // (504 / 524). Rather than fail, try once more at medium quality, which takes about 60-70 s.
-  let usedQuality: 'low' | 'medium' | 'high' = IMAGE_QUALITY
+  let usedQuality: 'low' | 'medium' | 'high' = startQuality
   let fellBack = false
   let provider: 'gateway' | 'backup' = 'gateway'
   let response: unknown
   try {
     try {
-      response = await attempt(IMAGE_QUALITY)
+      response = await attempt(startQuality)
     } catch (err) {
-      if (IMAGE_QUALITY !== 'high' || !timedOut(err)) throw err
+      // In ask mode the user decides; otherwise one automatic retry at medium.
+      if (options.ask || startQuality !== 'high' || !timedOut(err)) throw err
       const status = (err as { status?: number }).status
       console.warn(`photoreal: high quality timed out (${status ?? 'timeout'}) after ${((performance.now() - started) / 1000).toFixed(0)}s; retrying once at medium`)
       usedQuality = 'medium'
@@ -179,12 +205,19 @@ export async function generatePhotoreal(image: Buffer, prompt: string): Promise<
   } catch (err) {
     // The gateway is down (outage, 524 even at medium, unreachable): one try on the backup provider.
     const backup = getBackupImageClient()
-    if (!backup || !isGatewayDown(err)) throw err
+    if (!isGatewayDown(err)) throw err
+    if (!backup) {
+      if (options.ask) {
+        console.warn(`photoreal: ${startQuality} failed (${(err as Error).message?.slice(0, 80)}); asking the user`)
+        throw new PhotoChoiceError(startQuality, timedOut(err) ? 'slow' : 'down', renderErrorDetail(err))
+      }
+      throw err
+    }
     console.warn(`photoreal: gateway down (${(err as Error).message?.slice(0, 80)}); trying the backup provider`)
     provider = 'backup'
-    usedQuality = IMAGE_QUALITY
+    usedQuality = startQuality
     fellBack = false
-    response = await attempt(IMAGE_QUALITY, backup)
+    response = await attempt(startQuality, backup)
   }
   const seconds = (performance.now() - started) / 1000
   console.log(`photoreal: ${usedQuality}${fellBack ? ' (fallback)' : ''}${provider === 'backup' ? ' via backup' : ''} ${size} fidelity ${fidelity ?? 'low'} in ${seconds.toFixed(1)}s`)

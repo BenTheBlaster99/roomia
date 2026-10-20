@@ -3,7 +3,7 @@ import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { blenderLighting, NEUTRAL_CAPTURE_LIGHT, type Lighting } from './render-lighting'
-import type { MaterialRoles } from './material-roles'
+import { FINISH_ROUGHNESS, type MaterialRoles } from './material-roles'
 import { lookAtQuaternion, verticalFov, type SceneCamera } from './scene-cameras'
 
 const BLENDER = process.env.ROOMIA_BLENDER ?? 'blender'
@@ -59,12 +59,16 @@ def link_into(mat, node, socket):
 
 # The designer's roles (Studio > Matériaux) win; otherwise mirrors and lights are guessed from the
 # name and glass from transparency. Blender may add ".001" to a repeated name.
-ROLES = spec.get("roles") or {}
+EDITS = spec.get("roles") or {}
+FINISH_ROUGHNESS = spec.get("finishRoughness") or {}
+
+def edit_of(mat):
+    return EDITS.get(re.sub(r"\.\d{3}$", "", mat.name)) or {}
 
 def role_of(mat):
     base = re.sub(r"\.\d{3}$", "", mat.name)
-    if base in ROLES:
-        return ROLES[base]
+    if edit_of(mat).get("role"):
+        return edit_of(mat)["role"]
     if MIRROR.search(base):
         return "mirror"
     if GLASS.search(base):
@@ -85,7 +89,7 @@ for mat in bpy.data.materials:
             mat.node_tree.links.remove(l)
         bsdf.inputs["Base Color"].default_value = (0.92, 0.92, 0.92, 1)
         bsdf.inputs["Metallic"].default_value = 1.0
-        bsdf.inputs["Roughness"].default_value = 0.02
+        bsdf.inputs["Roughness"].default_value = 0.0 if spec.get("sharpMirrors") else 0.02
     elif role == "glass-name":
         # A glass material with a picture on it (a green checkerboard) becomes plain clear glass.
         textured = link_into(mat, bsdf, "Base Color")
@@ -103,6 +107,19 @@ for mat in bpy.data.materials:
     elif role == "light" and spec.get("interior", True):
         bsdf.inputs["Emission Color"].default_value = (1.0, 0.86, 0.62, 1)
         bsdf.inputs["Emission Strength"].default_value = 12.0
+    # The designer's colour and finish (Studio > Matériaux): a flat colour replaces the texture.
+    edit = edit_of(mat)
+    if edit.get("color") and role != "mirror":
+        for l in link_into(mat, bsdf, "Base Color"):
+            mat.node_tree.links.remove(l)
+        hexcol = edit["color"].lstrip("#")
+        srgb = [int(hexcol[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in srgb]
+        bsdf.inputs["Base Color"].default_value = (*linear, 1)
+    if edit.get("finish") in FINISH_ROUGHNESS and role != "mirror":
+        for l in link_into(mat, bsdf, "Roughness"):
+            mat.node_tree.links.remove(l)
+        bsdf.inputs["Roughness"].default_value = FINISH_ROUGHNESS[edit["finish"]]
 
 def tint_of(bsdf, forced):
     # glTF glass is "base colour at some alpha"; as real glass that becomes a tint between clear and the colour.
@@ -112,6 +129,8 @@ def tint_of(bsdf, forced):
     if forced and a >= 0.9:
         a = 0.3
     return tuple(1.0 - a * (1.0 - c) for c in (r, g, b))
+
+GLASS_ORIGINAL = {}  # material name -> its own colour and opacity, before it became real glass
 
 if spec.get("realGlass"):
     # See-through materials (alpha below 0.9, no cut-out texture such as leaves) and materials the
@@ -133,6 +152,9 @@ if spec.get("realGlass"):
             continue
         for l in link_into(mat, bsdf, "Alpha"):
             links.remove(l)
+        r0, g0, b0, _ = bsdf.inputs["Base Color"].default_value
+        a0 = bsdf.inputs["Alpha"].default_value
+        GLASS_ORIGINAL[mat.name] = (r0, g0, b0, 0.3 if forced and a0 >= 0.9 else a0)
         tint = tint_of(bsdf, forced)
         for l in link_into(mat, bsdf, "Base Color"):
             links.remove(l)
@@ -153,6 +175,89 @@ if spec.get("realGlass"):
         mat.surface_render_method = "DITHERED"
         mat.use_raytrace_refraction = True
 
+    # Refracting glass can't be seen through twice: a double-glazed door showed flat grey instead of
+    # the outside, and the AI invented a room behind it (20 Oct). Upright glass (windows, doors,
+    # partitions) is drawn as tinted see-through glass instead; flat glass (tables, shelves) keeps
+    # the refracting, smoked look.
+    see_through = {}
+    for ob in bpy.context.scene.objects:
+        if ob.type != "MESH" or not ob.material_slots:
+            continue
+        rot3 = ob.matrix_world.to_3x3()
+        for index, slot in enumerate(ob.material_slots):
+            glass = slot.material
+            if not glass or glass.name not in GLASS_ORIGINAL:
+                continue
+            upright = flat = 0.0
+            for poly in ob.data.polygons:
+                if poly.material_index == index:
+                    n = (rot3 @ poly.normal).normalized()
+                    if abs(n.z) < 0.5:
+                        upright += poly.area
+                    else:
+                        flat += poly.area
+            if upright <= flat:
+                continue
+            if glass.name not in see_through:
+                copy = glass.copy()
+                cb = next(n for n in copy.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+                r0, g0, b0, a0 = GLASS_ORIGINAL[glass.name]
+                cb.inputs["Base Color"].default_value = (r0, g0, b0, 1)
+                cb.inputs["Alpha"].default_value = a0
+                cb.inputs["Transmission Weight"].default_value = 0.0
+                copy.surface_render_method = "BLENDED"
+                copy.use_raytrace_refraction = False
+                see_through[glass.name] = copy
+            slot.link = "OBJECT"
+            slot.material = see_through[glass.name]
+
+def add_mirror_probes():
+    # A planar probe lying on each mirror plane renders the exact reflection from the mirror's
+    # own position (crystal clear), instead of a blurry guess from a probe at the camera. Mirror
+    # faces are grouped by plane: one exported object often holds every mirror of the apartment.
+    eye = cam.matrix_world.translation
+    planes = {}
+    for obj in list(bpy.context.scene.objects):
+        if obj.type != "MESH":
+            continue
+        slots = {i for i, s in enumerate(obj.material_slots) if s.material and role_of(s.material) == "mirror"}
+        if not slots:
+            continue
+        mw, mesh = obj.matrix_world, obj.data
+        rot3 = mw.to_3x3()
+        for poly in mesh.polygons:
+            if poly.material_index not in slots or poly.area <= 0:
+                continue
+            n = (rot3 @ poly.normal).normalized()
+            pts = [mw @ mesh.vertices[v].co for v in poly.vertices]
+            c = sum(pts, Vector((0.0, 0.0, 0.0))) / len(pts)
+            # SketchUp faces are often reversed: a mirror faces the room the camera is in.
+            if n.dot(eye - c) < 0:
+                n = -n
+            key = (round(n.x, 1), round(n.y, 1), round(n.z, 1), round(n.dot(c), 1))
+            group = planes.setdefault(key, {"n": Vector((0.0, 0.0, 0.0)), "pts": [], "area": 0.0})
+            group["n"] += n * poly.area
+            group["pts"].extend(pts)
+            group["area"] += poly.area
+    # The biggest mirror planes first; each planar probe re-renders the scene, so keep a cap.
+    count = 0
+    for group in sorted(planes.values(), key=lambda g: -g["area"])[:16]:
+        normal = group["n"].normalized()
+        center = sum(group["pts"], Vector((0.0, 0.0, 0.0))) / len(group["pts"])
+        rot = normal.to_track_quat("Z", "Y" if abs(normal.y) < 0.9 else "X")
+        inv = rot.to_matrix().transposed()
+        local = [inv @ (p - center) for p in group["pts"]]
+        data = bpy.data.lightprobes.new("roomia_mirror", "PLANE")
+        data.influence_distance = 0.05
+        probe = bpy.data.objects.new("roomia_mirror", data)
+        bpy.context.collection.objects.link(probe)
+        probe.location = center + normal * 0.002
+        probe.rotation_mode = "QUATERNION"
+        probe.rotation_quaternion = rot
+        probe.scale = (max(abs(v.x) for v in local) * 1.05 or 0.5, max(abs(v.y) for v in local) * 1.05 or 0.5, 1.0)
+        count += 1
+    return count
+
 px, py, pz = spec["position"]
 qx, qy, qz, qw = spec["quaternion"]
 R = Quaternion((qw, qx, qy, qz)).to_matrix()
@@ -170,6 +275,48 @@ cam = bpy.data.objects.new("roomia_view", cam_data)
 bpy.context.collection.objects.link(cam)
 cam.matrix_world = mat
 bpy.context.scene.camera = cam
+
+if spec.get("outdoorSky"):
+    # Outside the building used to be flat grey: behind a glass door the AI read it as another room
+    # and invented one (Sarah, 20 Oct). A sky dome around the building, horizon at eye level, makes
+    # every window and glass door clearly show the outdoors. EEVEE draws what lies behind real glass
+    # from the sphere probe, so the dome stays visible to it (that probe only feeds shiny
+    # reflections); it is hidden from the volume probe so the neutral diffuse light stays neutral.
+    lo = Vector((1e12, 1e12, 1e12))
+    hi = Vector((-1e12, -1e12, -1e12))
+    for ob in bpy.context.scene.objects:
+        if ob.type != "MESH":
+            continue
+        for corner in ob.bound_box:
+            w = ob.matrix_world @ Vector(corner)
+            lo = Vector((min(lo.x, w.x), min(lo.y, w.y), min(lo.z, w.z)))
+            hi = Vector((max(hi.x, w.x), max(hi.y, w.y), max(hi.z, w.z)))
+    extent = (hi - lo).length if hi.x > lo.x else 50.0
+    radius = max(80.0, extent * 1.5)
+    eye = cam.matrix_world.translation
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, segments=64, ring_count=32, location=((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, eye.z))
+    dome = bpy.context.object
+    dome.name = "roomia_sky"
+    sky = bpy.data.materials.new("roomia_sky")
+    sky.use_nodes = True
+    nodes, links = sky.node_tree.nodes, sky.node_tree.links
+    nodes.clear()
+    coord, split, ramp = nodes.new("ShaderNodeTexCoord"), nodes.new("ShaderNodeSeparateXYZ"), nodes.new("ShaderNodeValToRGB")
+    glow, out = nodes.new("ShaderNodeEmission"), nodes.new("ShaderNodeOutputMaterial")
+    links.new(coord.outputs["Generated"], split.inputs[0])
+    links.new(split.outputs["Z"], ramp.inputs["Fac"])
+    links.new(ramp.outputs["Color"], glow.inputs["Color"])
+    links.new(glow.outputs[0], out.inputs["Surface"])
+    stops = ramp.color_ramp.elements
+    stops[0].position, stops[0].color = 0.495, (0.40, 0.42, 0.36, 1)  # distant ground
+    stops[1].position, stops[1].color = 0.505, (0.78, 0.85, 0.93, 1)  # pale horizon
+    top = stops.new(0.75)
+    top.color = (0.42, 0.62, 0.92, 1)  # blue sky
+    dome.data.materials.append(sky)
+    dome.visible_shadow = False
+    if hasattr(dome, "hide_probe_volume"):
+        dome.hide_probe_volume = True
+    cam_data.clip_end = max(cam_data.clip_end, radius * 2.5)
 
 light = spec.get("lighting") or {}
 world = bpy.data.worlds.new("roomia")
@@ -238,6 +385,14 @@ else:
         probe = bpy.data.objects.new("roomia_probe", probe_data)
         bpy.context.collection.objects.link(probe)
         probe.location = mat.translation
+        if spec.get("sharpMirrors"):
+            # Full-resolution, high-quality tracing without the denoiser that turned mirrors into fog.
+            rt = scene.eevee.ray_tracing_options
+            rt.resolution_scale = "1"
+            rt.screen_trace_quality = 1.0
+            rt.trace_max_roughness = 0.3
+            rt.use_denoise = False
+            print("MIRROR_PROBES", add_mirror_probes())
 scene.render.resolution_x = spec["width"]
 scene.render.resolution_y = spec["height"]
 scene.render.filepath = spec["out"]
@@ -293,6 +448,10 @@ export interface CaptureOptions {
   fillEnergy?: number
   /** Light the capture with white daylight whatever the time of day (the photo step sets the mood). */
   neutralLight?: boolean
+  /** Exact mirror reflections: a planar probe on each mirror, full-resolution tracing, no denoiser. */
+  sharpMirrors?: boolean
+  /** A sky dome around the building, so windows and glass doors clearly show the outdoors. */
+  outdoorSky?: boolean
 }
 
 /**
@@ -305,7 +464,19 @@ export interface CaptureOptions {
 export const DEFAULT_CAPTURE: CaptureOptions =
   process.env.ROOMIA_CAPTURE === 'legacy'
     ? { engine: ENGINE, gpu: false, raytrace: false, realGlass: false, samples: CYCLES_SAMPLES }
-    : { engine: 'EEVEE', gpu: false, raytrace: true, realGlass: true, viewTransform: 'Standard', neutralLight: true, samples: CYCLES_SAMPLES }
+    : {
+        engine: 'EEVEE',
+        gpu: false,
+        raytrace: true,
+        realGlass: true,
+        viewTransform: 'Standard',
+        neutralLight: true,
+        // 18 Oct: Sarah found the mirrors blurry. A planar probe per mirror plane makes them crystal clear.
+        sharpMirrors: true,
+        // 20 Oct: behind a glass door the outside was flat grey and the AI invented a room there.
+        outdoorSky: true,
+        samples: CYCLES_SAMPLES,
+      }
 
 export interface ViewSpec {
   position: [number, number, number]
@@ -360,7 +531,10 @@ export async function renderSceneView(
         cyclesDevice: options.gpu ? 'GPU' : 'CPU',
         raytrace: options.raytrace,
         realGlass: options.realGlass,
+        sharpMirrors: options.sharpMirrors,
+        outdoorSky: options.outdoorSky,
         roles,
+        finishRoughness: FINISH_ROUGHNESS,
         viewTransform: options.viewTransform,
         samples: options.samples,
         fillEnergy: options.fillEnergy,

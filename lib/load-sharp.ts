@@ -13,6 +13,7 @@ type SharpInstance = {
   resize: (width: number, height: number, opts?: { fit?: string; withoutEnlargement?: boolean }) => SharpInstance
   stats: () => Promise<{ channels: { mean: number; stdev: number }[] }>
   png: () => SharpInstance
+  jpeg: (opts?: { quality?: number }) => SharpInstance
   toBuffer: {
     (): Promise<Buffer>
     (opts: { resolveWithObject: true }): Promise<{

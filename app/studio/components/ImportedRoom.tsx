@@ -115,6 +115,7 @@ export default function ImportedRoom() {
       }
     })
     let lit: { material: THREE.MeshStandardMaterial; emissive: THREE.Color; intensity: number }[] = []
+    const originals = new Map<THREE.MeshStandardMaterial, { color: THREE.Color; map: THREE.Texture | null }>()
     const restore = () => {
       for (const { material, emissive, intensity } of lit) {
         material.emissive.copy(emissive)
@@ -131,13 +132,30 @@ export default function ImportedRoom() {
           seeThrough: materials[0].transparent && materials[0].opacity < 0.9,
           meshes: meshes.get(name) ?? 0,
         })),
-      highlight: name => {
+      highlight: names => {
         restore()
-        for (const material of (name && byName.get(name)) || []) {
-          if (!material.emissive) continue
-          lit.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity })
-          material.emissive.set('#ff7a00')
-          material.emissiveIntensity = 0.9
+        for (const name of names) {
+          for (const material of byName.get(name) ?? []) {
+            if (!material.emissive) continue
+            lit.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity })
+            material.emissive.set('#ff7a00')
+            material.emissiveIntensity = 0.9
+          }
+        }
+      },
+      previewColor: (name, color) => {
+        for (const material of byName.get(name) ?? []) {
+          if (!material.color) continue
+          if (!originals.has(material)) originals.set(material, { color: material.color.clone(), map: material.map })
+          const original = originals.get(material)!
+          if (color) {
+            material.color.set(color)
+            material.map = null
+          } else {
+            material.color.copy(original.color)
+            material.map = original.map
+          }
+          material.needsUpdate = true
         }
       },
       setPickHandler: handler => {
@@ -147,6 +165,11 @@ export default function ImportedRoom() {
     })
     return () => {
       restore()
+      for (const [material, original] of originals) {
+        material.color.copy(original.color)
+        material.map = original.map
+        material.needsUpdate = true
+      }
       pickHandler.current = null
       document.body.style.cursor = ''
       registerMaterialAccess(null)
