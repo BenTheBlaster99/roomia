@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 
 /** One before/after pair: the photo, with the original 3D scene on hover or on tap. */
-export default function ResultShot({ name, caption, light }: { name: string; caption: string; light: string }) {
+export default function ResultShot({ name, caption }: { name: string; caption: string }) {
   const [show3d, setShow3d] = useState(false)
   return (
     <figure className={`shot${show3d ? ' show3d' : ''}`}>
@@ -15,9 +15,7 @@ export default function ResultShot({ name, caption, light }: { name: string; cap
           {show3d ? 'Voir la photo' : 'Voir la 3D'}
         </button>
       </div>
-      <figcaption>
-        {caption} <span>{light}</span>
-      </figcaption>
+      <figcaption>{caption}</figcaption>
     </figure>
   )
 }

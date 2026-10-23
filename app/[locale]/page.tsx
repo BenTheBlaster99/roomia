@@ -4,7 +4,8 @@ import { setRequestLocale } from 'next-intl/server'
 import BeforeAfter from '@/components/landing/BeforeAfter'
 import DemoForm from '@/components/landing/DemoForm'
 import ResultShot from '@/components/landing/ResultShot'
-import { WHATSAPP_DISPLAY, whatsappLink } from '@/lib/contact'
+import WordScroller from '@/components/landing/WordScroller'
+import { STUDIO_URL, WHATSAPP_DISPLAY, whatsappLink } from '@/lib/contact'
 import './landing.css'
 
 // The previous home page (the interior configurator) is kept in ./_ancienne-accueil, out of routing.
@@ -28,13 +29,15 @@ export const metadata: Metadata = {
   },
 }
 
-const DEMO_TEXT = 'Bonjour, je souhaite une démo de Roomia Render.'
+const TOOLS = ['D5 Render', 'Enscape', '3ds Max', 'V-Ray', 'Corona']
+
+const DEMO_TEXT ='Bonjour, je souhaite une démo de Roomia Render.'
 
 const RESULTS = [
-  { name: 'sejour', caption: 'Séjour ouvert sur la cuisine', light: 'Jour' },
-  { name: 'chambre', caption: 'Chambre parentale, marbre', light: 'Soir' },
-  { name: 'salon', caption: 'Salon, habillage bois', light: 'Soir' },
-  { name: 'nuit', caption: 'Salon, ambiance de nuit', light: 'Nuit' },
+  { name: 'sejour', caption: 'Séjour ouvert sur la cuisine' },
+  { name: 'chambre', caption: 'Chambre parentale, marbre' },
+  { name: 'salon', caption: 'Salon, habillage bois' },
+  { name: 'nuit', caption: 'Salon, ambiance de nuit' },
 ]
 
 const KEEPS = [
@@ -65,8 +68,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           </a>
           <nav aria-label="Sections">
             <a href="#temps">Le temps gagné</a>
-            <a href="#etapes">Comment ça marche</a>
             <a href="#resultats">Résultats</a>
+            <a href="#etapes">Comment ça marche</a>
             <a href="#pour-qui">Pour qui</a>
             <a href="#offres">Offres</a>
           </nav>
@@ -77,19 +80,43 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
       </header>
 
       <main id="top">
-        <section className="hero band">
+        <section className="hero band" id="temps">
           <div className="wrap">
-            <p className="eyebrow">Roomia Render · pour promoteurs, architectes et designers</p>
-            <h1>
-              De votre 3D
-              <br />à la <em>photo</em>
-            </h1>
+            <h1 className="sr-only">Roomia Render : de votre fichier SketchUp à la photo réaliste en 3 minutes</h1>
+            <div className="vs2">
+              <div className="card old">
+                <WordScroller words={TOOLS} label="Logiciels de rendu" />
+                <p className="unit">Lumières, matériaux, calcul, retouches : à régler pour chaque vue.</p>
+              </div>
+              <div className="vsmark" aria-hidden="true">
+                VS
+              </div>
+              <div className="card new">
+                <div className="brand">
+                  ROOMIA<span>.</span>
+                </div>
+                <p className="unit">Votre fichier SketchUp, une vue, une photo. Aucun réglage.</p>
+              </div>
+            </div>
+            <div className="times" role="group" aria-label="Temps par vue">
+              <div className="side old">
+                <div className="num">≈ 2 h</div>
+                <div className="cap">par vue avec un logiciel</div>
+              </div>
+              <div className="arrow" aria-hidden="true">
+                →
+              </div>
+              <div className="side new">
+                <div className="num">3 min</div>
+                <div className="cap">par vue avec Roomia</div>
+              </div>
+            </div>
             <div className="hero-row">
               <p className="lede">
-                Le rendu qui vous prenait <strong>1 h 30 à 2 heures par vue</strong> sort en <strong>quelques minutes</strong>, directement depuis votre fichier SketchUp. Vos matériaux, vos meubles, votre cadrage : le design reste le vôtre.
+                Chaque vue de votre projet SketchUp devient une <strong>photo réaliste</strong>, sans réglages ni attente. Vos matériaux, vos meubles, votre cadrage : le design reste le vôtre.
               </p>
               <div className="ctas">
-                <a className="btn btn-main" href="#demo">
+                <a className="btn btn-main" href={STUDIO_URL}>
                   Tester sur mon projet
                 </a>
                 <a className="btn btn-ghost" href="#resultats">
@@ -108,96 +135,42 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               beforeAlt="Capture de la scène 3D SketchUp d’une salle à manger, sans éclairage réaliste"
               afterAlt="La même salle à manger rendue en photo réaliste par Roomia, lumière de fin de journée"
             />
-            <div className="wipe-meta">
-              <span>Appartement F5 · séjour et salle à manger · projet réel</span>
-              <span>Même cadrage, mêmes meubles, mêmes matériaux</span>
-            </div>
           </div>
         </section>
 
-        <section className="time band" id="temps">
-          <div className="ghost" aria-hidden="true">
-            RENDU
-          </div>
+        <section className="versus band">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Le temps gagné</p>
               <h2>
-                Vous achetez <em>du temps</em>
+                10 vues : <em>20 heures</em> ou 30 minutes
               </h2>
-            </div>
-            <div className="vs">
-              <div className="side old">
-                <div className="num">2 h</div>
-                <div className="unit">Rendu classique, par vue</div>
-              </div>
-              <div className="arrow" aria-hidden="true">
-                →
-              </div>
-              <div className="side new">
-                <div className="num">3 min</div>
-                <div className="unit">Roomia, par vue (moyenne mesurée)</div>
-              </div>
             </div>
             <div className="bars" role="group" aria-label="Un appartement de 10 vues">
               <h3>Un appartement, 10 vues à présenter</h3>
               <div className="bar old">
-                <span>Rendu classique</span>
+                <span>Avec un logiciel</span>
                 <div className="track">
                   <div className="fill" />
                 </div>
                 <span className="val">≈ 20 h</span>
               </div>
               <div className="bar new">
-                <span>Roomia</span>
+                <span>Avec Roomia</span>
                 <div className="track">
                   <div className="fill" />
                 </div>
                 <span className="val">≈ 30 min</span>
               </div>
-              <p className="note">
-                Barres à l’échelle. Rendu classique : 1 h 30 à 2 h par vue selon une architecte d’intérieur en poste. Roomia : 2 à 5 minutes par vue sur nos rendus de projets réels, 3 minutes en moyenne.
-              </p>
             </div>
-          </div>
-        </section>
-
-        <section className="section band" id="etapes">
-          <div className="wrap">
-            <div className="head">
-              <p className="eyebrow">Comment ça marche</p>
-              <h2>
-                Gardez votre <em>logiciel</em>. On s’occupe du rendu.
-              </h2>
-              <p className="lede">Pas besoin de refaire le projet ni d’avoir un ordinateur puissant. Tout se passe dans le navigateur.</p>
-            </div>
-            <ol className="steps">
-              <li>
-                <span className="n">1</span>
-                <h3>Importez votre modèle</h3>
-                <p>Exportez votre projet SketchUp et déposez-le dans Roomia. Les gros fichiers passent aussi.</p>
-                <span className="fmt">GLB · DAE · jusqu’à ~500 Mo</span>
-              </li>
-              <li>
-                <span className="n">2</span>
-                <h3>Choisissez la vue</h3>
-                <p>Vos scènes enregistrées sont reprises telles quelles. Vérifiez le cadrage en un clic, gratuitement.</p>
-                <span className="fmt">Vos scènes · votre objectif</span>
-              </li>
-              <li>
-                <span className="n">3</span>
-                <h3>Recevez la photo</h3>
-                <p>Lumière du jour, du soir ou de nuit. La photo est prête à montrer au client.</p>
-                <span className="fmt">≈ 3 min · haute définition</span>
-              </li>
-            </ol>
+            <p className="note">
+              Ces logiciels restent les outils pour modéliser et pour les projets sur mesure. Roomia prend en charge l’étape du rendu. Temps avec logiciel : 1 h 30 à 2 h par vue, relevé par une architecte d’intérieur en poste (il varie selon le projet et la machine). Roomia : 2 à 5 minutes par vue sur nos rendus réels, 3 minutes en moyenne.
+            </p>
           </div>
         </section>
 
         <section className="section band" id="resultats">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Résultats</p>
               <h2>
                 Le même projet, <em>en vrai</em>
               </h2>
@@ -211,10 +184,37 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           </div>
         </section>
 
+        <section className="section band" id="etapes">
+          <div className="wrap">
+            <div className="head">
+              <h2>
+                Trois étapes, <em>aucun réglage</em>
+              </h2>
+              <p className="lede">Pas besoin de refaire le projet ni d’avoir un ordinateur puissant. Tout se passe dans le navigateur.</p>
+            </div>
+            <ol className="steps">
+              <li>
+                <span className="n">1</span>
+                <h3>Importez votre modèle</h3>
+                <p>Exportez votre projet SketchUp en GLB ou DAE et déposez-le dans Roomia. Les gros fichiers (jusqu’à 500 Mo) passent aussi.</p>
+              </li>
+              <li>
+                <span className="n">2</span>
+                <h3>Choisissez la vue</h3>
+                <p>Vos scènes enregistrées sont reprises telles quelles. Vérifiez le cadrage en un clic, gratuitement.</p>
+              </li>
+              <li>
+                <span className="n">3</span>
+                <h3>Recevez la photo</h3>
+                <p>Lumière du jour, du soir ou de nuit. La photo est prête à montrer au client.</p>
+              </li>
+            </ol>
+          </div>
+        </section>
+
         <section className="section band" id="fidelite">
           <div className="wrap fidelity">
             <div className="head">
-              <p className="eyebrow">Fidèle à votre design</p>
               <h2>
                 Une belle image ne suffit pas. Elle doit être <em>la vôtre</em>.
               </h2>
@@ -241,7 +241,6 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         <section className="section band" id="pour-qui">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Pour qui</p>
               <h2>
                 Pour ceux qui doivent <em>montrer</em> avant de construire
               </h2>
@@ -279,14 +278,12 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         <section className="section band" id="offres">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Offres</p>
               <h2>
                 Payé en <em>dinars</em>, sans carte étrangère
               </h2>
             </div>
             <div className="offers">
               <article>
-                <span className="kind">Pour commencer</span>
                 <h3>Démo</h3>
                 <p>On rend une de vos vues, sur votre propre projet, devant vous.</p>
                 <ul>
@@ -295,9 +292,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
                 </ul>
               </article>
               <article className="main">
-                <span className="kind">Bureaux et promoteurs</span>
                 <h3>Abonnement mensuel</h3>
-                <p>Un forfait par mois pour toute l’équipe, avec un volume de rendus défini et un support direct.</p>
+                <p>Pour les bureaux et les promoteurs : un forfait par mois pour toute l’équipe, avec un volume de rendus défini et un support direct.</p>
                 <ul>
                   <li>Plusieurs comptes</li>
                   <li>File prioritaire</li>
@@ -305,9 +301,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
                 </ul>
               </article>
               <article>
-                <span className="kind">Indépendants</span>
                 <h3>À la photo</h3>
-                <p>Vous payez les photos que vous générez. Une photo ratée n’est pas comptée.</p>
+                <p>Pour les indépendants : vous payez les photos que vous générez. Une photo ratée n’est pas comptée.</p>
                 <ul>
                   <li>Sans engagement</li>
                   <li>Vérification de la vue gratuite</li>
@@ -321,7 +316,6 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         <section className="section band" id="questions">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Questions</p>
               <h2>
                 Les questions qu’on nous <em>pose</em>
               </h2>
@@ -340,7 +334,6 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         <section className="demo band" id="demo">
           <div className="wrap">
             <div className="head">
-              <p className="eyebrow">Démo</p>
               <h2>
                 Testez Roomia sur <em>votre</em> projet
               </h2>
