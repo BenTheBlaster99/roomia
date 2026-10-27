@@ -67,6 +67,13 @@ export default function SceneSidebar() {
   /** The capture shown came from "Vérifier la vue" (free), not from a photo run. */
   const [checked, setChecked] = useState(false)
   const [placeholders, setPlaceholders] = useState(0)
+  /** Signed-in account and its render credits (null where the Studio has no accounts). */
+  const [account, setAccount] = useState<{ name: string; credits: number } | null>(null)
+  /** The last delivered photo, so it can be reported if it doesn't respect the design. */
+  const [lastPhoto, setLastPhoto] = useState<string | null>(null)
+  const [reporting, setReporting] = useState(false)
+  const [reportText, setReportText] = useState('')
+  const [reportState, setReportState] = useState<{ ok: boolean; text: string } | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   /** The image service was too slow or down: the user chooses medium quality or holding the photo. */
   const [choice, setChoice] = useState<{ tried: string; reason: string } | null>(null)
@@ -79,6 +86,35 @@ export default function SceneSidebar() {
   const heldInUse = useRef<string | null>(null)
   const jsonInput = useRef<HTMLInputElement>(null)
   const autoViewDone = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/auth/me')
+      .then(res => (res.ok ? (res.json() as Promise<{ user: { name: string; credits: number } }>) : null))
+      .then(data => {
+        if (!cancelled && data) setAccount({ name: data.user.name, credits: data.user.credits })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function sendReport() {
+    if (!lastPhoto) return
+    const res = await fetch(`/api/scenes/${sceneId}/photos/${lastPhoto}/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reportText }),
+    }).catch(() => null)
+    const detail = res ? ((await res.json().catch(() => ({}))) as { detail?: string }).detail : null
+    setReportState(
+      res?.ok
+        ? { ok: true, text: 'Merci, c’est noté. Roomia regarde la photo et vous recontacte (crédit remboursé si le design n’est pas respecté).' }
+        : { ok: false, text: detail ?? 'Envoi impossible, réessayez.' },
+    )
+    if (res?.ok) setReporting(false)
+  }
 
   async function loadLists() {
     const [heldRes, photosRes] = await Promise.all([
@@ -263,7 +299,8 @@ export default function SceneSidebar() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // ask: when the image service is slow or down, the Studio asks instead of retrying on its own.
-        body: JSON.stringify({ ...request, sceneId, ask: true, ...(opts.quality ? { quality: opts.quality } : {}) }),
+        // jobId: a new one for every attempt, so a double click or a retry is never charged twice.
+        body: JSON.stringify({ ...request, sceneId, ask: true, jobId: crypto.randomUUID(), ...(opts.quality ? { quality: opts.quality } : {}) }),
       })
       if (!res.ok || !res.body) {
         throw new Error(((await res.json().catch(() => ({}))) as { detail?: string }).detail ?? `Erreur ${res.status}`)
@@ -293,6 +330,10 @@ export default function SceneSidebar() {
             setPhotoSrc(toUrl(String(event.result_base64), 'image/jpeg'))
             setTimings(event.timings as Timings)
             setFellBack(event.fellBack === true)
+            setLastPhoto(typeof event.photoFile === 'string' ? event.photoFile : null)
+            setReporting(false)
+            setReportState(null)
+            if (typeof event.credits === 'number') setAccount(a => (a ? { ...a, credits: Number(event.credits) } : a))
             finished = true
           }
         }
@@ -353,6 +394,22 @@ export default function SceneSidebar() {
             {importedRoom.fileName}
           </p>
           <p className="mt-0.5 text-xs text-[var(--rm-muted)]">Scène importée · prête à rendre</p>
+          {account && (
+            <p className="mt-1 text-xs text-[var(--rm-text)]">
+              {account.name} · <span className="font-semibold">{account.credits} crédit{account.credits > 1 ? 's' : ''}</span>
+              {' · '}
+              <button
+                type="button"
+                className="text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
+                  window.location.assign('/login')
+                }}
+              >
+                se déconnecter
+              </button>
+            </p>
+          )}
           <p className="mt-1 text-xs leading-relaxed text-[var(--rm-muted)]">
             Aperçu allégé pour naviguer : la photo est faite à partir du fichier complet.
           </p>
@@ -546,7 +603,11 @@ export default function SceneSidebar() {
           {!busy && (
             <p className="mt-1.5 text-center text-xs text-[var(--rm-muted)]">
               {checked ? 'Vue vérifiée : la photo prend environ 1 minute' : 'Compter 2 à 3 minutes'}
+              {account ? ' · 1 crédit par photo livrée (rien si elle échoue)' : ''}
             </p>
+          )}
+          {account && account.credits < 1 && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Plus de crédits sur ce compte. Contactez Roomia pour recharger.</p>
           )}
 
           {running && (
@@ -653,6 +714,40 @@ export default function SceneSidebar() {
                     {fellBack ? ' · qualité moyenne (le serveur d’images était trop lent en haute qualité)' : ''}
                   </p>
                 )}
+                {lastPhoto && account && !reporting && !reportState?.ok && (
+                  <button
+                    type="button"
+                    onClick={() => setReporting(true)}
+                    className="mt-2 text-left text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
+                  >
+                    La photo ne respecte pas votre design ? Signaler
+                  </button>
+                )}
+                {reporting && (
+                  <div className="mt-2 space-y-1.5">
+                    <textarea
+                      value={reportText}
+                      onChange={e => setReportText(e.target.value)}
+                      rows={3}
+                      placeholder="Ce qui a changé par rapport à votre 3D (matériau, objet ajouté ou manquant, couleur…)"
+                      className="w-full rounded-lg border border-[var(--rm-text)]/15 bg-[var(--rm-bg)] px-2.5 py-2 text-xs text-[var(--rm-text)]"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void sendReport()}
+                        disabled={reportText.trim().length < 5}
+                        className="rounded-lg bg-[var(--rm-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--rm-surface)] disabled:opacity-50"
+                      >
+                        Envoyer
+                      </button>
+                      <button type="button" onClick={() => setReporting(false)} className="text-xs text-[var(--rm-muted)]">
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {reportState && <p className={`mt-2 text-xs ${reportState.ok ? 'text-emerald-700' : 'text-red-700'}`}>{reportState.text}</p>}
               </>
             ) : (
               <>
@@ -705,6 +800,18 @@ export default function SceneSidebar() {
             )}
             <p className="mt-1.5 text-xs text-[var(--rm-muted)]">Toutes les photos de cette scène sont gardées, même si votre connexion coupe.</p>
           </section>
+        )}
+
+        {cameras.length > 1 && (
+          <a
+            href={`/studio/tour/${sceneId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="block rounded-xl border border-[var(--rm-text)]/15 px-3 py-2.5 text-sm font-medium text-[var(--rm-text)] hover:border-[var(--rm-text)]/40"
+          >
+            Visite virtuelle · {cameras.length} vues →
+            <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">Naviguez dans l’appartement : photos, 360° et plan.</span>
+          </a>
         )}
 
         <details

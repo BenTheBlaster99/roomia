@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 
-export const GPT_IMAGE_MODEL = 'gpt-image-2' as const
+export const GPT_IMAGE_MODEL = 'openai/gpt-image-2.5-sunburst' as const
 
 /** Server-side OpenAI client. Uses OPENAI_API_KEY + optional OPENAI_BASE_URL. */
 export function getOpenAIClient(): OpenAI {
