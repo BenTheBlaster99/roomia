@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -6,7 +6,7 @@ import { blenderLighting, NEUTRAL_CAPTURE_LIGHT, type Lighting } from './render-
 import { FINISH_ROUGHNESS, type MaterialRoles } from './material-roles'
 import { lookAtQuaternion, verticalFov, type SceneCamera } from './scene-cameras'
 
-const BLENDER = process.env.ROOMIA_BLENDER ?? 'blender'
+export const BLENDER = process.env.ROOMIA_BLENDER ?? 'blender'
 /** A big scene takes ~140 s to load in Blender; the old 150 s limit killed renders that were merely a little slow. */
 const TIMEOUT_MS = Number(process.env.ROOMIA_BLENDER_TIMEOUT_MS ?? 900_000)
 /** 'eevee' (fast, needs a GPU: the default) or 'cycles' (CPU only, works on any server, slower). */
@@ -31,19 +31,88 @@ function releaseSlot(): void {
   else running -= 1
 }
 
+/**
+ * Stops a Blender run before it takes the PC down: the PC froze on 26 Oct when a double-size plan render of
+ * Bloc B F5 filled its memory. Below 1.5 GB of free memory, or 0.5 GB of free graphics memory, the job fails
+ * instead. Returns the function that stops watching.
+ */
+const MIN_FREE_MB = Number(process.env.ROOMIA_MIN_FREE_MB ?? 1500)
+const MIN_FREE_GPU_MB = Number(process.env.ROOMIA_MIN_FREE_GPU_MB ?? 500)
+export function guardMemory(child: ChildProcess, onStop: (reason: string) => void): () => void {
+  let stopped = false
+  const stop = (reason: string) => {
+    if (stopped) return
+    stopped = true
+    console.error('blender stopped:', reason)
+    onStop(reason)
+    child.kill('SIGKILL')
+  }
+  const timer = setInterval(() => {
+    readFile('/proc/meminfo', 'utf8')
+      .then(info => {
+        const kb = Number(/MemAvailable:\s+(\d+)/.exec(info)?.[1])
+        if (kb && kb / 1024 < MIN_FREE_MB) stop(`mémoire presque pleine (${Math.round(kb / 1024)} Mo libres)`)
+      })
+      .catch(() => undefined)
+    execFile('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500 }, (err, out) => {
+      if (err) return
+      const [used, total] = out.split(',').map(Number)
+      if (total && total - used < MIN_FREE_GPU_MB) stop(`mémoire graphique presque pleine (${total - used} Mo libres)`)
+    })
+  }, 1000)
+  return () => clearInterval(timer)
+}
+
+/** Runs a Blender job in the same one-at-a-time slot as the captures (a tour waits for a capture, and the other way round). */
+export async function withBlenderSlot<T>(job: () => Promise<T>): Promise<T> {
+  await acquireSlot()
+  try {
+    return await job()
+  } finally {
+    releaseSlot()
+  }
+}
+
 /** 3:2, the same shape as the final photo (1536×1024), so the photo step never has to re-frame. */
 export const CAPTURE_WIDTH = 1536
 export const CAPTURE_HEIGHT = 1024
 
-const BLENDER_SCRIPT = String.raw`
+/**
+ * Opens the file and prepares it the same way for every Blender job (photo captures and tours):
+ * mirrors, glass, lights and the designer's material edits. Defines add_mirror_probes(), which
+ * expects a global `cam` (the camera).
+ */
+export const SCENE_SETUP_SCRIPT = String.raw`
 import bpy, json, math, sys
 from mathutils import Matrix, Quaternion, Vector
 
 argv = sys.argv
 spec = json.loads(open(argv[argv.index("--") + 1], encoding="utf-8").read())
 
-bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=spec["glb"])
+# Importing the 500 MB GLB takes about a minute; opening the same scene saved as a .blend takes seconds
+# (measured 25 Oct: 58 s against 1.6 s). The first job saves the imported scene next to the file, before
+# anything is changed, and later jobs open it. A new file or a new Blender version makes a new cache.
+import glob, os
+glb = spec["glb"]
+st = os.stat(glb)
+cache = os.path.join(os.path.dirname(glb), "scene-cache-%d-%d-%s.blend" % (st.st_size, int(st.st_mtime), bpy.app.version_string.split(" ")[0]))
+if spec.get("blendCache", True) and os.path.exists(cache):
+    bpy.ops.wm.open_mainfile(filepath=cache, load_ui=False)
+    print("SCENE_CACHE opened", flush=True)
+else:
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=glb)
+    if spec.get("blendCache", True):
+        try:
+            tmp = cache + ".%d.tmp" % os.getpid()
+            bpy.ops.wm.save_as_mainfile(filepath=tmp, copy=True, compress=False)
+            os.replace(tmp, cache)
+            for old in glob.glob(os.path.join(os.path.dirname(glb), "scene-cache-*.blend")):
+                if old != cache:
+                    os.remove(old)
+            print("SCENE_CACHE saved", flush=True)
+        except Exception as err:
+            print("SCENE_CACHE failed", err, flush=True)
 
 # The SketchUp export keeps no reflectivity, transparency or emission, only the material NAMES.
 # So mirrors, glass and lights are recognised by name and given the right look for the capture.
@@ -84,6 +153,10 @@ for mat in bpy.data.materials:
     if bsdf is None:
         continue
     role = role_of(mat)
+    # No telling name (an ArchiCAD export): a material that glows on its own is a light.
+    glow = bsdf.inputs["Emission Color"].default_value
+    if role == "auto" and bsdf.inputs["Emission Strength"].default_value > 0 and max(glow[:3]) > 0.5 and not link_into(mat, bsdf, "Emission Color"):
+        role = "light"
     if role == "mirror":
         for l in link_into(mat, bsdf, "Base Color"):
             mat.node_tree.links.remove(l)
@@ -258,7 +331,10 @@ def add_mirror_probes():
         count += 1
     return count
 
-px, py, pz = spec["position"]
+`
+
+/** One saved view: camera, sky, light, engine, then the render. */
+const VIEW_SCRIPT = String.raw`px, py, pz = spec["position"]
 qx, qy, qz, qw = spec["quaternion"]
 R = Quaternion((qw, qx, qy, qz)).to_matrix()
 # glTF Y-up to Blender Z-up: (x, y, z) -> (x, -z, y). Camera local axes stay -Z forward, +Y up.
@@ -401,6 +477,8 @@ bpy.ops.render.render(write_still=True)
 print("HEAVY_VIEW_OK")
 `
 
+const BLENDER_SCRIPT = SCENE_SETUP_SCRIPT + VIEW_SCRIPT
+
 function runBlender(scriptPath: string, specPath: string): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
     const child = spawn(BLENDER, ['--background', '--python', scriptPath, '--', specPath], {
@@ -410,15 +488,18 @@ function runBlender(scriptPath: string, specPath: string): Promise<{ code: numbe
     // Blender prints progress to stdout; if nobody reads it the pipe fills up and Blender freezes.
     child.stdout.resume()
     const timer = setTimeout(() => child.kill('SIGKILL'), TIMEOUT_MS)
+    const unguard = guardMemory(child, reason => (stderr += `\nArrêté : ${reason}`))
     child.stderr.on('data', chunk => {
       stderr = (stderr + String(chunk)).slice(-8000)
     })
     child.on('close', code => {
       clearTimeout(timer)
+      unguard()
       resolve({ code: code ?? 1, stderr })
     })
     child.on('error', err => {
       clearTimeout(timer)
+      unguard()
       resolve({ code: 1, stderr: err.message })
     })
   })

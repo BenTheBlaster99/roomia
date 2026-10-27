@@ -1,0 +1,110 @@
+/* The tour fills the screen: the photo or the 360° in the middle, the plan in a corner. */
+.tour {
+  --ink: #0b100e;
+  --fg: #ece6da;
+  --muted: #9aa59f;
+  --brass: #d9a65c;
+  --glass: rgba(11, 16, 14, 0.72);
+  --line: rgba(236, 230, 218, 0.16);
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  background: var(--ink); color: var(--fg); font-family: var(--font-body), system-ui, sans-serif; overflow: hidden;
+  user-select: none;
+}
+.tour button { font: inherit; color: inherit; }
+.tour :is(a, button):focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.tour-message { margin: auto; padding: 24px; color: var(--muted); text-align: center; }
+.tour.tour-message { align-items: center; justify-content: center; }
+
+.tour-bar {
+  position: relative; z-index: 5; display: flex; align-items: center; gap: 16px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 10px max(14px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(var(--ink), rgba(11, 16, 14, 0));
+}
+.tour-back { color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+.tour-back:hover { color: var(--fg); }
+.tour-title { flex: 1; min-width: 0; display: grid; text-align: center; line-height: 1.25; }
+.tour-title strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-title span { font-size: 13px; color: var(--muted); }
+.tour-modes { display: flex; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass); }
+.tour-modes button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 14px; cursor: pointer; }
+.tour-modes button[aria-pressed='true'] { background: var(--fg); color: var(--ink); }
+.tour-modes button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.tour-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; touch-action: pan-y; }
+
+/* Photo mode: the 3:2 photo as large as the screen allows, over a blurred copy of itself. */
+.tour-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(40px) brightness(0.45); transform: scale(1.1); }
+.tour-frame { position: relative; width: min(100%, calc((100dvh - 64px) * 1.5)); aspect-ratio: 3 / 2; max-height: 100%; }
+.tour-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tour-photo.in { animation: tour-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.tour-photo.out { animation: tour-out 0.9s ease both; }
+@keyframes tour-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+@keyframes tour-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
+
+/* Arrows inside the photo or the 360°: towards the next views, where they stand. */
+.tour-spot, .pano-spot {
+  position: absolute; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px;
+  border-radius: 999px; border: 1px solid rgba(236, 230, 218, 0.4); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-size: 14px; white-space: nowrap; cursor: pointer; transition: background 0.2s, transform 0.2s;
+}
+.tour-spot { transform: translate(-50%, -50%); }
+.tour-spot span, .pano-spot span {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--ink); font-size: 14px; font-weight: 700;
+}
+.tour-spot:hover, .pano-spot:hover { background: rgba(217, 166, 92, 0.85); color: var(--ink); }
+.pano-spot { left: 0; top: 0; opacity: 0; transition: opacity 0.2s, background 0.2s; }
+
+.tour-arrow {
+  position: absolute; top: 50%; z-index: 3; width: 52px; height: 52px; margin-top: -26px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--glass); font-size: 30px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.tour-arrow:hover { border-color: var(--brass); }
+.tour-arrow.left { left: max(12px, env(safe-area-inset-left, 0px)); }
+.tour-arrow.right { right: max(12px, env(safe-area-inset-right, 0px)); }
+
+/* 360° mode */
+.pano { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.pano:active { cursor: grabbing; }
+.pano-canvas { display: block; width: 100%; height: 100%; }
+.tour-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+.tour-hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 999px; background: var(--glass); font-size: 13px; color: var(--muted); pointer-events: none; }
+
+/* The plan, with every viewpoint; the current one shows where it looks. */
+.tour-plan {
+  position: absolute; z-index: 4; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: clamp(150px, 22vw, 300px); padding: 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.tour-plan-inner { position: relative; width: 100%; }
+.tour-plan-inner img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.tour-dot {
+  position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; padding: 0; border-radius: 50%;
+  border: 2px solid var(--ink); background: var(--fg); cursor: pointer;
+}
+.tour-dot.here { background: var(--brass); width: 16px; height: 16px; margin: -8px 0 0 -8px; z-index: 2; }
+/* The field of view: a wedge from the dot, turning with the 360°. */
+.tour-cone {
+  position: absolute; left: 50%; top: 50%; width: 42px; height: 34px; margin-top: -17px; transform-origin: 0 50%; pointer-events: none;
+  background: linear-gradient(to right, rgba(217, 166, 92, 0.9), rgba(217, 166, 92, 0.05));
+  clip-path: polygon(0 50%, 100% 0, 100% 100%);
+}
+
+/* Preparation (only while something is missing) */
+.tour-prep {
+  position: absolute; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 8px; max-width: min(360px, calc(100vw - 28px)); padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 14px;
+}
+.tour-prep button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--fg); color: var(--ink); font-weight: 600; cursor: pointer; }
+.tour-prep button:disabled { opacity: 0.5; cursor: wait; }
+.tour-prep progress { width: 100%; accent-color: var(--brass); }
+.tour-prep span { color: var(--muted); }
+.tour-error { color: #f1a38c !important; }
+
+@media (max-width: 640px) {
+  .tour-arrow { width: 44px; height: 44px; margin-top: -22px; font-size: 26px; }
+  .tour-plan { width: 128px; padding: 6px; }
+  .tour-spot, .pano-spot { font-size: 12px; padding: 6px 10px 6px 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-photo.in, .tour-photo.out { animation-duration: 0.01s; }
+}
