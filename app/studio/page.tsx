@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { connection } from 'next/server'
 import { fetchRoomPreset } from '@/lib/room-preset'
+import { pageUser } from '@/lib/page-session'
 import StudioClient from './StudioClient'
 import { firstSearchParam, type StudioQuery } from './studio-query'
 
@@ -10,6 +11,8 @@ export default async function StudioPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await connection()
+  // On the Studio PC the Studio needs a signed-in account (checked here, not only by the cookie).
+  await pageUser('/studio')
   const raw = await searchParams
   const query: StudioQuery = {
     preset: firstSearchParam(raw.preset),

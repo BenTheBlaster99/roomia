@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest } from 'next/server'
-import { accessDenied } from '@/lib/access-guard'
+import { accessDenied, sessionUser } from '@/lib/access-guard'
 import { MAX_QUEUED, queueLength } from '@/lib/scene-jobs'
 import { createScene, MAX_SCENE_BYTES, sceneDir, sceneFormatOf, UPLOAD_CHUNK_BYTES } from '@/lib/scene-store'
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ detail: 'Serveur occupé, réessayez dans un instant' }, { status: 503 })
   }
 
-  const meta = await createScene(fileName, format, 'uploading')
+  const meta = await createScene(fileName, format, 'uploading', sessionUser(req)?.id)
   const total = Math.ceil(size / UPLOAD_CHUNK_BYTES)
   await writeFile(
     path.join(sceneDir(meta.id), 'upload.json'),

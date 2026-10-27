@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server'
 import { segmentMask } from '@/lib/sam2'
+import { websiteOnlyDenied } from '@/lib/access-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
 export async function POST(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   const body = (await req.json().catch(() => ({}))) as {
     image_base64?: string
     x?: number

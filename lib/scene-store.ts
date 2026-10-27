@@ -37,6 +37,8 @@ export interface SceneMeta {
   createdAt: number
   error?: string
   report?: SceneReport
+  /** The Studio account that uploaded it; only that account (and admins) can reach the scene. */
+  ownerId?: number
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{21}$/
@@ -82,6 +84,7 @@ export async function createScene(
   fileName: string,
   format: SceneFormat,
   status: SceneStatus = 'processing',
+  ownerId?: number,
 ): Promise<SceneMeta> {
   const id = nanoid()
   await mkdir(sceneDir(id), { recursive: true })
@@ -92,6 +95,7 @@ export async function createScene(
     format,
     bytes: 0,
     createdAt: Date.now(),
+    ...(ownerId ? { ownerId } : {}),
   }
   await writeMeta(meta)
   void pruneOldScenes()

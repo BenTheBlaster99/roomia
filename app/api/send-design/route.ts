@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { NextRequest } from 'next/server'
+import { websiteOnlyDenied } from '@/lib/access-guard'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -23,6 +24,8 @@ interface Body {
 }
 
 export async function POST(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   try {
     const body: Body = await req.json()
     const { email, styleName, room, budget, width, length, height, furniture, total, resultUrl } = body

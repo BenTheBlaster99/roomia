@@ -7,9 +7,9 @@ export const runtime = 'nodejs'
 
 /** GET — the scene's saved views (SketchUp scenes), in the prepared file's frame. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const { id } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   if (!(await readMeta(id))) return Response.json({ detail: 'Scène introuvable' }, { status: 404 })
   return Response.json({ cameras: await readCameras(id) })
 }
@@ -19,9 +19,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * which carries no cameras). Replaces any views the scene already had.
  */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const { id } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   if (!(await readMeta(id))) return Response.json({ detail: 'Scène introuvable' }, { status: 404 })
   const text = await req.text()
   if (text.length > 2_000_000) return Response.json({ detail: 'Fichier trop volumineux' }, { status: 413 })

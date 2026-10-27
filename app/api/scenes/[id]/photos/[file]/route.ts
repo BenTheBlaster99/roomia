@@ -10,9 +10,9 @@ export const runtime = 'nodejs'
 
 /** GET — one photo of the scene; ?w=360 gives a small copy for the gallery grid. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; file: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const { id, file } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   if (!PHOTO_FILE.test(file)) return Response.json({ detail: 'Photo introuvable' }, { status: 404 })
   if (!(await readMeta(id))) return Response.json({ detail: 'Scène introuvable' }, { status: 404 })
   const data = await readFile(path.join(photosDir(id), file)).catch(() => null)

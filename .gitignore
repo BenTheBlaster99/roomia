@@ -61,3 +61,6 @@ claude.txt
 /docs/*.txt
 /d5-tests/
 /supabase/.temp/
+
+# Studio accounts, sessions and credit ledger (SQLite) stay on this PC
+/.data/

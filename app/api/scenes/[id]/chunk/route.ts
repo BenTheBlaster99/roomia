@@ -15,10 +15,9 @@ interface UploadState {
 
 /** PUT ?index=N — one piece of a resumable upload. Safe to repeat: a retried piece overwrites itself. */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
-
   const { id } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   const meta = await readMeta(id)
   if (!meta || meta.status !== 'uploading') return Response.json({ detail: 'Envoi introuvable' }, { status: 404 })
 

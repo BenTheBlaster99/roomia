@@ -7,9 +7,9 @@ export const runtime = 'nodejs'
 
 /** GET — preparation status: processing | ready | failed. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const { id } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   const meta = await readMeta(id)
   if (!meta) return Response.json({ detail: 'Scène introuvable' }, { status: 404 })
 

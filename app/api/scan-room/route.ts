@@ -2,10 +2,13 @@ import { NextRequest } from 'next/server'
 import { extractJsonFromModelText, parseScanResultToFloorPlan } from '@/lib/parse-scan-result'
 import { ScanApiError } from '@/lib/scan-error'
 import { runFloorPlanScan } from '@/lib/scan-providers'
+import { websiteOnlyDenied } from '@/lib/access-guard'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   try {
     const { imageBase64, mimeType, room, height } = await req.json()
 

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getDashboardAuth } from '@/lib/dashboard-auth'
+import { websiteOnlyDenied } from '@/lib/access-guard'
 import {
   insertWorkspaceFile,
   listWorkspaceFiles,
@@ -17,6 +18,8 @@ function unauthorized() {
 
 /** GET — list workspace files for the logged-in user (newest first). */
 export async function GET(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   const auth = await getDashboardAuth(req)
   if (!auth) return unauthorized()
 
@@ -40,6 +43,8 @@ export async function GET(req: NextRequest) {
  * JSON body: { kind, name, image_base64, parent_id?, content_type? }
  */
 export async function POST(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   const auth = await getDashboardAuth(req)
   if (!auth) return unauthorized()
 

@@ -21,9 +21,9 @@ function parseRange(header: string | null, size: number): [number, number] | nul
  * Supports Range requests so the browser can fetch it in small, individually retried pieces.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const { id } = await params
+  const denied = await accessDenied(req, id)
+  if (denied) return denied
   const meta = await readMeta(id)
   if (!meta || meta.status !== 'ready') {
     return Response.json({ detail: 'Scène pas prête' }, { status: 404 })

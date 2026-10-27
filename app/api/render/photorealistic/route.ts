@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { accessDenied } from '@/lib/access-guard'
+import { legacyAccessDenied, websiteOnlyDenied } from '@/lib/access-guard'
 import { getOpenAIClient } from '@/lib/openai-client'
 import { buildRenderPrompt } from '@/lib/render-prompt'
 import { decodeImageBase64 } from '@/lib/image-bytes'
@@ -19,7 +19,8 @@ interface RenderBody {
 type ProgressStep = 'capturing' | 'generating' | 'results'
 
 export async function POST(req: NextRequest) {
-  const denied = await accessDenied(req)
+  // Old room-builder render: switched off on the Studio PC (it bypasses render credits), unchanged on the website.
+  const denied = websiteOnlyDenied() ?? (await legacyAccessDenied(req))
   if (denied) return denied
   const body = (await req.json()) as RenderBody
 

@@ -12,6 +12,7 @@ import { decodeImageBase64, sniffImageMime } from '@/lib/image-bytes'
 import { fullFrameEditMaskPng } from '@/lib/full-frame-mask'
 import { unionSamMasksToAlphaPng, dilateSamMask } from '@/lib/sam-mask-to-alpha'
 import { hasReplicateSam2, segmentClicks } from '@/lib/sam2'
+import { websiteOnlyDenied } from '@/lib/access-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -157,6 +158,8 @@ function errorDetail(err: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const off = websiteOnlyDenied() // website feature: not exposed by the Studio PC's tunnel
+  if (off) return off
   const body = (await req.json()) as ComposeBody
 
   const wall = body.atmosphere?.wall

@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
   }
 
   const sceneId = String(body?.sceneId ?? '')
+  const notYours = await accessDenied(req, sceneId)
+  if (notYours) return notYours
   const meta = isSceneId(sceneId) ? await readMeta(sceneId) : null
   if (!meta || meta.status !== 'ready') {
     return Response.json({ detail: 'Scène introuvable ou pas encore prête.' }, { status: 404 })

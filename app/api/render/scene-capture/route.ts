@@ -15,10 +15,10 @@ export const maxDuration = 300
  * big scene takes longer to capture, so a ping goes out every 10 s, then the capture.
  */
 export async function POST(req: NextRequest) {
-  const denied = await accessDenied(req)
-  if (denied) return denied
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   const sceneId = String(body?.sceneId ?? '')
+  const denied = await accessDenied(req, sceneId)
+  if (denied) return denied
   const meta = isSceneId(sceneId) ? await readMeta(sceneId) : null
   if (!meta || meta.status !== 'ready') {
     return Response.json({ detail: 'Scène introuvable ou pas encore prête.' }, { status: 404 })

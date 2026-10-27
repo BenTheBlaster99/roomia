@@ -2,7 +2,7 @@ import { createWriteStream } from 'node:fs'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { NextRequest } from 'next/server'
-import { accessDenied } from '@/lib/access-guard'
+import { accessDenied, sessionUser } from '@/lib/access-guard'
 import { enqueueScene, MAX_QUEUED, queueLength } from '@/lib/scene-jobs'
 import {
   createScene,
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ detail: 'Serveur occupé, réessayez dans un instant' }, { status: 503 })
   }
 
-  const meta = await createScene(fileName, format)
+  const meta = await createScene(fileName, format, 'processing', sessionUser(req)?.id)
   let received = 0
   const limiter = new Transform({
     transform(chunk: Buffer, _enc, done) {
