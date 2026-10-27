@@ -1,5 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { decodeTexturePath } from './textures'
 import { extractScene } from './unzip'
 
 const norm = (s: string) =>
@@ -66,7 +67,7 @@ export async function matchSkpTextures(
   const imagePath = new Map(
     [...daeText.matchAll(/<image id="([^"]+)">\s*<init_from>([^<]+)<\/init_from>/g)].map(m => [
       m[1],
-      decodeURIComponent(m[2]),
+      decodeTexturePath(m[2]),
     ]),
   )
   const effectImage = new Map<string, string>()

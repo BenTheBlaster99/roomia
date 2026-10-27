@@ -118,9 +118,12 @@ async function importLocal(
     }
 
     setImportedSource(objectUrl, source)
+    // A prepared scene is always in metres (the preparation reads the file's own unit): no guessing, which
+    // would take a 190 m site for inches (Ouaret Aomar, ArchiCAD, 26 Oct).
+    const unit: ImportLengthUnit = extra.sceneId ? 'm' : 'auto'
     const fitted = fitImportedRoom(source, {
       zUp: inspected.defaultZUp,
-      unit: 'auto',
+      unit,
       maxRoomMeters: extra.sceneId ? 200 : 40,
     })
 
@@ -141,7 +144,7 @@ async function importLocal(
         format: inspected.format,
         objectUrl,
         zUp: inspected.defaultZUp,
-        unit: 'auto',
+        unit,
         resolvedUnit: fitted.resolvedUnit,
         triangleCount,
         warning: warnings.filter(Boolean).join(' ') || null,

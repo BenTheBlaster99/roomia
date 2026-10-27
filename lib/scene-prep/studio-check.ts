@@ -63,8 +63,8 @@ export async function checkStudioCompat(glbPath: string, expected: ExpectedBound
     problems.push(`Studio measures the scene ${(drift * 100).toFixed(0)} cm away from the source (stray geometry?)`)
   }
 
-  const fit = fitImportedRoom(scene, { zUp: false, unit: 'auto' })
-  if (fit.resolvedUnit !== 'm') problems.push(`Studio would read the unit as ${fit.resolvedUnit}, not metres`)
+  // The Studio opens a prepared scene in metres (see import-room.ts); a whole site may be up to 200 m.
+  const fit = fitImportedRoom(scene, { zUp: false, unit: 'm', maxRoomMeters: 200 })
   if (fit.scaleWarning) warnings.push(fit.scaleWarning)
 
   return { ok: problems.length === 0, problems, warnings, triangles, room: fit.room }

@@ -25,9 +25,9 @@ export async function buildTextureIndex(dir: string): Promise<TextureIndex> {
       }
       const ext = entry.name.split('.').pop()?.toLowerCase() ?? ''
       if (!IMAGE_EXTENSIONS.has(ext)) continue
-      const rel = path.relative(root, full).split(path.sep).join('/').toLowerCase()
+      const rel = path.relative(root, full).split(path.sep).join('/').normalize('NFC').toLowerCase()
       index.byPath.set(rel, full)
-      const name = entry.name.toLowerCase()
+      const name = entry.name.normalize('NFC').toLowerCase()
       index.byName.set(name, [...(index.byName.get(name) ?? []), full])
     }
   }
@@ -35,11 +35,15 @@ export async function buildTextureIndex(dir: string): Promise<TextureIndex> {
   return index
 }
 
-function decode(url: string): string {
+/**
+ * A texture path from a .dae, with its %XX escapes undone. SketchUp writes UTF-8 escapes; ArchiCAD writes
+ * Latin-1 ones (%E9 for é, "Linol%E9um"), which decodeURIComponent refuses: those are read byte for character.
+ */
+export function decodeTexturePath(url: string): string {
   try {
-    return decodeURIComponent(url)
+    return decodeURIComponent(url).normalize('NFC')
   } catch {
-    return url
+    return url.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))).normalize('NFC')
   }
 }
 
@@ -48,7 +52,7 @@ function decode(url: string): string {
  * Tolerates a renamed folder and different letter case; never touches anything outside the index.
  */
 export function resolveTexture(index: TextureIndex, url: string): string | null {
-  const wanted = decode(url).replace(/\\/g, '/').replace(/^(\.\/)+/, '').toLowerCase()
+  const wanted = decodeTexturePath(url).replace(/\\/g, '/').replace(/^(\.\/)+/, '').toLowerCase()
   const exact = index.byPath.get(wanted)
   if (exact) return exact
   for (const [rel, full] of index.byPath) {

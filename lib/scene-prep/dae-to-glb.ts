@@ -12,7 +12,7 @@ import * as THREE from 'three'
 import { ColladaLoader } from 'three/addons/loaders/ColladaLoader.js'
 import { cleanCameraName, type SceneCamera } from '../scene-cameras'
 import { GLASS_ALPHA, GLASS_NAME } from './normalize-glb'
-import { emptyTextureIndex, readTexture, resolveTexture, type TextureIndex } from './textures'
+import { decodeTexturePath, emptyTextureIndex, readTexture, resolveTexture, type TextureIndex } from './textures'
 
 type Log = (line: string) => void
 
@@ -122,7 +122,7 @@ export async function convertDaeToGlb(
     const data = file ? await readTexture(file) : null
     if (!data) {
       glbTextures.set(url, null)
-      missingTextures.push(decodeURIComponent(url))
+      missingTextures.push(decodeTexturePath(url))
       continue
     }
     glbTextures.set(
@@ -161,6 +161,10 @@ export async function convertDaeToGlb(
       out.setBaseColorFactor([c.r, c.g, c.b, alpha])
     }
     if (alpha < 1) out.setAlphaMode('BLEND')
+    // ArchiCAD names its materials "Material1…N": a lamp is recognisable only by its own glow (Ouaret Aomar,
+    // 26 Oct). A dim grey glow is ArchiCAD's self-illumination setting, not a light.
+    const glow = m.emissive
+    if (glow && Math.max(glow.r, glow.g, glow.b) > 0.5) out.setEmissiveFactor([glow.r, glow.g, glow.b])
     materials.set(src.uuid, out)
     return out
   }
