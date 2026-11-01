@@ -39,6 +39,8 @@ export interface SceneMeta {
   report?: SceneReport
   /** The Studio account that uploaded it; only that account (and admins) can reach the scene. */
   ownerId?: number
+  /** The project's files, oldest first, when new versions were sent (see startNewVersion in scene-tour.ts). */
+  versions?: { fileName: string; at: number }[]
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{21}$/

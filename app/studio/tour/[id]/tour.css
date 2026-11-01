@@ -13,7 +13,10 @@
 .tour button { font: inherit; color: inherit; }
 .tour :is(a, button):focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .tour-message { margin: auto; padding: 24px; color: var(--muted); text-align: center; }
-.tour.tour-message { align-items: center; justify-content: center; }
+.tour.tour-message { align-items: center; justify-content: center; gap: 14px; user-select: text; }
+.tour.tour-message > span { max-width: 420px; }
+.tour.tour-message progress { max-width: min(320px, 80vw); }
+.tour.tour-message button.tour-secondary { background: none; color: var(--muted); border: 1px solid var(--line); font-weight: 400; }
 
 .tour-bar {
   position: relative; z-index: 5; display: flex; align-items: center; gap: 16px;
@@ -29,8 +32,11 @@
 .tour-modes button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 14px; cursor: pointer; }
 .tour-modes button[aria-pressed='true'] { background: var(--fg); color: var(--ink); }
 .tour-modes button:disabled { opacity: 0.35; cursor: not-allowed; }
+.tour-modes a { padding: 6px 14px; border-radius: 999px; font-size: 14px; color: var(--fg); text-decoration: none; white-space: nowrap; }
+.tour-modes a[aria-current='page'] { background: var(--fg); color: var(--ink); }
 
 .tour-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; touch-action: pan-y; }
+.tour-video { width: 100%; height: 100%; max-height: 100%; object-fit: contain; background: #000; }
 
 /* Photo mode: the 3:2 photo as large as the screen allows, over a blurred copy of itself. */
 .tour-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(40px) brightness(0.45); transform: scale(1.1); }
@@ -75,6 +81,10 @@
   width: clamp(150px, 22vw, 300px); padding: 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .tour-plan-inner { position: relative; width: 100%; }
+/* A site with several levels: one plan each, the current point's shown. */
+.tour-levels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.tour-levels button { flex: 1 1 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+.tour-levels button[aria-pressed="true"] { background: var(--fg); color: var(--ink); border-color: var(--fg); }
 .tour-plan-inner img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .tour-dot {
   position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; padding: 0; border-radius: 50%;
@@ -94,11 +104,15 @@
   display: grid; gap: 8px; max-width: min(360px, calc(100vw - 28px)); padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 14px;
 }
-.tour-prep button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--fg); color: var(--ink); font-weight: 600; cursor: pointer; }
-.tour-prep button:disabled { opacity: 0.5; cursor: wait; }
-.tour-prep progress { width: 100%; accent-color: var(--brass); }
+.tour-prep button, .tour.tour-message button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--fg); color: var(--ink); font-weight: 600; cursor: pointer; }
+.tour-prep button:disabled, .tour.tour-message button:disabled { opacity: 0.5; cursor: wait; }
+.tour-prep progress, .tour.tour-message progress { width: 100%; accent-color: var(--brass); }
 .tour-prep span { color: var(--muted); }
 .tour-error { color: #f1a38c !important; }
+.tour-prep { max-height: calc(100dvh - 110px); overflow-y: auto; }
+.tour-version { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tour-version label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.tour-version input { max-width: 100%; color: var(--fg); font-size: 13px; }
 
 @media (max-width: 640px) {
   .tour-arrow { width: 44px; height: 44px; margin-top: -22px; font-size: 26px; }

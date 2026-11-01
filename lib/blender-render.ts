@@ -114,6 +114,35 @@ else:
         except Exception as err:
             print("SCENE_CACHE failed", err, flush=True)
 
+# Shading normals turned into the wall (29 Oct, Bloc B F2 from D5 Render): the file stores a normal per corner, and
+# 46 % of them pointed against their own face. Cycles lights a surface from the side its normal faces, so walls and
+# ceilings came out pure black whatever their colour, the lamps or the fill (EEVEE's ambient light hid it). Each
+# corner normal that points against its face is turned round; the smoothing the designer gave is kept.
+import numpy as np
+flipped, done_meshes = 0, set()
+for ob in bpy.data.objects:
+    if ob.type != "MESH" or ob.data.name in done_meshes or not ob.data.has_custom_normals:
+        continue
+    me = ob.data
+    done_meshes.add(me.name)
+    n = len(me.loops)
+    if n == 0:
+        continue
+    ln = np.empty(n * 3, np.float32)
+    me.corner_normals.foreach_get("vector", ln)
+    ln = ln.reshape(-1, 3)
+    pn = np.empty(len(me.polygons) * 3, np.float32)
+    me.polygons.foreach_get("normal", pn)
+    tots = np.empty(len(me.polygons), np.int32)
+    me.polygons.foreach_get("loop_total", tots)
+    back = (ln * np.repeat(pn.reshape(-1, 3), tots, axis=0)).sum(1) < 0
+    if back.any():
+        ln[back] *= -1
+        me.normals_split_custom_set(ln)
+        flipped += int(back.sum())
+if flipped:
+    print("NORMALS turned round", flipped, flush=True)
+
 # The SketchUp export keeps no reflectivity, transparency or emission, only the material NAMES.
 # So mirrors, glass and lights are recognised by name and given the right look for the capture.
 import re
@@ -153,6 +182,13 @@ for mat in bpy.data.materials:
     if bsdf is None:
         continue
     role = role_of(mat)
+    # SketchUp's glTF export writes no metallicFactor, and glTF then means fully metallic: walls, ceilings and floors
+    # came in as rough metal, which has no colour of its own and only reflects the room (black ceiling arcs and a white
+    # wall in Cycles, grey and flat in EEVEE; Ecolodge, Restaurant, 28 Oct). Metallic 1 with roughness 1, both
+    # untouched defaults, is that missing value, not a real metal.
+    metal, rough = bsdf.inputs["Metallic"], bsdf.inputs["Roughness"]
+    if metal.default_value == 1.0 and rough.default_value == 1.0 and not link_into(mat, bsdf, "Metallic") and not link_into(mat, bsdf, "Roughness"):
+        metal.default_value = 0.0
     # No telling name (an ArchiCAD export): a material that glows on its own is a light.
     glow = bsdf.inputs["Emission Color"].default_value
     if role == "auto" and bsdf.inputs["Emission Strength"].default_value > 0 and max(glow[:3]) > 0.5 and not link_into(mat, bsdf, "Emission Color"):
@@ -193,6 +229,80 @@ for mat in bpy.data.materials:
         for l in link_into(mat, bsdf, "Roughness"):
             mat.node_tree.links.remove(l)
         bsdf.inputs["Roughness"].default_value = FINISH_ROUGHNESS[edit["finish"]]
+
+# Enscape's lights (27 Oct, Suite): SketchUp files made for Enscape mark each light with a small object of no
+# material, which Enscape lights up. Rendered as they are, they were grey discs next to the lit LED spots, half
+# the ceiling looking switched off. They glow like the other lights (and are hidden when the lights are off).
+ENSCAPE_LIGHT = re.compile(r"Enscape\.\w*Light", re.I)
+enscape_glow = None
+for ob in bpy.data.objects:
+    if ob.type != "MESH":
+        continue
+    owner, names = ob, []
+    while owner is not None:
+        names.append(owner.name)
+        owner = owner.parent
+    if not any(ENSCAPE_LIGHT.search(n) for n in names):
+        continue
+    if not spec.get("interior", True):
+        ob.hide_render = True
+        continue
+    if enscape_glow is None:
+        enscape_glow = bpy.data.materials.new("roomia_enscape_light")
+        enscape_glow.use_nodes = True
+        glow_bsdf = enscape_glow.node_tree.nodes["Principled BSDF"]
+        glow_bsdf.inputs["Base Color"].default_value = (1.0, 0.95, 0.85, 1)
+        glow_bsdf.inputs["Emission Color"].default_value = (1.0, 0.86, 0.62, 1)
+        glow_bsdf.inputs["Emission Strength"].default_value = 12.0
+    if not ob.material_slots:
+        ob.data.materials.append(enscape_glow)
+    for slot in ob.material_slots:
+        slot.link = "OBJECT"
+        slot.material = enscape_glow
+
+# D5 Render's lights (29 Oct, Bloc B F2): D5 exports each light as an empty "D5RenderLight.Spot#3" holding a 20 cm
+# icon mesh, not as a light. Cycles then had no lamp at all and the apartment came out black. The icon is hidden and a
+# real light takes its place: spots shine along the icon's +Y (straight down in every F2 marker), strips are LED lines.
+D5_LIGHT = re.compile(r"D5RenderLight\.(Spot|Point|Strip|Area|Rect|Line)", re.I)
+d5_lights = 0
+for ob in list(bpy.data.objects):
+    if ob.type != "MESH" or ob.parent is None:
+        continue
+    kind = D5_LIGHT.search(ob.parent.name)
+    if not kind:
+        continue
+    ob.hide_render = True
+    if not spec.get("interior", True) or spec.get("d5Lights") is False:
+        continue
+    kind = kind.group(1).lower()
+    bb = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
+    centre = sum(bb, Vector()) / 8
+    size = sorted(max(p[k] for p in bb) - min(p[k] for p in bb) for k in range(3))
+    if kind in ("strip", "line", "area", "rect"):
+        data = bpy.data.lights.new("d5_" + kind, "AREA")
+        data.shape = "RECTANGLE"
+        data.size, data.size_y = max(size[2], 0.05), max(size[1], 0.02)
+        data.energy = 40.0 * max(size[2], 0.3)
+        aim = Vector((0, 0, -1))
+    elif kind == "spot":
+        data = bpy.data.lights.new("d5_spot", "SPOT")
+        data.energy, data.spot_size, data.spot_blend = 60.0, math.radians(100), 0.6
+        aim = (ob.parent.matrix_world.to_3x3() @ Vector((0, 1, 0))).normalized()
+        if aim.z > -0.3:
+            aim = Vector((0, 0, -1))
+    else:
+        data = bpy.data.lights.new("d5_point", "POINT")
+        data.energy = 80.0
+        aim = Vector((0, 0, -1))
+    data.color = (1.0, 0.86, 0.62)
+    data.shadow_soft_size = 0.05
+    lamp = bpy.data.objects.new(data.name, data)
+    bpy.context.scene.collection.objects.link(lamp)
+    lamp.location = centre
+    lamp.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
+    d5_lights += 1
+if d5_lights:
+    print("D5 lights", d5_lights, flush=True)
 
 def tint_of(bsdf, forced):
     # glTF glass is "base colour at some alpha"; as real glass that becomes a tint between clear and the colour.

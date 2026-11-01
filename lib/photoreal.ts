@@ -92,6 +92,10 @@ export interface PhotorealOptions {
   quality?: 'low' | 'medium' | 'high'
   /** Ask the user instead of falling back to medium on its own (see PhotoChoiceError). */
   ask?: boolean
+  /** Output size instead of the one matching the capture's orientation (a 2:1 panorama: "2048x1024"). */
+  size?: string
+  /** Longest side the capture is sent at (2048 by default; a 4096 px panorama goes whole). */
+  maxInput?: number
 }
 
 export interface PhotorealResult {
@@ -115,7 +119,7 @@ export async function generatePhotoreal(image: Buffer, prompt: string, options: 
   const client = getOpenAIClient()
   const startQuality = options.quality ?? IMAGE_QUALITY
 
-  // Re-encode the capture as a plain PNG (max 2048 px): browsers can hand over odd JPEGs
+  // Re-encode the capture as a plain PNG (max 2048 px unless maxInput): browsers can hand over odd JPEGs
   // (huge, progressive, tagged) that the image provider rejects as "Invalid value for 'image'".
   const sharp = loadSharp()
   const original = await sharp(image).metadata()
@@ -123,15 +127,16 @@ export async function generatePhotoreal(image: Buffer, prompt: string, options: 
   if (channels.every(c => c.stdev < 3)) {
     throw new Error('La capture 3D est vide (image uniforme). Rechargez la page et réessayez.')
   }
-  const tooBig = Math.max(original.width ?? 0, original.height ?? 0) > 2048
+  const maxInput = options.maxInput ?? 2048
+  const tooBig = Math.max(original.width ?? 0, original.height ?? 0) > maxInput
   const png = await (tooBig
-    ? sharp(image).resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+    ? sharp(image).resize(maxInput, maxInput, { fit: 'inside', withoutEnlargement: true })
     : sharp(image)
   )
     .png()
     .toBuffer()
   const dims = await sharp(png).metadata()
-  const size = pickSize(dims.width, dims.height)
+  const size = options.size ?? pickSize(dims.width, dims.height)
 
   const started = performance.now()
   // 'high' makes the model stick to the capture (shapes, materials, framing) instead of drifting

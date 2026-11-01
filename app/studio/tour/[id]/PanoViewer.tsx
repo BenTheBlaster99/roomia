@@ -44,18 +44,30 @@ void main() {
 /** Drag to look around a 360° panorama; wheel or pinch to zoom. Reports where it looks so the plan can follow. */
 export default function PanoViewer({
   src,
+  hdSrc,
   spots,
   onSpot,
   onLook,
   onReady,
   initialYaw = 0,
+  initialPitch = 0,
+  initialFov = 75,
+  still = false,
 }: {
   src: string
+  /** An 8192 px copy, swapped in after src on screens that can hold it (not phones: 128 MB of texture). */
+  hdSrc?: string
   /** Where to look first, relative to the saved view's direction (radians, + = right). */
   initialYaw?: number
+  /** Up (+) / down (−) to start with, radians. */
+  initialPitch?: number
+  /** Vertical field of view to start with, degrees (the free walk hands over its own, 70°). */
+  initialFov?: number
+  /** No slow turn while nobody touches it: the free walk opens it facing where the visitor was looking. */
+  still?: boolean
   spots: PanoSpot[]
   onSpot: (key: string) => void
-  onLook?: (yaw: number) => void
+  onLook?: (yaw: number, pitch: number) => void
   onReady?: () => void
 }) {
   const host = useRef<HTMLDivElement>(null)
@@ -92,22 +104,32 @@ export default function PanoViewer({
 
     let disposed = false
     let texture: THREE.Texture | null = null
-    new THREE.TextureLoader().load(src, tex => {
+    const use = (tex: THREE.Texture) => {
       if (disposed) return tex.dispose()
       tex.colorSpace = THREE.NoColorSpace
       tex.generateMipmaps = false
       tex.minFilter = THREE.LinearFilter
       tex.magFilter = THREE.LinearFilter
       tex.wrapS = THREE.RepeatWrapping
+      texture?.dispose()
       texture = tex
       uniforms.tex.value = tex
+    }
+    // A large screen with a mouse and enough memory takes the sharper copy once the normal one shows; a phone or a
+    // GPU that cannot hold an 8192 px texture keeps the normal one.
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
+    const hd = hdSrc && renderer.capabilities.maxTextureSize >= 8192 && !window.matchMedia('(pointer: coarse)').matches && memory >= 4
+    new THREE.TextureLoader().load(src, tex => {
+      use(tex)
+      if (disposed) return
       readyRef.current?.()
+      if (hd) new THREE.TextureLoader().load(hdSrc, use)
     })
 
     let yaw = initialYaw
-    let pitch = 0
-    let fov = 75
-    let touched = false
+    let pitch = initialPitch
+    let fov = initialFov
+    let touched = still
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = el
       renderer.setSize(w, h, false)
@@ -162,6 +184,7 @@ export default function PanoViewer({
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let raf = 0
     let lastLook = NaN
+    let lastPitch = NaN
     const frame = () => {
       // A slow turn until the visitor takes over, so the page shows at once that it is a 360°.
       if (!touched && !reduce && texture) yaw += 0.0012
@@ -189,9 +212,10 @@ export default function PanoViewer({
         node.style.pointerEvents = visible ? 'auto' : 'none'
         if (visible) node.style.transform = `translate(-50%, -50%) translate(${((sx + 1) / 2) * el.clientWidth}px, ${((1 - syy) / 2) * el.clientHeight}px)`
       }
-      if (Math.abs(yaw - lastLook) > 0.002 || Number.isNaN(lastLook)) {
+      if (Math.abs(yaw - lastLook) > 0.002 || Math.abs(pitch - lastPitch) > 0.002 || Number.isNaN(lastLook)) {
         lastLook = yaw
-        lookRef.current?.(yaw)
+        lastPitch = pitch
+        lookRef.current?.(yaw, pitch)
       }
       raf = requestAnimationFrame(frame)
     }
@@ -210,7 +234,7 @@ export default function PanoViewer({
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [src, initialYaw])
+  }, [src, hdSrc, initialYaw, initialPitch, initialFov, still])
 
   return (
     <div className="pano" ref={host}>

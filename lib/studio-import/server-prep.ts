@@ -167,6 +167,29 @@ export async function prepareOnServer(
 }
 
 /**
+ * Sends a file to the server and waits until it is prepared, without downloading its light copy: a new version
+ * of a project's file, sent from its tour (see startNewVersion in lib/scene-tour.ts).
+ */
+export async function sendSceneFile(file: File, onPhase: (message: string) => void): Promise<{ id: string } | { error: string }> {
+  if (!canPrepareOnServer(file.name)) return { error: 'Formats acceptés : .glb, .dae ou .zip' }
+  onPhase('Envoi… 0 %')
+  const sent = file.size > CHUNK_THRESHOLD ? await uploadChunked(file, onPhase) : await upload(file, onPhase)
+  if ('error' in sent) return sent
+  onPhase('Préparation du fichier…')
+  const started = Date.now()
+  while (Date.now() - started < POLL_TIMEOUT_MS) {
+    await new Promise(r => setTimeout(r, POLL_MS))
+    const status = await fetch(`/api/scenes/${sent.id}`)
+      .then(res => (res.ok ? (res.json() as Promise<{ status: string; error?: string }>) : null))
+      .catch(() => undefined)
+    if (status === null) return { error: 'Scène introuvable sur le serveur.' }
+    if (status?.status === 'failed') return { error: status.error ? `Préparation impossible : ${status.error}` : 'Préparation impossible.' }
+    if (status?.status === 'ready') return sent
+  }
+  return { error: 'La préparation prend trop de temps. Réessayez.' }
+}
+
+/**
  * Waits for a scene to be prepared on the server and downloads its light copy. Used right after an
  * upload, and to reopen a scene that is already on the server.
  */

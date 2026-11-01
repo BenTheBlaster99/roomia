@@ -802,17 +802,20 @@ export default function SceneSidebar() {
           </section>
         )}
 
-        {cameras.length > 1 && (
-          <a
-            href={`/studio/tour/${sceneId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="block rounded-xl border border-[var(--rm-text)]/15 px-3 py-2.5 text-sm font-medium text-[var(--rm-text)] hover:border-[var(--rm-text)]/40"
-          >
-            Visite virtuelle · {cameras.length} vues →
-            <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">Naviguez dans l’appartement : photos, 360° et plan.</span>
-          </a>
-        )}
+        {/* Saved views are optional: the tour places its own points in every room. The Studio opens it in review
+            mode, where the photo-quality 360° show before they are approved. */}
+        <a
+          href={`/studio/tour/${sceneId}?edit=1`}
+          target="_blank"
+          rel="noreferrer"
+          className="block rounded-xl border border-[var(--rm-text)]/15 px-3 py-2.5 text-sm font-medium text-[var(--rm-text)] hover:border-[var(--rm-text)]/40"
+        >
+          Visite virtuelle de tout l’appartement →
+          <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">
+            360° de chaque pièce en qualité photo et plan, points de vue placés automatiquement
+            {cameras.length ? ` (+ ${cameras.length} vue${cameras.length > 1 ? 's' : ''} du fichier)` : ''}.
+          </span>
+        </a>
 
         <details
           open={advancedOpen}
