@@ -34,10 +34,10 @@ const TOOLS = ['D5 Render', 'Enscape', '3ds Max', 'V-Ray', 'Corona']
 const DEMO_TEXT ='Bonjour, je souhaite une démo de Roomia Render.'
 
 const RESULTS = [
-  { name: 'sejour', caption: 'Séjour ouvert sur la cuisine' },
-  { name: 'chambre', caption: 'Chambre parentale, marbre' },
-  { name: 'salon', caption: 'Salon, habillage bois' },
-  { name: 'nuit', caption: 'Salon, ambiance de nuit' },
+  { name: 'suite-sejour', caption: 'Suite, séjour ouvert sur la chambre' },
+  { name: 'restaurant', caption: 'Restaurant, banquettes et claustras' },
+  { name: 'ecolodge-piscine', caption: 'Écolodge, piscine intérieure' },
+  { name: 'ecolodge-salon', caption: 'Écolodge, salon' },
 ]
 
 const KEEPS = [
@@ -132,8 +132,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             <BeforeAfter
               before="/landing/hero-3d.jpg"
               after="/landing/hero-photo.jpg"
-              beforeAlt="Capture de la scène 3D SketchUp d’une salle à manger, sans éclairage réaliste"
-              afterAlt="La même salle à manger rendue en photo réaliste par Roomia, lumière de fin de journée"
+              beforeAlt="Capture de la scène 3D SketchUp du salon d’une suite, sans éclairage réaliste"
+              afterAlt="Le même salon rendu en photo réaliste par Roomia, lumière de fin de journée"
             />
           </div>
         </section>
@@ -174,7 +174,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               <h2>
                 Le même projet, <em>en vrai</em>
               </h2>
-              <p className="lede">Des projets réels d’appartements. Passez la souris sur une photo, ou touchez « Voir la 3D », pour retrouver la scène d’origine.</p>
+              <p className="lede">Des projets réels : suite, restaurant, écolodge. Passez la souris sur une photo, ou touchez « Voir la 3D », pour retrouver la scène d’origine.</p>
             </div>
             <div className="gallery">
               {RESULTS.map(r => (
