@@ -30,7 +30,7 @@ The Studio as a Windows app. Renders run on the architect's own graphics card.
 - The pages get no Node: `contextIsolation` is on, `nodeIntegration` is off, and they are sandboxed.
 - The preload exposes only the start-up progress, a read-only engine report and "open the projects folder".
 - The window only navigates within the local Studio. Any other address opens in the browser.
-- The packaging step fails if any server secret from `.env.local` ends up in the package. AI calls are meant to go through Roomia's server (part 3), never with the key on a client's PC.
+- The packaging step fails if any server secret from `.env.local` ends up in the package. AI calls go through Roomia's server with the account's device token (`lib/roomia-cloud.ts`, `app/api/desktop/*`). The AI key never ships in the app.
 
 ## Build
 
@@ -41,22 +41,29 @@ node node_modules/electron/install.js   # if npm's script policy skipped Electro
 
 # Linux build, to test here
 npm run dist:linux              # → dist/linux-unpacked/roomia-desktop
-# Windows installer, built from Linux
+# Windows zip (the release build), built from Linux
+npm run server:win
+npx electron-builder --win zip --x64 -c.artifactName='Roomia-${version}-windows-x64.${ext}'
+                                # → dist/Roomia-0.1.0-windows-x64.zip
+# Windows installer (NSIS): needs Wine on Linux, or build on Windows
 npm run dist:win                # → dist/Roomia-Setup-0.1.0.exe
 ```
+
+Publish a release by uploading the zip to the repository's Releases page, with its SHA-256 in the release notes, and update the version and checksum in the root `README.md`.
 
 `scripts/package-server.mjs` does the following:
 1. Builds the Studio with `ROOMIA_DESKTOP_BUILD=1`: standalone output in `.next-desktop`, so the Studio's own `.next` is not touched.
 2. Bundles `scripts/prepare-scene.ts`, so the app doesn't need tsx.
 3. Swaps sharp's native part for the target platform's.
 4. Unpacks scipy 1.13.1 and Pillow 11 for Blender's Python 3.11 into `pylib-<platform>`.
-5. Runs the secret check.
+5. Adds the official Node.js 24.18.0 runtime (`runtime-<platform>`). The server runs on real Node, not on Electron's: sharp crashes under `ELECTRON_RUN_AS_NODE`, and Electron caps the heap at 4 GB.
+6. Runs the secret check.
 
 ## Not yet
 
+- The NSIS installer (the zip ships for now).
 - Code signing: until it's signed, Windows SmartScreen warns on install.
 - Automatic updates.
-- The AI service through Roomia's server, plus accounts and credits.
 - The SketchUp plugin.
 - Sync.
 
