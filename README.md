@@ -9,26 +9,26 @@ Roomia turns an architect's 3D model into a client presentation: photoreal image
 
 ## Roomia Desktop
 
-> **Version 0.1.0, preview.** This is the first public build. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
+> **Version 0.1.1, preview.** Version 0.1.0 is withdrawn: its package was incomplete and the app couldn't start. Use 0.1.1 or later. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
 
 ### Download
 
 | File | Platform | Size |
 |---|---|---|
-| [**Roomia-0.1.0-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.1.0/Roomia-0.1.0-windows-x64.zip) | Windows 10 / 11, 64-bit | 262 MB |
+| [**Roomia-0.1.1-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.1.1/Roomia-0.1.1-windows-x64.zip) | Windows 10 / 11, 64-bit | 280 MB |
 
 All versions are on the [Releases page](https://github.com/BenTheBlaster99/roomia/releases).
 
 **SHA-256** (optional; lets you check that the download is intact):
 
 ```
-ca7520b91ac2f9a5ab8b26107d543cf0c3858d4a9bcb51504f67f7ee0d4734b2
+190fd39daab76952f455d17fa68ecc1fff0a4dd3ace706663c062aed4c804c1a
 ```
 
 To check it in PowerShell:
 
 ```powershell
-Get-FileHash .\Roomia-0.1.0-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\Roomia-0.1.1-windows-x64.zip -Algorithm SHA256
 ```
 
 ### System requirements
@@ -47,11 +47,13 @@ Get-FileHash .\Roomia-0.1.0-windows-x64.zip -Algorithm SHA256
 - AMD: HIP.
 - Intel Arc: oneAPI.
 
+Some integrated graphics, such as older AMD Ryzen laptop chips, aren't supported by the render engine. Roomia then renders on the processor, which works but is slower.
+
 The app detects your card by itself. Before you install, update your graphics driver from the manufacturer's site: [NVIDIA](https://www.nvidia.com/Download/index.aspx), [AMD](https://www.amd.com/en/support/download/drivers.html), [Intel](https://www.intel.com/content/www/us/en/download-center/home.html).
 
 ### Installation
 
-1. Download **Roomia-0.1.0-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.1.0).
+1. Download **Roomia-0.1.1-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.1.1).
 2. Right-click the file and choose **Extract All…**. Pick a folder you will keep, for example `C:\Roomia`.
    Don't run the app from inside the zip: Windows only shows its contents, and Roomia won't start.
 3. Open the extracted folder and double-click **Roomia.exe**.
@@ -145,7 +147,7 @@ To report a problem, send the following:
 - the content of **Moteur → Carte graphique et moteur…**;
 - the files from **Fichier → Ouvrir le journal**.
 
-### Known limitations (0.1.0)
+### Known limitations (0.1.1)
 
 - Windows only.
 - No installer yet: the app ships as a zip.

@@ -1,9 +1,9 @@
 {
   "name": "roomia-desktop",
   "productName": "Roomia",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "Roomia Studio : rendus, visite 360° et plans sur votre propre carte graphique",
+  "description": "Roomia Studio : rendus, visite 360\u00b0 et plans sur votre propre carte graphique",
   "author": "Roomia",
   "main": "main.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "server:win": "node scripts/package-server.mjs --platform=win32",
     "start": "electron .",
     "dist:linux": "node scripts/package-server.mjs --platform=linux && electron-builder --linux dir",
-    "dist:win": "node scripts/package-server.mjs --platform=win32 && electron-builder --win nsis --x64"
+    "dist:win": "node scripts/package-server.mjs --platform=win32 && electron-builder --win nsis --x64",
+    "dist:win:zip": "node scripts/package-server.mjs --platform=win32 && electron-builder --win zip --x64 -c.artifactName='Roomia-${version}-windows-x64.${ext}'"
   },
   "dependencies": {
     "yauzl": "3.4.0"
@@ -34,24 +35,40 @@
       "splash.html",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "app-server",
-        "to": "app-server"
-      },
-      {
-        "from": "pylib-${platform}",
-        "to": "pylib"
-      },
-      {
-        "from": "runtime-${platform}",
-        "to": "runtime"
-      }
-    ],
     "asar": true,
     "win": {
-      "target": "nsis",
-      "signAndEditExecutable": false
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "extraResources": [
+        {
+          "from": "stage",
+          "to": ".",
+          "filter": [
+            "app-server/**/*"
+          ]
+        },
+        {
+          "from": "pylib-win32",
+          "to": "pylib",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "runtime-win32",
+          "to": "runtime",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -63,7 +80,30 @@
     },
     "linux": {
       "target": "dir",
-      "category": "Graphics"
+      "category": "Graphics",
+      "extraResources": [
+        {
+          "from": "stage",
+          "to": ".",
+          "filter": [
+            "app-server/**/*"
+          ]
+        },
+        {
+          "from": "pylib-linux",
+          "to": "pylib",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "runtime-linux",
+          "to": "runtime",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     }
   }
 }

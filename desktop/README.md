@@ -42,9 +42,7 @@ node node_modules/electron/install.js   # if npm's script policy skipped Electro
 # Linux build, to test here
 npm run dist:linux              # → dist/linux-unpacked/roomia-desktop
 # Windows zip (the release build), built from Linux
-npm run server:win
-npx electron-builder --win zip --x64 -c.artifactName='Roomia-${version}-windows-x64.${ext}'
-                                # → dist/Roomia-0.1.0-windows-x64.zip
+npm run dist:win:zip            # → dist/Roomia-<version>-windows-x64.zip
 # Windows installer (NSIS): needs Wine on Linux, or build on Windows
 npm run dist:win                # → dist/Roomia-Setup-0.1.0.exe
 ```
@@ -56,6 +54,7 @@ Publish a release by uploading the zip to the repository's Releases page, with i
 2. Bundles `scripts/prepare-scene.ts`, so the app doesn't need tsx.
 3. Swaps sharp's native part for the target platform's.
 4. Unpacks scipy 1.13.1 and Pillow 11 for Blender's Python 3.11 into `pylib-<platform>`.
+   The server goes to `stage/app-server`. electron-builder always drops the top-level `node_modules` of a folder it copies, so `package.json` copies `app-server` from its parent, `stage/`.
 5. Adds the official Node.js 24.18.0 runtime (`runtime-<platform>`). The server runs on real Node, not on Electron's: sharp crashes under `ELECTRON_RUN_AS_NODE`, and Electron caps the heap at 4 GB.
 6. Runs the secret check.
 
@@ -68,3 +67,14 @@ Publish a release by uploading the zip to the repository's Releases page, with i
 - Sync.
 
 When the app runs from VS Code's terminal, unset `ELECTRON_RUN_AS_NODE` first: VS Code sets it, and Electron then starts as plain Node.
+
+## Checking a Windows build
+
+electron-builder's `${platform}` macro is the platform of the machine that builds, not the target. So `package.json` names the Windows and Linux resources explicitly, in `build.win` and `build.linux`. Before publishing a zip, check:
+
+```bash
+R=dist/win-unpacked/resources
+file $R/runtime/node.exe                                # PE32+ (Windows), not ELF
+find $R/pylib -name '*.pyd' | wc -l                     # > 0, and no *.so files
+ls $R/app-server/node_modules/@img                      # sharp-win32-x64
+```

@@ -3,7 +3,7 @@
  * Packs the Studio for Roomia Desktop: node desktop/scripts/package-server.mjs [--platform=win32|linux] [--skip-build]
  *
  * 1. builds the Studio as a standalone Next.js server into .next-desktop (the Studio's own .next is not touched);
- * 2. copies it to desktop/app-server with its static files and public/;
+ * 2. copies it to desktop/stage/app-server with its static files and public/;
  * 3. bundles scripts/prepare-scene.ts (the import, which the Studio runs through tsx) into desktop-bin/;
  * 4. swaps sharp's native part for the target platform's;
  * 5. fetches scipy and Pillow for Blender's Python 3.11 (desktop/pylib-<platform>) and the Node the server runs on
@@ -21,7 +21,7 @@ const DESKTOP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ROOT = path.resolve(DESKTOP, '..')
 const args = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? true]))
 const PLATFORM = args.platform ?? process.platform
-const OUT = path.join(DESKTOP, 'app-server')
+const OUT = path.join(DESKTOP, 'stage', 'app-server')
 const DIST = '.next-desktop'
 const SHARP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/sharp/package.json'), 'utf8')).version
 // Blender 4.5's Python is 3.11 with numpy 1.26.4: scipy 1.13 is the last line built against numpy 1.x

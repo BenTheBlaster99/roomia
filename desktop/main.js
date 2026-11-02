@@ -31,7 +31,8 @@ const DIRS = {
   tmp: path.join(DATA, 'tmp'),
 }
 const RES = app.isPackaged ? process.resourcesPath : __dirname
-const SERVER_DIR = path.join(RES, 'app-server')
+// packaged: resources/app-server; from source: stage/app-server (one level down, see package.json extraResources)
+const SERVER_DIR = path.join(RES, app.isPackaged ? 'app-server' : 'stage/app-server')
 const PYLIB = path.join(RES, app.isPackaged ? 'pylib' : `pylib-${process.platform}`)
 // The server's own Node (nodejs.org's, packed with the app): inside Electron sharp crashes and the heap stops at 4 GB.
 const NODE = path.join(RES, app.isPackaged ? 'runtime' : `runtime-${process.platform}`, process.platform === 'win32' ? 'node.exe' : 'node')
