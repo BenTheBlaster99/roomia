@@ -15,7 +15,7 @@ Roomia turns an architect's 3D model into a client presentation: photoreal image
 
 | File | Platform | Size |
 |---|---|---|
-| [**Roomia-0.1.0-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/latest) | Windows 10 / 11, 64-bit | 262 MB |
+| [**Roomia-0.1.0-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.1.0/Roomia-0.1.0-windows-x64.zip) | Windows 10 / 11, 64-bit | 262 MB |
 
 All versions are on the [Releases page](https://github.com/BenTheBlaster99/roomia/releases).
 
@@ -51,7 +51,7 @@ The app detects your card by itself. Before you install, update your graphics dr
 
 ### Installation
 
-1. Download **Roomia-0.1.0-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/latest).
+1. Download **Roomia-0.1.0-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.1.0).
 2. Right-click the file and choose **Extract All…**. Pick a folder you will keep, for example `C:\Roomia`.
    Don't run the app from inside the zip: Windows only shows its contents, and Roomia won't start.
 3. Open the extracted folder and double-click **Roomia.exe**.
