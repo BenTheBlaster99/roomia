@@ -5,9 +5,10 @@ import { BLENDER, guardMemory, SCENE_SETUP_SCRIPT, viewFromSceneCamera, withBlen
 import { FINISH_ROUGHNESS } from './material-roles'
 import { GPT_IMAGE_MODEL } from './openai-client'
 import { loadSharp } from './load-sharp'
-import { enhancePanorama, panoPrompt, type PanoAiCheck } from './pano-ai'
+import { enhancePanorama, enhancePanoramaFaces, panoPrompt, type PanoAiCheck } from './pano-ai'
 import type { PanoRejectReason } from './pano-review'
 import { upscalePanorama } from './pano-upscale'
+import { packExploreGlb } from './scene-prep/explore-glb'
 import { generatePhotoreal, IMAGE_QUALITY } from './photoreal'
 import { blenderLighting, NEUTRAL_CAPTURE_LIGHT, type Lighting } from './render-lighting'
 import { buildSceneRenderPrompt } from './scene-render-prompt'
@@ -36,7 +37,7 @@ const statusPath = (sceneId: string) => path.join(tourDir(sceneId), 'status.json
 const tourPath = (sceneId: string) => path.join(tourDir(sceneId), 'tour.json')
 
 /** Files the tour route may serve. */
-export const TOUR_FILE = /^(pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json)$/
+export const TOUR_FILE = /^(pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json|tex-[a-z0-9-]{1,40}\.jpg|plan(-n\d{1,2})?-3d(-ai)?\.jpg)$/
 
 export interface TourViewPoint {
   index: number
@@ -57,6 +58,8 @@ export interface TourViewPoint {
   panoAiHd?: string | null
   /** What the automatic checks found on the AI 360° (drift from the render, lights the render does not have). */
   panoAiCheck?: PanoAiCheck
+  /** How the AI 360° was made: 'faces' = six edited photos locked onto the render (2 Nov); absent = one edit of the whole panorama. */
+  panoAiMethod?: 'faces'
   /** The AI 360° was made from an older version of the file: kept for the reviewer, hidden from clients until approved again. */
   panoAiStale?: boolean
   /** Its faces that see what a new version of the file changed: only these are made again by an update. */
@@ -1235,6 +1238,22 @@ if FULL:
                     if inp is not None and not inp.is_linked:
                         shine.append((inp, inp.default_value))
                         inp.default_value = 0.0
+    # Water seen from above (2 Nov): see-through on a transparent film, a pool came out as a white hole in the plan.
+    # For the plan only it is an opaque pool blue.
+    water_was = []
+    for mat in bpy.data.materials:
+        if not mat.use_nodes or not re.search(r"water|eau|pool|piscine|swim|agua", mat.name.lower()):
+            continue
+        for nd in mat.node_tree.nodes:
+            if nd.type == "BSDF_PRINCIPLED":
+                for key, val in (("Transmission Weight", 0.0), ("Alpha", 1.0), ("Base Color", (0.08, 0.42, 0.52, 1.0))):
+                    inp = nd.inputs.get(key)
+                    if inp is not None and not inp.is_linked:
+                        water_was.append((inp, tuple(inp.default_value) if hasattr(inp.default_value, "__len__") else inp.default_value))
+                        inp.default_value = val
+        water_was.append((mat, mat.blend_method if hasattr(mat, "blend_method") else None))
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "OPAQUE"
     meta["levels"] = []
     for n in shown:
         L = LEVELS[n]
@@ -1310,6 +1329,12 @@ if FULL:
         print("TOUR_INFO plan level %d floor %.2f: %d section segments, %d points" % (n, L["floor"], len(S), sum(1 for a in meta["auto"] if a["level"] == n)), flush=True)
     for inp, value in shine:
         inp.default_value = value
+    for thing, value in water_was:
+        if isinstance(thing, bpy.types.Material):
+            if value is not None:
+                thing.blend_method = value
+        else:
+            thing.default_value = value
     scene.eevee.taa_render_samples, rt.resolution_scale, scene.view_settings.view_transform, scene.view_settings.look, scene.view_settings.exposure = face_look
     bpy.data.objects.remove(top)
     if energy > 0:
@@ -2104,21 +2129,40 @@ if CYCLES_PANO:
         # them to dots, 0.04 % of the map. The small pieces get their light in their vertices. The furniture is in it
         # too (fourth bake): a pool's water, a rug or a table top lit only at its corners came out dark or blotched.
         arch = [scene.objects[n] for n, k in kinds.items() if k in ("arch", "furniture")]
-        for ob in arch:
-            if ob.data.users > 1:
-                ob.data = ob.data.copy()
-            ob.select_set(True)
-        bpy.context.view_layer.objects.active = arch[0]
-        bpy.ops.object.join()
-        archo = bpy.context.view_layer.objects.active
+        # Joined a few dozen at a time, the pieces' own meshes freed after each: joined at once, every instanced
+        # chair copied first, the whole place sat three times in memory and the 2 Nov bake was stopped at 1.4 GB free.
+        # Every piece freed from its parent first, where it stands: a parent joined in an early batch moved its children
+        # before theirs (the first batched bake, 2 Nov, came out 3.8 times too big).
+        for ob in list(scene.objects):
+            if ob.parent is not None:
+                mw_ = ob.matrix_world.copy()
+                ob.parent = None
+                ob.matrix_world = mw_
+        archo = arch[0]
+        step_ = int(spec.get("bakeJoinBatch", 48))
+        for k0 in range(0, len(arch), step_):
+            bpy.ops.object.select_all(action="DESELECT")
+            for ob in arch[k0:k0 + step_]:
+                if ob.data.users > 1:
+                    ob.data = ob.data.copy()
+                # welded piece by piece (0.5 mm, in the piece's own units): welded joined, in edit mode, the whole
+                # place's BMesh took 3 GB more and the 2 Nov bake was stopped for memory
+                bm_ = bmesh.new()
+                bm_.from_mesh(ob.data)
+                bmesh.ops.remove_doubles(bm_, verts=bm_.verts, dist=0.0005 / max(max(abs(c) for c in ob.matrix_world.to_scale()), 1e-6))
+                bm_.to_mesh(ob.data)
+                bm_.free()
+                ob.select_set(True)
+            archo.select_set(True)
+            bpy.context.view_layer.objects.active = archo
+            bpy.ops.object.join()
+            archo = bpy.context.view_layer.objects.active
+            bpy.data.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
         archo.name = archo.data.name = "roomia_arch"
+        print("TOUR_INFO bake joined %d pieces %.1fs" % (len(arch), time.time() - t_bake), flush=True)
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         me = archo.data
         t1 = time.time()
-        bpy.ops.object.mode_set(mode="EDIT")
-        bpy.ops.mesh.select_all(action="SELECT")
-        bpy.ops.mesh.remove_doubles(threshold=0.0005)
-        bpy.ops.object.mode_set(mode="OBJECT")
         # flat faces, the bake's hemisphere from each face's own side (the import's custom normals would turn with a copy)
         bpy.ops.mesh.customdata_custom_splitnormals_clear()
         me.shade_flat()
@@ -2201,6 +2245,7 @@ if CYCLES_PANO:
         deto.matrix_world = archo.matrix_world
         for c in archo.users_collection:
             c.objects.link(deto)
+        bpy.data.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
         print("TOUR_INFO bake architecture split %.1fs: %d faces lightmapped, %d small ones by vertex" % (time.time() - t1, len(me.polygons), len(detail_me.polygons)), flush=True)
         # furniture and small pieces: one mesh each (instances would share their light), the light in a colour attribute
         # at each vertex
@@ -2214,8 +2259,30 @@ if CYCLES_PANO:
             ob.select_set(True)
         t1 = time.time()
         scene.cycles.samples = int(spec.get("bakeVertexSamples", 512))
+        # no caustics in a bake: a light path through glass or off a mirror is a firefly the denoiser smears into a blotch
+        scene.cycles.caustics_reflective = False
+        scene.cycles.caustics_refractive = False
         bpy.context.view_layer.objects.active = deto
         bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, target="VERTEX_COLORS", use_clear=True)
+        # A piece modelled inside out (its normals facing in: the Restaurant's pillows, 2 Nov) bakes the dark inside of
+        # itself; Cycles' 360° shade both sides and show it lit. Baked again turned the other way: a vertex keeps that
+        # side's light where its own is far darker (a fifth of the vertices were "without light" with one side).
+        if spec.get("bakeBothSides", True):
+            attr = deto.data.color_attributes["RoomiaLight"]
+            front = np.empty(len(attr.data) * 4, np.float32)
+            attr.data.foreach_get("color", front)
+            deto.data.flip_normals()
+            bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, target="VERTEX_COLORS", use_clear=True)
+            deto.data.flip_normals()
+            attr = deto.data.color_attributes["RoomiaLight"]
+            backc = np.empty(len(attr.data) * 4, np.float32)
+            attr.data.foreach_get("color", backc)
+            f4, b4 = front.reshape(-1, 4), backc.reshape(-1, 4)
+            turn = f4[:, :3].max(1) < 0.25 * b4[:, :3].max(1)
+            f4[turn] = b4[turn]
+            attr.data.foreach_set("color", f4.reshape(-1))
+            print("TOUR_INFO bake small pieces: %.1f%% of the vertices lit from their other side" % (100.0 * turn.mean()), flush=True)
+            del front, backc, f4, b4
         for group, obs in (("furniture", furn), ("small pieces", [deto])):
             dark = 0
             for ob in obs:
@@ -2227,7 +2294,8 @@ if CYCLES_PANO:
                 # every triangle from it fades to black (the third bake's mosaic on the sofas): it takes the light of its
                 # lit neighbours, spreading in, or else the piece's median.
                 lum = c[:, :3].max(1)
-                lit = lum > (np.median(lum[lum > 0]) / 64.0 if (lum > 0).any() else 0.0)
+                # 4 stops under the median (it was 6): pillow corners pressed into a sofa kept black specks (2 Nov)
+                lit = lum > (np.median(lum[lum > 0]) / float(spec.get("bakeDarkRatio", 16.0)) if (lum > 0).any() else 0.0)
                 dark += int((~lit).sum())
                 if lit.any() and not lit.all():
                     ev_ = np.empty(len(ob.data.edges) * 2, np.int32)
@@ -2329,7 +2397,7 @@ if CYCLES_PANO:
         t1 = time.time()
         # The UV map is named: left to the active one, the first bake (31 Oct) went through the textures' UVs and lit 0.2 %
         # of the walls.
-        scene.cycles.samples = int(spec.get("bakeSamples", 256))
+        scene.cycles.samples = int(spec.get("bakeSamples", 1024))
         bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, target="IMAGE_TEXTURES", uv_layer="LightMap", use_clear=True, margin=8)
         px = np.empty(size * size * 4, np.float32)
         img.pixels.foreach_get(px)
@@ -2396,6 +2464,31 @@ if CYCLES_PANO:
                 print("TOUR_INFO bake lightmap denoised %.1fs" % (time.time() - t1), flush=True)
             except Exception as e:
                 print("TOUR_INFO bake lightmap not denoised: %s" % e, flush=True)
+        # The denoiser leaves a faint mottling on plain walls (2 Nov, the Restaurant's at 256 and at 1024 samples alike):
+        # a guided filter on the log of the light, the light itself as its guide, evens out what varies by less than
+        # about 0.2 stop over a few centimetres and keeps the real edges (shadows, corners). Empty texels take no part.
+        smooth_r = int(spec.get("lightmapSmoothRadius", 12))
+        if smooth_r > 0:
+            t1 = time.time()
+            lit = rgb.max(2) > 0
+            Ml = lit.astype(np.float64)
+            Lg = np.where(lit, np.log2(np.maximum(rgb @ LUMA, 1e-6)), 0.0).astype(np.float64)
+            def box(x):
+                c = np.pad(x, ((smooth_r + 1, smooth_r), (smooth_r + 1, smooth_r))).cumsum(0).cumsum(1)
+                k = 2 * smooth_r + 1
+                return c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
+            n_ = np.maximum(box(Ml), 1e-9)
+            mean_ = box(Lg * Ml) / n_
+            var_ = np.maximum(box(Lg * Lg * Ml) / n_ - mean_ * mean_, 0.0)
+            a_ = var_ / (var_ + float(spec.get("lightmapSmoothEps", 0.2)) ** 2)
+            b_ = mean_ - a_ * mean_
+            del var_, mean_
+            Ls = box(a_ * Ml) / n_ * Lg + box(b_ * Ml) / n_
+            del a_, b_, n_
+            gain = np.where(lit, np.exp2(np.clip(Ls - Lg, -1.0, 1.0)), 1.0).astype(np.float32)
+            rgb = rgb * gain[:, :, None]
+            del Ls, Lg, Ml, gain
+            print("TOUR_INFO bake lightmap smoothed (radius %d texels) %.1fs" % (smooth_r, time.time() - t1), flush=True)
         lit = rgb.max(2) > 0
         median = float(np.median((rgb[lit] @ LUMA))) if lit.any() else 0.0
         rng = np.random.default_rng(1)
@@ -2856,6 +2949,7 @@ if spec.get("aiViews") and cap:
         bpy.ops.render.render(animation=True)
     bpy.app.handlers.render_write.remove(ai_frame_written)
 print("TOUR_TIME faces", flush=True)
+
 print("TOUR_OK", flush=True)
 `
 
@@ -2946,15 +3040,19 @@ if rooms and plan_meta.get("frame") and os.path.exists(work + "/plan-rooms%s.npy
     vi, vj = (ci >= 0) & (ci < grid.shape[1]), (cj >= 0) & (cj < grid.shape[0])
     R = grid[np.clip(cj, 0, grid.shape[0] - 1)][:, np.clip(ci, 0, grid.shape[1] - 1)] & vj[:, None] & vi[None, :]
     if R.any():
-        R = ndimage.binary_dilation(R, iterations=px(0.3), mask=~(ink | walls))
+        # Grown up to the walls only (2 Nov): blocked by every cut line, the growth stopped at a bed's headboard or a
+        # wardrobe and left white holes in the room (Bloc B F2's bedroom). The cells are 25 cm and miss the floor under
+        # furniture, so the growth reaches 60 cm.
+        R = ndimage.binary_dilation(R, iterations=px(0.6), mask=~walls)
         around = walls & grow(R, 0.4)
         apt = R | around
-        # what the apartment encloses (a cupboard, a closet behind a closed door), not a whole room of the
-        # next flat caught between two walls
+        # what the apartment encloses (a cupboard, a closet behind a closed door, the floor under a bed), not a whole
+        # room of the next flat caught between two walls
         holes, n = ndimage.label(ndimage.binary_fill_holes(apt) & ~apt)
         if n:
             area = ndimage.sum(np.ones_like(holes), holes, index=np.arange(1, n + 1)) * hd_mpp * hd_mpp
-            apt |= (area < 3.0)[np.maximum(holes - 1, 0)] & (holes > 0)
+            # up to 60 m2: a pool or a patio the rooms close around belongs to the place (nobody stands in a pool)
+            apt |= (area < 60.0)[np.maximum(holes - 1, 0)] & (holes > 0)
         print("apartment: %.0f%% of the frame" % (apt.mean() * 100))
 walls &= apt
 
@@ -2989,9 +3087,348 @@ plan[walls] = (38, 38, 42)
 plan[~apt] = 255
 plan = Image.fromarray(plan)
 plan.save(hd_out, optimize=True)
+# the apartment's outline, for the 3D plan (white = inside)
+Image.fromarray((apt * 255).astype(np.uint8)).save(os.path.join(work, "plan-apt%s.png" % sfx), optimize=True)
 plan.resize((web_w, web_h), Image.LANCZOS).save(web_out, optimize=True)
 print("walls: %.1f%% of the plan" % (walls.mean() * 100))
 `
+
+/** Where a tour keeps its plan sources (Blender's plan render, cut lines, apartment cells, the build's meta). */
+const planSourceDir = (dir: string) => path.join(dir, 'plan-src')
+
+async function keepPlanSources(work: string, dir: string, suffixes: string[]) {
+  const keep = planSourceDir(dir)
+  await mkdir(keep, { recursive: true })
+  const files = ['tour-blender.json', ...suffixes.flatMap(s => [`plan-hd${s}.png`, `plan-lines${s}.npy`, `plan-rooms${s}.npy`])]
+  for (const f of files) await copyFile(path.join(work, f), path.join(keep, f)).catch(() => undefined)
+}
+
+/**
+ * The plans finished again from their kept sources (plan-src/), with the current PLAN_SCRIPT: free, a few seconds per
+ * level. Returns the levels redone.
+ */
+export async function refinishPlans(sceneId: string) {
+  const dir = tourDir(sceneId)
+  const src = planSourceDir(dir)
+  const meta = JSON.parse(await readFile(path.join(src, 'tour-blender.json'), 'utf8')) as {
+    plan: { width: number; height: number; mpp: number }
+    levels?: { suffix: string; width: number; height: number; mpp: number }[]
+  }
+  const script = path.join(src, 'plan.py')
+  await writeFile(script, PLAN_SCRIPT)
+  const levels = meta.levels?.length ? meta.levels : [{ suffix: '', ...meta.plan }]
+  const done: string[] = []
+  for (const level of levels) {
+    const name = (kind: string) => `plan${level.suffix}${kind}.png`
+    const r = await run(PYTHON, [script, src, path.join(dir, name('-hd')), path.join(dir, name('-hd-traits')), path.join(dir, name('')), String(level.width), String(level.height), String(level.mpp), level.suffix])
+    if (r.code === 0) done.push(level.suffix || 'main')
+    else console.error('plan refinish failed', sceneId, level.suffix, r.stderr.slice(-500))
+  }
+  await rm(script, { force: true })
+  return done
+}
+
+/**
+ * The 3D plan (2 Nov): each level seen from above at an angle in Cycles, cut 1.6 m over its floor (an exact cut of the
+ * meshes: walls end in a clean edge) and kept to the apartment (faces outside its cells, grown 40 cm, are dropped: the
+ * other flats of a building file and the ground). Run on its own, on the plan sources a build keeps (plan-src/).
+ */
+const PLAN3D_SCRIPT =
+  SCENE_SETUP_SCRIPT +
+  String.raw`
+import os, time, math, json
+import numpy as np
+import bmesh
+t0 = time.time()
+scene = bpy.context.scene
+src = spec["planSrc"]
+meta = json.load(open(os.path.join(src, "tour-blender.json")))
+levels = meta.get("levels") or [dict(meta["plan"], suffix="", floor=0.0)]
+scene.render.engine = "CYCLES"
+prefs = bpy.context.preferences.addons["cycles"].preferences
+for kind in ("OPTIX", "CUDA"):
+    try:
+        prefs.compute_device_type = kind
+        prefs.get_devices()
+        if any(d.type == kind for d in prefs.devices):
+            for d in prefs.devices:
+                d.use = d.type == kind
+            scene.cycles.device = "GPU"
+            break
+    except Exception:
+        continue
+scene.cycles.samples = int(spec.get("plan3dSamples", 128))
+scene.cycles.use_adaptive_sampling = True
+scene.cycles.adaptive_threshold = 0.015
+scene.cycles.use_denoising = True
+scene.cycles.denoiser = "OPENIMAGEDENOISE"
+scene.render.film_transparent = True
+scene.view_settings.view_transform = "AgX"
+scene.view_settings.look = "None"
+scene.view_settings.exposure = float(spec.get("plan3dExposure", 0.3))
+world = bpy.data.worlds.new("plan3d")
+scene.world = world
+world.use_nodes = True
+bg = world.node_tree.nodes["Background"]
+bg.inputs[0].default_value = (1.0, 0.98, 0.95, 1.0)
+bg.inputs[1].default_value = float(spec.get("plan3dWorld", 0.6))
+for ob in list(scene.objects):
+    if ob.type == "LIGHT" or ob.name.startswith("roomia_"):
+        ob.hide_render = True
+import re
+for mat in bpy.data.materials:
+    if mat.use_nodes and re.search(r"water|eau|pool|piscine|swim|agua", mat.name.lower()):
+        for nd in mat.node_tree.nodes:
+            if nd.type == "BSDF_PRINCIPLED":
+                for key, val in (("Transmission Weight", 0.0), ("Alpha", 1.0), ("Base Color", (0.08, 0.42, 0.52, 1.0)), ("Roughness", 0.08)):
+                    inp = nd.inputs.get(key)
+                    if inp is not None and not inp.is_linked:
+                        inp.default_value = val
+sun = bpy.data.objects.new("plan3d_sun", bpy.data.lights.new("plan3d_sun", "SUN"))
+sun.data.energy = float(spec.get("plan3dSun", 3.5))
+sun.data.angle = math.radians(12)
+sun.data.color = (1.0, 0.96, 0.9)
+sun.rotation_euler = (math.radians(38), 0, math.radians(30))
+scene.collection.objects.link(sun)
+cam_data = bpy.data.cameras.new("plan3d_cam")
+cam_data.lens, cam_data.sensor_width, cam_data.clip_start, cam_data.clip_end = 35, 36, 0.05, 2000
+cam = bpy.data.objects.new("plan3d_cam", cam_data)
+scene.collection.objects.link(cam)
+scene.camera = cam
+W3, H3 = int(spec.get("plan3dWidth", 2400)), int(spec.get("plan3dHeight", 1600))
+scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = W3, H3, 100
+
+def grown(mask, cells):
+    out = mask.copy()
+    for _ in range(cells):
+        g = out.copy()
+        g[1:] |= out[:-1]; g[:-1] |= out[1:]; g[:, 1:] |= out[:, :-1]; g[:, :-1] |= out[:, 1:]
+        out = g
+    return out
+
+for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
+    sfx = L.get("suffix", "")
+    floor = float(L.get("floor", 0.0))
+    cut = floor + float(spec.get("plan3dCut", 1.6))
+    x0f, y0f, x1f, y1f = L["frame"]
+    # The apartment as the 2D plan drew it (plan-apt: pixel-exact up to and including the walls), in 5 cm cells;
+    # else the build's 25 cm cells grown 60 cm.
+    rooms, inside = None, None
+    apath = os.path.join(src, "plan-apt%s.png" % sfx)
+    mpath = os.path.join(src, "plan-rooms%s.npy" % sfx)
+    if os.path.exists(apath):
+        im = bpy.data.images.load(apath)
+        aw, ah = im.size
+        px_ = np.empty(aw * ah * 4, np.float32)
+        im.pixels.foreach_get(px_)
+        apt = px_.reshape(ah, aw, 4)[::-1, :, 0] > 0.5
+        st = 0.05
+        nx, ny = int(math.ceil((x1f - x0f) / st)), int(math.ceil((y1f - y0f) / st))
+        xs = np.clip(((np.arange(nx) + 0.5) * st / (x1f - x0f) * aw).astype(int), 0, aw - 1)
+        ys = np.clip(((np.arange(ny) + 0.5) * st / (y1f - y0f) * ah).astype(int), 0, ah - 1)
+        inside = grown(apt[ys][:, xs], 4)
+        rooms = {"x0": x0f, "y0": y1f, "step": st}
+    elif L.get("rooms") and os.path.exists(mpath):
+        rooms = L["rooms"]
+        inside = grown(np.load(mpath).astype(bool), max(1, int(round(0.6 / rooms["step"]))))
+    def keep_xy(x, y):
+        if inside is None:
+            return (x >= x0f - 0.5) & (x <= x1f + 0.5) & (y >= y0f - 0.5) & (y <= y1f + 0.5)
+        ci = np.floor((x - rooms["x0"]) / rooms["step"]).astype(int)
+        cj = np.floor((rooms["y0"] - y) / rooms["step"]).astype(int)
+        ok = (ci >= 0) & (ci < inside.shape[1]) & (cj >= 0) & (cj < inside.shape[0])
+        res = np.zeros(len(x), bool)
+        res[ok] = inside[cj[ok], ci[ok]]
+        return res
+    n_cut = n_drop = 0
+    for ob in list(scene.objects):
+        if ob.type != "MESH" or ob.hide_render or not ob.data.polygons:
+            continue
+        bb = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
+        # as on the 2D plan, nothing that starts above 1.2 m (hanging lamps, wall cupboards): a pendant cut at 1.6 m
+        # left its shade floating over the tables (Restaurant)
+        if min(p.z for p in bb) >= floor + 1.2 or max(p.z for p in bb) < floor - 1.0:
+            ob.hide_render = True
+            continue
+        if ob.data.users > 1:
+            ob.data = ob.data.copy()
+        mw = ob.matrix_world
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bm.transform(mw)
+        if max(p.z for p in bb) > cut:
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector((0, 0, cut)), plane_no=Vector((0, 0, 1)), clear_outer=True)
+            n_cut += 1
+            # what floats above 1.25 m after the cut (the bottom of a pendant grouped with its table, a shelf) goes too
+            high = [f for f in bm.faces if min(v.co.z for v in f.verts) > floor + 1.25]
+            if high:
+                bmesh.ops.delete(bm, geom=high, context="FACES")
+        if bm.faces:
+            # a face goes only when all its corners are outside: a long wall or a big floor face reaching in stays
+            # (the picture is matted to the apartment afterwards)
+            # a face goes when none of its sample points is inside: its corners, its middle, its edges' middles and
+            # points between the middle and the corners (a whole floor drawn as one face has its corners outside)
+            fl = list(bm.faces)
+            samples, owner = [], []
+            for k, f in enumerate(fl):
+                cs = [v.co for v in f.verts]
+                m_ = f.calc_center_median()
+                pts_ = cs + [m_] + [(cs[i] + cs[(i + 1) % len(cs)]) / 2 for i in range(len(cs))] + [(m_ + c_) / 2 for c_ in cs]
+                samples.extend((q.x, q.y) for q in pts_)
+                owner.extend([k] * len(pts_))
+            sa = np.array(samples)
+            hit = keep_xy(sa[:, 0], sa[:, 1])
+            keepf = np.zeros(len(fl), bool)
+            np.logical_or.at(keepf, np.array(owner), hit)
+            gone = [f for f, k in zip(fl, keepf) if not k]
+            if gone:
+                bmesh.ops.delete(bm, geom=gone, context="FACES")
+                n_drop += len(gone)
+        # SketchUp's sheets back to back (and finishes laid on a slab) fight in Cycles in stripes and triangles: each
+        # surface moves 0.5 mm the way it faces, so the one facing the camera is the nearer (slits do not show from up here)
+        bm.normal_update()
+        for v in bm.verts:
+            v.co += v.normal * 0.0005
+        bm.transform(mw.inverted())
+        bm.to_mesh(ob.data)
+        bm.free()
+    # The camera: from the lower left, 55 degrees down, at the distance where the apartment (its cells, floor to cut)
+    # just fills the picture with a 5 % margin.
+    if inside is not None and inside.any():
+        jj, ii = np.nonzero(inside)
+        bx0, bx1 = rooms["x0"] + ii.min() * rooms["step"], rooms["x0"] + (ii.max() + 1) * rooms["step"]
+        by0, by1 = rooms["y0"] - (jj.max() + 1) * rooms["step"], rooms["y0"] - jj.min() * rooms["step"]
+    else:
+        bx0, by0, bx1, by1 = x0f, y0f, x1f, y1f
+    corners = [Vector((x, y, z)) for x in (bx0, bx1) for y in (by0, by1) for z in (floor, cut)]
+    c = sum(corners, Vector()) / len(corners)
+    # the corner to look from: the one of eight (every 45 degrees) where the apartment comes out largest, measured on
+    # its cells (a flat drawn diagonally in the file fills the picture from its own corner)
+    el = math.radians(float(spec.get("plan3dElevation", 55)))
+    tx = cam_data.sensor_width / 2 / cam_data.lens
+    ty = tx * H3 / W3
+    pts = corners
+    if inside is not None and inside.any():
+        sel = np.linspace(0, len(ii) - 1, min(len(ii), 4000)).astype(int)
+        pts = [Vector((rooms["x0"] + (ii[k] + 0.5) * rooms["step"], rooms["y0"] - (jj[k] + 0.5) * rooms["step"], z)) for k in sel for z in (floor, cut)]
+    def fit(az):
+        direction = Vector((math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)))
+        rot = (-direction).to_track_quat("-Z", "Y")
+        right, up = rot @ Vector((1, 0, 0)), rot @ Vector((0, 1, 0))
+        xs_ = [(p_ - c).dot(right) for p_ in pts]
+        ys_ = [(p_ - c).dot(up) for p_ in pts]
+        # re-centre on the projected extent, then the distance that fits it with a 5 % margin
+        cc = c + right * (max(xs_) + min(xs_)) / 2 + up * (max(ys_) + min(ys_)) / 2
+        dist = 0.0
+        for p_ in pts:
+            v = p_ - cc
+            depth_ = v.dot(-direction)
+            dist = max(dist, abs(v.dot(right)) / (tx / 1.05) + depth_, abs(v.dot(up)) / (ty / 1.05) + depth_)
+        return dist, cc, direction, rot
+    if "plan3dAzimuth" in spec:
+        best = fit(math.radians(float(spec["plan3dAzimuth"])))
+    else:
+        best = min((fit(math.radians(a_)) for a_ in range(0, 360, 45)), key=lambda r: r[0])
+    dist, cc, direction, rot = best
+    cam.location = cc + direction * dist
+    cam.rotation_euler = rot.to_euler()
+    out = os.path.join(spec["outDir"], "plan-3d%s.png" % sfx)
+    scene.render.filepath = out
+    bpy.ops.render.render(write_still=True)
+    # The matte: the apartment's cells as a solid from the floor to the cut, drawn alone; outside it the picture is
+    # cleared (what is left of the neighbours and the ground).
+    if inside is not None:
+        verts, faces = [], []
+        st = rooms["step"]
+        def quad(a, b, c, d):
+            k = len(verts)
+            verts.extend([a, b, c, d])
+            faces.append((k, k + 1, k + 2, k + 3))
+        H_, W_ = inside.shape
+        for j in range(H_):
+            for i in range(W_):
+                if not inside[j, i]:
+                    continue
+                xa, xb = rooms["x0"] + i * st, rooms["x0"] + (i + 1) * st
+                ya, yb = rooms["y0"] - (j + 1) * st, rooms["y0"] - j * st
+                for z in (floor - 0.15, cut + 0.02):
+                    quad((xa, ya, z), (xb, ya, z), (xb, yb, z), (xa, yb, z))
+                for di, dj, e in ((-1, 0, ((xa, ya), (xa, yb))), (1, 0, ((xb, ya), (xb, yb))), (0, -1, ((xa, yb), (xb, yb))), (0, 1, ((xa, ya), (xb, ya)))):
+                    ii, jj = i + di, j + dj
+                    if 0 <= ii < W_ and 0 <= jj < H_ and inside[jj, ii]:
+                        continue
+                    (p1, p2) = e
+                    quad((p1[0], p1[1], floor - 0.15), (p2[0], p2[1], floor - 0.15), (p2[0], p2[1], cut + 0.02), (p1[0], p1[1], cut + 0.02))
+        me = bpy.data.meshes.new("plan3d_matte")
+        me.from_pydata(verts, [], faces)
+        matte = bpy.data.objects.new("plan3d_matte", me)
+        mat = bpy.data.materials.new("plan3d_matte")
+        mat.use_nodes = True
+        mat.node_tree.nodes.clear()
+        em = mat.node_tree.nodes.new("ShaderNodeEmission")
+        mo = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
+        mat.node_tree.links.new(em.outputs[0], mo.inputs[0])
+        me.materials.append(mat)
+        scene.collection.objects.link(matte)
+        hidden = [o for o in scene.objects if not o.hide_render and o is not matte]
+        for o in hidden:
+            o.hide_render = True
+        samples, den = scene.cycles.samples, scene.cycles.use_denoising
+        scene.cycles.samples, scene.cycles.use_denoising = 4, False
+        mpath = os.path.join(spec["outDir"], "matte%s.png" % sfx)
+        scene.render.filepath = mpath
+        bpy.ops.render.render(write_still=True)
+        scene.cycles.samples, scene.cycles.use_denoising = samples, den
+        for o in hidden:
+            o.hide_render = False
+        bpy.data.objects.remove(matte)
+        img, mt = bpy.data.images.load(out), bpy.data.images.load(mpath)
+        a_ = np.empty(W3 * H3 * 4, np.float32); img.pixels.foreach_get(a_)
+        m_ = np.empty(W3 * H3 * 4, np.float32); mt.pixels.foreach_get(m_)
+        a_ = a_.reshape(-1, 4); m_ = m_.reshape(-1, 4)
+        # the matte's 5 cm steps smoothed (three box blurs, then a soft threshold) so diagonal walls end in a line
+        ma = m_[:, 3].reshape(H3, W3)
+        for _ in range(3):
+            for axis in (0, 1):
+                cs_ = np.cumsum(np.pad(ma, [(5, 5) if k == axis else (0, 0) for k in (0, 1)], mode="edge"), axis=axis)
+                ma = (np.take(cs_, range(10, cs_.shape[axis]), axis=axis) - np.take(cs_, range(0, cs_.shape[axis] - 10), axis=axis)) / 10.0
+        ma = np.clip((ma - 0.35) / 0.3, 0, 1)
+        a_[:, 3] *= ma.ravel()
+        img.pixels.foreach_set(a_.ravel())
+        img.filepath_raw = out
+        img.file_format = "PNG"
+        img.save()
+    print("PLAN3D level %s: %d objects cut at %.2f m, %d faces outside dropped, %.0f s" % (sfx or "main", n_cut, cut, n_drop, time.time() - t0), flush=True)
+print("PLAN3D_OK", flush=True)
+`
+
+/** Renders the 3D plan of every level of a built tour (plan-3d<suffix>.jpg on white); about 30-60 s. */
+export async function renderPlan3d(sceneId: string, overrides: Record<string, number> = {}) {
+  const dir = tourDir(sceneId)
+  const src = planSourceDir(dir)
+  const work = path.join(dir, 'plan3d-work')
+  await mkdir(work, { recursive: true })
+  try {
+    const script = path.join(work, 'plan3d.py')
+    const specPath = path.join(work, 'plan3d.json')
+    await writeFile(script, PLAN3D_SCRIPT)
+    await writeFile(specPath, JSON.stringify({ ...(await tourSceneSpec(sceneId)), planSrc: src, outDir: work, ...overrides }))
+    const lines: string[] = []
+    const result = await withBlenderSlot(() => run(BLENDER, ['--background', '--python', script, '--', specPath], line => void (line.startsWith('PLAN3D') && lines.push(line))))
+    if (!lines.includes('PLAN3D_OK')) throw new Error(`plan 3D: ${result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300)}`)
+    const made: string[] = []
+    for (const f of await readdir(work)) {
+      const m = /^plan-3d(-n\d+)?\.png$/.exec(f)
+      if (!m) continue
+      await loadSharp()(path.join(work, f)).flatten({ background: '#ffffff' }).jpeg({ quality: 92 }).toFile(path.join(dir, `plan${m[1] ?? ''}-3d.jpg`))
+      made.push(`plan${m[1] ?? ''}-3d.jpg`)
+    }
+    console.log('tour plan 3d', sceneId, lines.join(' | '))
+    return made
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
 
 /** Turns the six faces of one viewpoint into an equirectangular panorama centred on the saved view's direction. */
 const STITCH_SCRIPT = String.raw`
@@ -3479,6 +3916,9 @@ function limiter(n: number) {
 /** One upscale at a time on the GPU (pano-upscale.ts). */
 const withUpscaleSlot = limiter(1)
 const withAiSlot = limiter(Math.max(1, Number(process.env.ROOMIA_AI_CONCURRENCY ?? 8)))
+/** Points whose six faces are asked at once, and panoramas joined at once (each join takes ~2 GB and 1-2 min of CPU). */
+const withFacePoint = limiter(3)
+const withStitchSlot = limiter(1)
 
 async function writeStatus(sceneId: string, status: TourStatus) {
   await mkdir(tourDir(sceneId), { recursive: true })
@@ -3534,7 +3974,7 @@ async function latestPhotos(sceneId: string, cameras: SceneCamera[]) {
   return found
 }
 
-async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = false } = {}) {
+async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = false, bakeExplorer = false } = {}) {
   const started = performance.now()
   const dir = tourDir(sceneId)
   const work = path.join(dir, 'work')
@@ -3719,6 +4159,12 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     ])
     if (planned.code !== 0) console.error('tour plan failed', level.suffix, planned.stderr.slice(-500))
   }
+  // The plan's sources (Blender's render, the cut lines, the apartment cells), kept so the finish can be redone and
+  // improved without rendering the tour again (2 Nov): the work folder is cleared after the build.
+  await keepPlanSources(work, dir, planLevels.map(l => l.suffix))
+  // The 3D plan of each level: its own short Blender run on the kept sources (the cut it makes is destructive).
+  await progress('Plan 3D…')
+  await renderPlan3d(sceneId).catch(err => console.error('tour plan 3d failed', sceneId, err))
   // Named from the bottom up; a level with only outdoor areas is "Extérieur" when it is the only such one.
   const outdoorOnly = planLevels.filter(l => l.outdoor).length === 1
   const levels: TourLevel[] | undefined =
@@ -3754,6 +4200,7 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       v.panoAi = old.panoAi
       if (old.panoAiHd) v.panoAiHd = old.panoAiHd
       if (old.panoAiCheck) v.panoAiCheck = old.panoAiCheck
+      if (old.panoAiMethod) v.panoAiMethod = old.panoAiMethod
       // The faces that see a change: none when the file is the same, all when there is nothing to compare with.
       const seen = masks?.faces[String(v.index)] ?? {}
       const changedFaces = same ? [] : masks ? AI_FACES.filter(f => (seen[f] ?? 0) >= MASK_MIN_PIXELS) : AI_FACES
@@ -3824,13 +4271,83 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   }
   await writeFile(tourPath(sceneId), JSON.stringify(tour))
   await clearDir(work)
+  // The walk's baked light, when asked: its own Blender run once the tour is saved. Inside the tour's run (2 Nov) a
+  // bake stopped for memory failed the whole Cycles run, and the EEVEE fallback replaced the Cycles 360°.
+  if (bakeExplorer) {
+    await progress('Lumière de la visite libre…')
+    await bakeExplorerLight(sceneId).catch(err => console.error('tour bake failed', sceneId, err))
+  }
   await writeStatus(sceneId, { state: 'done', done: total, total })
+}
+
+/**
+ * Bakes Cycles' light for the free walk (explore.glb, explore-light.png, explore.json in the tour folder) from a built
+ * tour: the tour script again, with the same points, metering each one but rendering no 360° (bakeSkipPanos), then
+ * the bake. The files already there stay until a bake succeeds. Its log: tour/bake-log.txt.
+ */
+export async function bakeExplorerLight(sceneId: string): Promise<{ ok: boolean; seconds: number; packed?: { inBytes: number; outBytes: number } }> {
+  const started = performance.now()
+  const dir = tourDir(sceneId)
+  const before = await readBuild(sceneId)
+  if (!before) throw new Error('Pas de visite à éclairer : créez la visite 360° d’abord.')
+  const work = path.join(dir, 'work-bake')
+  await clearDir(work)
+  await mkdir(work, { recursive: true })
+  const cameras = await readCameras(sceneId)
+  const beforeAuto = (before.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index)
+  const scriptPath = path.join(work, 'tour.py')
+  const specPath = path.join(work, 'tour.json')
+  await writeFile(scriptPath, TOUR_SCRIPT)
+  await writeFile(
+    specPath,
+    JSON.stringify({
+      ...(await tourSceneSpec(sceneId)),
+      outDir: work,
+      views: cameras.map(c => ({ name: c.name, position: c.position, target: c.target })),
+      previousAuto: beforeAuto.map(v => ({ position: v.position, target: v.target, keep: Boolean(v.panoAi), approved: Boolean(v.panoAiApproved) })),
+      previousSame: true,
+      bakeExplorer: true,
+      bakeSkipPanos: true,
+      faceSize: FACE_SIZE,
+      planSize: PLAN_SIZE,
+      viewTransform: 'AgX',
+      autoViews: true,
+      autoMax: AUTO_MAX,
+      panoEngine: 'cycles',
+      cyclesSamples: CYCLES_SAMPLES,
+      cyclesNoise: 0.02,
+    }),
+  )
+  const log: string[] = [`${new Date().toISOString()} bake`]
+  let finished = false
+  const result = await withBlenderSlot(() =>
+    run(BLENDER, ['--background', '--python', scriptPath, '--', specPath], line => {
+      if (line.startsWith('TOUR_INFO bake') || /Error|Traceback/.test(line)) log.push(line)
+      if (line.startsWith('TOUR_OK')) finished = true
+    }),
+  )
+  log.push(...result.stderr.split('\n').filter(l => /Arrêté|Error|Traceback|mémoire/.test(l)).slice(-5))
+  log.push(`exit ${result.code}${finished ? '' : ' (not finished)'}`)
+  const ok = result.code === 0 && finished && (await stat(path.join(work, 'explore.glb')).then(() => true, () => false))
+  let packed: { inBytes: number; outBytes: number } | undefined
+  if (ok) {
+    packed = await packExploreGlb(path.join(work, 'explore.glb'), path.join(dir, 'explore.glb'))
+    for (const f of ['explore.json', 'explore-light.png']) await copyFile(path.join(work, f), path.join(dir, f))
+    log.push(`packed ${JSON.stringify(packed)}`)
+  }
+  const seconds = Math.round((performance.now() - started) / 1000)
+  log.push(`${ok ? 'done' : 'failed'} in ${seconds} s`)
+  await writeFile(path.join(dir, 'bake-log.txt'), log.join('\n') + '\n').catch(() => undefined)
+  await clearDir(work)
+  await rm(work, { recursive: true, force: true }).catch(() => undefined)
+  console.log('tour bake', sceneId, ok ? 'done' : 'failed', seconds, 's')
+  return { ok, seconds, packed }
 }
 
 /** Starts the panoramas and the plan in the background (several minutes); the status file tells the progress. */
 export async function startTourBuild(
   sceneId: string,
-  options: { shiftViews?: boolean; photoQuality?: TourAiLight } = {},
+  options: { shiftViews?: boolean; photoQuality?: TourAiLight; bakeExplorer?: boolean } = {},
 ): Promise<TourStatus> {
   const current = await readTourStatus(sceneId)
   if (current.state === 'building') return current
@@ -3841,7 +4358,7 @@ export async function startTourBuild(
   void build(sceneId, cameras, options)
     .then(async () => {
       // The complete tour: every stop still in Blender quality goes on to photo quality (paid).
-      if (!options.photoQuality) return
+      if (!options.photoQuality || !AI_360) return
       const built = await readBuild(sceneId)
       const stops = (built?.views ?? []).filter(v => v.pano && !v.panoAi && !v.outside && !v.hidden).map(v => v.index)
       if (stops.length) await startTourAi(sceneId, stops, options.photoQuality)
@@ -3896,13 +4413,14 @@ function tourPoints(cameras: SceneCamera[], built: TourBuild) {
 }
 
 /**
- * Makes the 360° of some viewpoints photoreal. Since 27 Oct the Blender panorama is edited whole in one image
- * (pano-ai.ts, 1 image per viewpoint): six faces edited separately never agreed on their light and wall lines.
- * ROOMIA_PANO_AI=faces brings back the six-face method: Blender renders six overlapping faces per viewpoint
+ * Makes the 360° of some viewpoints photoreal. Since 2 Nov from the tour's own panorama: six faces cut from it, edited
+ * as photos and locked back onto it (pano-ai.ts, 6 images per viewpoint); ROOMIA_PANO_AI=single edits the panorama
+ * whole in one image (27 Oct, soft). ROOMIA_PANO_AI=faces brings back the older six-face method from Blender renders: Blender renders six overlapping faces per viewpoint
  * in the capture style, the image model turns each into a photograph (a bare wall is kept as it
  * is, recoloured), and the faces are blended into a panorama. Costs up to 6 images per viewpoint.
  */
 export async function startTourAi(sceneId: string, indices: number[], light: TourAiLight = 'soleil'): Promise<TourStatus> {
+  if (!AI_360) throw new Error('Les 360° en qualité photo IA sont désactivés : la visite utilise le rendu Cycles.')
   const current = await readTourStatus(sceneId)
   if (current.state === 'building') return current
   const built = await readBuild(sceneId)
@@ -4125,7 +4643,18 @@ export async function startNewVersion(sceneId: string, fromId: string): Promise<
  */
 /** ROOMIA_PANO_AI=faces: the six-face AI 360° instead of the single edit. */
 const FACES_AI = process.env.ROOMIA_PANO_AI === 'faces'
-/** An AI 360° edited whole: its run stamp starts with "s". */
+/**
+ * The AI 360° from six edited photos locked onto the render (pano-ai.ts, 2 Nov), unless ROOMIA_PANO_AI=single (one edit
+ * of the whole panorama, soft: about 4 px per degree). Either way one file per point made from the tour's own panorama.
+ */
+const FACES_LOCKED = process.env.ROOMIA_PANO_AI !== 'single'
+/**
+ * AI 360°s at all (2 Nov, decided with Aimen and ChatGPT): off. The Cycles 360° is the product; the AI bent lines,
+ * reinvented lamps and added texture noise, and the Cycles render looked cleaner. ROOMIA_AI_360=1 brings the buttons and
+ * the AI panoramas back for experiments; without it the tour and the walk show the Cycles 360° only, and no job buys one.
+ */
+export const AI_360 = process.env.ROOMIA_AI_360 === '1'
+/** An AI 360° made from the tour's panorama (whole edit or locked faces): its run stamp starts with "s". */
 const SINGLE_AI = /-ai-s[a-z0-9]+\.jpg$/
 
 /**
@@ -4163,7 +4692,7 @@ async function buildAiSingle(sceneId: string, indices: number[], light: TourAiLi
   await progress(`Photos 360° · 0 / ${total}`)
   await Promise.all(
     indices.map(index =>
-      withAiSlot(async () => {
+      (FACES_LOCKED ? withFacePoint : withAiSlot)(async () => {
         const view = built.views.find(v => v.index === index)
         if (noCredit || !view?.pano) return
         const file = `pano-${index}-ai-${stamp}.jpg`
@@ -4180,11 +4709,18 @@ async function buildAiSingle(sceneId: string, indices: number[], light: TourAiLi
           // Test runs only: ROOMIA_AI_DRYRUN=1 goes through the whole job without buying an image.
           if (process.env.ROOMIA_AI_DRYRUN === '1') throw new Error('dry run')
           // One style since 28 Oct (a refined render, the Cycles light kept): the light choice only applies to the six faces.
-          const result = await enhancePanorama(path.join(dir, view.pano), path.join(dir, file), panoPrompt())
-          bought += 1
-          made[index] = file
-          checks[index] = result.check
-          console.log('tour AI single', sceneId, view.name, JSON.stringify(result))
+          if (FACES_LOCKED) {
+            const result = await enhancePanoramaFaces(path.join(dir, view.pano), path.join(dir, file), withAiSlot, withStitchSlot)
+            bought += result.images
+            made[index] = file
+            console.log('tour AI faces', sceneId, view.name, JSON.stringify(result))
+          } else {
+            const result = await enhancePanorama(path.join(dir, view.pano), path.join(dir, file), panoPrompt())
+            bought += 1
+            made[index] = file
+            checks[index] = result.check
+            console.log('tour AI single', sceneId, view.name, JSON.stringify(result))
+          }
         } catch (err) {
           failed += 1
           if ((err as { status?: number }).status === 403) noCredit = true
@@ -4201,7 +4737,10 @@ async function buildAiSingle(sceneId: string, indices: number[], light: TourAiLi
       if (!made[v.index]) continue
       v.panoAi = made[v.index]
       v.panoAiHd = null
-      v.panoAiCheck = checks[v.index]
+      if (checks[v.index]) v.panoAiCheck = checks[v.index]
+      else delete v.panoAiCheck
+      if (FACES_LOCKED) v.panoAiMethod = 'faces'
+      else delete v.panoAiMethod
       v.panoAiApproved = false
       delete v.panoAiStale
       delete v.panoAiUpdate
@@ -4219,8 +4758,9 @@ async function buildAiSingle(sceneId: string, indices: number[], light: TourAiLi
       ? `Crédit du serveur d’images épuisé : ${count} vue(s) faite(s), ${total - count} non faite(s). Rechargez le crédit puis relancez.`
       : `${count} vue(s) en qualité photo, ${bought} image(s)${failed ? `, ${failed} échouée(s)` : ''}${tooDark.length ? `, ${tooDark.length} trop sombre(s) en 3D, non envoyée(s) (${tooDark.join(', ')})` : ''}, ${Math.round((performance.now() - started) / 1000)} s`,
   })
-  // The sharper copies follow (about a minute each on the GPU): the tour shows the AI 360° meanwhile.
-  void addHdCopies(sceneId, Object.values(made))
+  // The sharper copies follow (about a minute each on the GPU): the tour shows the AI 360° meanwhile. Not for the locked
+  // faces: they already hold the model's own detail, and the enlarger sharpened the single edit's mush into "AI slop".
+  if (!FACES_LOCKED) void addHdCopies(sceneId, Object.values(made))
   return { made: Object.keys(made).map(Number), bought, noCredit }
 }
 
@@ -4539,6 +5079,7 @@ async function buildAi(
       v.panoAi = made[v.index]
       v.panoAiHd = null
       delete v.panoAiCheck
+      delete v.panoAiMethod
       v.panoAiApproved = false
       delete v.panoAiStale
       delete v.panoAiUpdate
@@ -4636,6 +5177,7 @@ export async function reviewTourAi(sceneId: string, index: number, approve: bool
     view.panoAi = null
     view.panoAiHd = null
     delete view.panoAiCheck
+    delete view.panoAiMethod
     view.panoAiApproved = false
     delete view.panoAiStale
   }
@@ -4710,11 +5252,11 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       photo: point?.facesWall ? null : (photo?.file ?? null),
       noPhoto: point?.facesWall === true,
       // Clients see an AI 360° only once it has been approved; the reviewer sees it as soon as it exists.
-      pano: (point?.panoAi && (review || point.panoAiApproved) ? point.panoAi : point?.pano) ?? null,
-      panoAi: !!point?.panoAi && (review || point.panoAiApproved === true),
+      pano: (AI_360 && point?.panoAi && (review || point.panoAiApproved) ? point.panoAi : point?.pano) ?? null,
+      panoAi: AI_360 && !!point?.panoAi && (review || point.panoAiApproved === true),
       panoBase: point?.pano ?? null,
       panoAiFile: point?.panoAi ?? null,
-      panoHd: (point?.panoAi && (review || point.panoAiApproved) && point.panoAiHd) || null,
+      panoHd: (AI_360 && point?.panoAi && (review || point.panoAiApproved) && point.panoAiHd) || null,
       panoAiCheck: (review && point?.panoAiCheck) || null,
       panoAiApproved: point?.panoAiApproved === true,
       panoAiStale: point?.panoAiStale === true,
@@ -4736,11 +5278,11 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       photoHfov: 74,
       photo: null,
       noPhoto: true,
-      pano: (point.panoAi && (review || point.panoAiApproved) ? point.panoAi : point.pano) ?? null,
-      panoAi: !!point.panoAi && (review || point.panoAiApproved === true),
+      pano: (AI_360 && point.panoAi && (review || point.panoAiApproved) ? point.panoAi : point.pano) ?? null,
+      panoAi: AI_360 && !!point.panoAi && (review || point.panoAiApproved === true),
       panoBase: point.pano ?? null,
       panoAiFile: point.panoAi ?? null,
-      panoHd: (point.panoAi && (review || point.panoAiApproved) && point.panoAiHd) || null,
+      panoHd: (AI_360 && point.panoAi && (review || point.panoAiApproved) && point.panoAiHd) || null,
       panoAiCheck: (review && point.panoAiCheck) || null,
       panoAiApproved: point.panoAiApproved === true,
       panoAiStale: point.panoAiStale === true,
@@ -4775,5 +5317,5 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => true,
     () => false,
   )
-  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, views, update }
+  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, views, update, ai360: AI_360 }
 }

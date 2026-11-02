@@ -89,7 +89,7 @@ function tooManyFailures(key: string): boolean {
 const noteFailure = (key: string) => failures.set(key, [...(failures.get(key) ?? []), Date.now()])
 
 /** Checks the password and opens a session; returns the cookie token, or a readable refusal. */
-export function login(loginName: string, password: string, address: string): { token: string; user: User } | { error: string } {
+export function login(loginName: string, password: string, address: string, days = SESSION_DAYS): { token: string; user: User } | { error: string } {
   const keys = [`login:${loginName.toLowerCase()}`, `ip:${address}`]
   if (keys.some(tooManyFailures)) return { error: 'Trop de tentatives. Réessayez dans 15 minutes.' }
   const row = getDb().prepare('SELECT * FROM users WHERE login = ?').get(loginName)
@@ -105,7 +105,7 @@ export function login(loginName: string, password: string, address: string): { t
   const now = Date.now()
   getDb()
     .prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .run(tokenHash(token), user.id, now, now + SESSION_DAYS * 86_400_000)
+    .run(tokenHash(token), user.id, now, now + days * 86_400_000)
   return { token, user }
 }
 

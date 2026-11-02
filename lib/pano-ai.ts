@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { generatePhotoreal } from './photoreal'
+import { generatePhotoreal, isGatewayDown } from './photoreal'
 
 /**
  * The photo-quality 360° made in one image edit (27 Oct, ChatGPT): six faces edited separately each decided
@@ -248,6 +248,202 @@ export async function enhancePanorama(pano: string, out: string, prompt = panoPr
       }
     }
     throw lastError
+  } finally {
+    await rm(work, { recursive: true, force: true })
+  }
+}
+
+/**
+ * The photo-quality 360° from six photos (2 Nov). The whole panorama in one edit (above) came back as soft as a
+ * 3840 px picture of the full sphere, about 4 px per degree: lattices turned to blotches and chair legs melted, and the
+ * 8192 px enlarger then sharpened that mush (Aimen: "AI slop", the Cycles render looked better). Six 100° faces cut from
+ * the Cycles panorama are edited as ordinary photos at 1024 px (10 px per degree, the model's own detail), then each is
+ * locked back onto the render before they are joined:
+ * - geometry: a dense flow from the render to the edit, smoothed and capped at 24 px, pulls the edit's detail onto the
+ *   model's edges (the model moves things 1-20 px);
+ * - light: the edit's low frequencies are replaced by the render's, so every face carries the same light and colour and
+ *   no face can invent its own sun patch or glow (the six-face method of 24-27 Oct failed on that);
+ * - joins: graph-cut seams through the overlaps (where both faces agree, e.g. along stone joints) and multi-band blending,
+ *   so detail is never cross-faded (two different stone patterns would show double).
+ * No enlarger afterwards. Six images per point (Restaurant: 9 points, 54 images).
+ */
+export function panoFacePrompt(): string {
+  return [
+    'Image 1 is a 3D render of a REAL interior design made by a professional designer for a client.',
+    'It is one face of a 360° panorama of the room; the faces next to it are made separately and must join seamlessly.',
+    'Make it look like a real photograph of exactly that room. This is a faithful render, not a redesign: the client must recognise every element of the design.',
+    'FRAMING: keep exactly the same camera, field of view and framing as the render. Do not crop, zoom, reframe or change the perspective.',
+    'Everything visible at the edges stays visible, at the same place.',
+    'GEOMETRY: keep every wall, ceiling, window, opening, furniture piece, light fitting, decorative screen, object and plant exactly where it is,',
+    'with the same shape and size. Add nothing, remove nothing. A plain wall stays a plain wall. Lattices, screens and patterns keep their exact pattern.',
+    'MATERIALS: keep every material and colour exactly as in the render: same wood tone, same stone and its exact pattern of pieces and joints,',
+    'same fabrics, same wall paint. Light may change how bright a surface looks, never its own colour or material.',
+    "LIGHT: keep the render's lighting exactly: the same lamps and the same daylight from the windows, the same direction, brightness and colour everywhere. Do not relight the room.",
+    'Only add photographic realism to the existing surfaces: fine natural texture, natural reflectance, soft contact shadows under furniture, gentle natural bounce light.',
+    'MIRRORS: a mirror reflects the room in front of it and stays a mirror, never a window. GLASS keeps its tint; through clear glass only a soft, plain outdoor background.',
+    'FORBIDDEN: invented sunbeams or light shafts, sun patches, window-shaped light on walls or floor, new lamps, LED strips or cove lights,',
+    'lens flare, haze, vignetting, depth-of-field blur, colour grading or golden tint. The whole picture stays sharp.',
+    'Style: professional architectural interior photograph, natural exposure, true-to-life colours.',
+  ].join(' ')
+}
+
+const FACE_NAMES = ['front', 'right', 'back', 'left', 'up', 'down'] as const
+/** Pixels and field of view of each face (100°: 10° of overlap on every side for the seams). */
+const FACE_PX = 1024
+const FACE_FOV = 100
+
+/**
+ * cut <pano> <dir>: the six faces as <name>-render.png + faces.json (centre column of the panorama = forward).
+ * stitch <dir> <pano> <out.jpg>: <name>-ai.jpg locked onto <name>-render.png, joined into the panorama; prints JSON.
+ */
+const FACES_SCRIPT = String.raw`
+import json, sys
+import numpy as np, cv2
+from PIL import Image
+
+FACES = [("front", 0, 0), ("right", 90, 0), ("back", 180, 0), ("left", 270, 0), ("up", 0, 90), ("down", 0, -90)]
+
+def basis(yaw, pitch):
+    y, p = np.radians(yaw), np.radians(pitch)
+    f = np.array([np.cos(p) * np.sin(y), np.sin(p), np.cos(p) * np.cos(y)])
+    up = np.array([0, 0, 1.0 if pitch > 0 else -1.0]) if abs(pitch) >= 89 else np.array([0, 1.0, 0])
+    r = np.cross(up, f); r /= np.linalg.norm(r)
+    return f, r, np.cross(f, r)
+
+def lin(a):
+    a = a / 255.0
+    return np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4).astype(np.float32)
+
+def srgb(a):
+    a = np.clip(a, 0, 1)
+    return np.where(a <= 0.0031308, a * 12.92, 1.055 * a ** (1 / 2.4) - 0.055).astype(np.float32)
+
+def blur(a, s):
+    return cv2.GaussianBlur(a, (0, 0), s)
+
+if sys.argv[1] == "cut":
+    pano = np.asarray(Image.open(sys.argv[2]).convert("RGB"))
+    d, n, fov = sys.argv[3], int(sys.argv[4]), float(sys.argv[5])
+    H, W = pano.shape[:2]
+    t = np.tan(np.radians(fov / 2))
+    xs = ((np.arange(n) + 0.5) / n * 2 - 1) * t
+    X, Y = np.meshgrid(xs, -xs)
+    meta = []
+    for name, yaw, pitch in FACES:
+        f, r, u = basis(yaw, pitch)
+        ray = f + X[..., None] * r + Y[..., None] * u
+        ray /= np.linalg.norm(ray, axis=-1, keepdims=True)
+        lon = np.arctan2(ray[..., 0], ray[..., 2]); lat = np.arcsin(np.clip(ray[..., 1], -1, 1))
+        mx = (lon / (2 * np.pi) + 0.5) * W - 0.5; my = (0.5 - lat / np.pi) * H - 0.5
+        img = cv2.remap(pano, mx.astype(np.float32), my.astype(np.float32), cv2.INTER_CUBIC, borderMode=cv2.BORDER_WRAP)
+        Image.fromarray(img).save(d + "/" + name + "-render.png")
+        meta.append({"name": name, "f": f.tolist(), "r": r.tolist(), "u": u.tolist()})
+    json.dump({"fov": fov, "size": n, "faces": meta}, open(d + "/faces.json", "w"))
+    sys.exit(0)
+
+d, panof, outf = sys.argv[2], sys.argv[3], sys.argv[4]
+sigma = 20
+meta = json.load(open(d + "/faces.json"))
+N, fov = meta["size"], meta["fov"]
+t = np.tan(np.radians(fov / 2))
+H, W = Image.open(panof).size[::-1]
+report = []
+
+def lock(name):
+    B = np.asarray(Image.open(d + "/" + name + "-render.png").convert("RGB")).astype(np.float32)
+    A = np.asarray(Image.open(d + "/" + name + "-ai.jpg").convert("RGB").resize((N, N), Image.LANCZOS)).astype(np.float32)
+    gb = cv2.cvtColor(B.astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    ga = cv2.cvtColor(A.astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    ga = ga * (blur(gb, 25) + 1) / (blur(ga, 25) + 1)
+    flow = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM).calc(
+        np.clip(gb, 0, 255).astype(np.uint8), np.clip(ga, 0, 255).astype(np.uint8), None)
+    flow = np.stack([blur(flow[..., 0], 6), blur(flow[..., 1], 6)], -1)
+    mag = np.linalg.norm(flow, axis=-1)
+    flow *= np.minimum(1, 24 / np.maximum(mag, 1e-6))[..., None]
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32)
+    Aw = cv2.remap(lin(A), xx + flow[..., 0], yy + flow[..., 1], cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+    Bl = lin(B)
+    ratio = (blur(Bl, sigma) + 1e-4) / (blur(Aw, sigma) + 1e-4)
+    report.append({"face": name, "flow": round(float(np.median(mag)), 1), "flowP95": round(float(np.percentile(mag, 95)), 1),
+                   "light": [round(float(x), 2) for x in np.median(ratio.reshape(-1, 3), 0)]})
+    return np.clip(Aw * np.clip(ratio, 0.4, 2.5), 0, 1)
+
+def project(img, f, w, h):
+    lon = ((np.arange(w) + 0.5) / w - 0.5) * 2 * np.pi
+    lat = (0.5 - (np.arange(h) + 0.5) / h) * np.pi
+    LON, LAT = np.meshgrid(lon, lat)
+    D = np.stack([np.cos(LAT) * np.sin(LON), np.sin(LAT), np.cos(LAT) * np.cos(LON)], -1).astype(np.float32)
+    F, R, U = (np.array(f[k], np.float32) for k in ("f", "r", "u"))
+    z = D @ F
+    x = (D @ R) / np.maximum(z, 1e-6) / t; y = (D @ U) / np.maximum(z, 1e-6) / t
+    ok = (z > 0) & (np.abs(x) < 0.995) & (np.abs(y) < 0.995)
+    mx = ((x + 1) / 2 * N - 0.5).astype(np.float32); my = ((1 - y) / 2 * N - 0.5).astype(np.float32)
+    return cv2.remap(img, mx, my, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE), (ok * 255).astype(np.uint8)
+
+faces = [(f, lock(f["name"])) for f in meta["faces"]]
+small = [project(img, f, 1024, 512) for f, img in faces]
+masks = cv2.detail_GraphCutSeamFinder("COST_COLOR_GRAD").find(
+    [cv2.UMat(srgb(s)) for s, _ in small], [(0, 0)] * len(small), [cv2.UMat(m) for _, m in small])
+blender = cv2.detail_MultiBandBlender(0, 6)
+blender.prepare((0, 0, W, H))
+for (f, img), m in zip(faces, masks):
+    full, ok = project(img, f, W, H)
+    seam = cv2.dilate(cv2.resize(m.get(), (W, H), interpolation=cv2.INTER_LINEAR), np.ones((3, 3), np.uint8))
+    blender.feed((srgb(full) * 255).astype(np.int16), cv2.bitwise_and(seam, ok), (0, 0))
+res, rmask = blender.blend(None, None)
+Image.fromarray(np.clip(res, 0, 255).astype(np.uint8)).save(outf, quality=93)
+print(json.dumps({"faces": report, "uncovered": int((rmask == 0).sum())}))
+`
+
+export interface PanoFacesResult {
+  seconds: number
+  /** Images bought (6, more when a face had to be asked again after a slow failure). */
+  images: number
+  faces: { face: string; flow: number; flowP95: number; light: number[] }[]
+}
+
+type Slot = <T>(job: () => Promise<T>) => Promise<T>
+
+/**
+ * The photo-quality 360° of the Cycles panorama `pano`, written to `out`, from six edited faces (see panoFacePrompt).
+ * Each face request goes through `aiSlot` (the tour's global limit), the joining through `stitchSlot` (about 2 GB of
+ * memory and 1-2 min of CPU each). The six edits are kept in tour/raw/ to join again later for free.
+ */
+export async function enhancePanoramaFaces(pano: string, out: string, aiSlot: Slot, stitchSlot: Slot, prompt = panoFacePrompt()): Promise<PanoFacesResult> {
+  const work = await mkdtemp(path.join(tmpdir(), 'roomia-pano-faces-'))
+  try {
+    const script = path.join(work, 'faces.py')
+    await writeFile(script, FACES_SCRIPT)
+    await exec(VISION_PYTHON, [script, 'cut', pano, work, String(FACE_PX), String(FACE_FOV)], { timeout: 120_000 })
+    const raw = path.join(path.dirname(out), 'raw')
+    await mkdir(raw, { recursive: true })
+    let images = 0
+    let seconds = 0
+    await Promise.all(
+      FACE_NAMES.map(name =>
+        aiSlot(async () => {
+          const image = await readFile(path.join(work, `${name}-render.png`))
+          let photo: Awaited<ReturnType<typeof generatePhotoreal>> | undefined
+          for (let attempt = 0; !photo; attempt++) {
+            const t = performance.now()
+            try {
+              photo = await generatePhotoreal(image, prompt)
+            } catch (err) {
+              // Asked again only when it failed fast with a connection or server error: not processed, so not paid for.
+              if (attempt > 0 || !isGatewayDown(err) || performance.now() - t > 15_000) throw err
+            }
+          }
+          images += 1
+          seconds = Math.max(seconds, photo.seconds)
+          const buffer = Buffer.from(photo.base64, 'base64')
+          await writeFile(path.join(work, `${name}-ai.jpg`), buffer)
+          await writeFile(path.join(raw, `${path.basename(out, '.jpg')}-${name}.jpg`), buffer)
+        }),
+      ),
+    )
+    const joined = await stitchSlot(() => exec(VISION_PYTHON, [script, 'stitch', work, pano, out], { timeout: 600_000, maxBuffer: 1 << 20 }))
+    const { faces } = JSON.parse(joined.stdout) as { faces: PanoFacesResult['faces'] }
+    return { seconds, images, faces }
   } finally {
     await rm(work, { recursive: true, force: true })
   }

@@ -28,12 +28,17 @@ const finite = (value: unknown, length: number): number[] | null => {
  * plus a lens) or Studio's current camera (`current`: position + quaternion in the file's frame,
  * and its horizontal field of view, so the 3:2 capture spans what the screen showed).
  */
-export function parseCaptureRequest(body: Record<string, unknown> | null, cameras: SceneCamera[]): CaptureRequest | string {
-  const lighting: Lighting = {
+/** The light asked for a capture or a photo: time of day, sun, interior lamps (Roomia Desktop sends it on its own). */
+export function parseLighting(body: Record<string, unknown> | null | undefined): Lighting {
+  return {
     time: isTimeOfDay(body?.time) ? body.time : 'midi',
     sun: body?.sun !== false,
     interior: body?.interior !== false,
   }
+}
+
+export function parseCaptureRequest(body: Record<string, unknown> | null, cameras: SceneCamera[]): CaptureRequest | string {
+  const lighting = parseLighting(body)
   const current = body?.current as Record<string, unknown> | undefined
   if (current) {
     const position = finite(current.position, 3)

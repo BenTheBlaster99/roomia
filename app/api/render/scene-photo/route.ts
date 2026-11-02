@@ -5,33 +5,18 @@ import { accessDenied, sessionUser } from '@/lib/access-guard'
 import { accountsEnabled } from '@/lib/session-cookie'
 import { consumeCredit, CreditError, isJobId, releaseCredit, reserveCredit } from '@/lib/credits'
 import { getDb } from '@/lib/db'
-import { loadSharp } from '@/lib/load-sharp'
+import { checkDeliveredImage } from '@/lib/photo-check'
 import { BlenderRenderError } from '@/lib/blender-render'
 import { getOpenAIClient } from '@/lib/openai-client'
 import { generatePhotoreal, PhotoChoiceError, renderErrorDetail } from '@/lib/photoreal'
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 import { getCapture, parseCaptureRequest } from '@/lib/scene-capture'
 import { buildSceneRenderPrompt } from '@/lib/scene-render-prompt'
+import { cloudMode, cloudPhoto } from '@/lib/roomia-cloud'
 import { isSceneId, readCameras, readMeta, sceneDir } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
-
-/**
- * What counts as a delivered photo (the moment the credit is spent): the provider's answer decodes
- * to a real image of at least 512 px, it isn't one flat colour, and it is saved on the PC. An HTTP
- * success alone is not enough. Whether the photo respects the design is judged by people: the
- * user can report it (see lib/credits.ts fileClaim) and an admin decides on a refund.
- */
-async function checkDeliveredImage(data: Buffer): Promise<string | null> {
-  if (data.length < 10_000) return 'image vide ou tronquée'
-  const sharp = loadSharp()
-  const meta = await sharp(data).metadata().catch(() => null)
-  if (!meta?.width || !meta?.height || Math.min(meta.width, meta.height) < 512) return 'image illisible ou trop petite'
-  const { channels } = await sharp(data).stats()
-  if (channels.every(c => c.stdev < 3)) return 'image uniforme (vide)'
-  return null
-}
 
 /**
  * POST — photo of one of the scene's saved views: Blender captures the view from the full file
@@ -68,10 +53,16 @@ export async function POST(req: NextRequest) {
   // retrying on its own. quality:'medium' is the answer "continue in medium quality".
   const ask = body?.ask === true
   const quality = body?.quality === 'medium' ? 'medium' : undefined
-  try {
-    getOpenAIClient()
-  } catch (err) {
-    return Response.json({ detail: renderErrorDetail(err) }, { status: 500 })
+  // Roomia Desktop: no AI key and no credits here; the capture goes to Roomia's server, which charges the account
+  // signed in on this PC (lib/roomia-cloud.ts, app/api/desktop/photo).
+  const cloud = cloudMode()
+  if (cloud && !isJobId(jobId)) return Response.json({ detail: 'Requête incomplète : rechargez la page.' }, { status: 400 })
+  if (!cloud) {
+    try {
+      getOpenAIClient()
+    } catch (err) {
+      return Response.json({ detail: renderErrorDetail(err) }, { status: 500 })
+    }
   }
 
   const encoder = new TextEncoder()
@@ -115,7 +106,8 @@ export async function POST(req: NextRequest) {
           reserveCredit(user.id, jobId, sceneId, camera.name)
           reserved = true
         }
-        if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
+        // the desktop's photos are counted on Roomia's server
+        if (!cloud && !takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // Cloudflare drops a stream that stays silent for ~100s. The photo call is longer than that.
         const beat = setInterval(() => {
           try {
@@ -124,7 +116,18 @@ export async function POST(req: NextRequest) {
             clearInterval(beat)
           }
         }, 15_000)
-        const photo = await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting), { ask, quality }).finally(() => clearInterval(beat))
+        const cloudAccount: { credits: number | null } = { credits: null }
+        const photo = cloud
+          ? await cloudPhoto(
+              { jobId: String(jobId), project: meta.fileName, view: camera.name, lighting, capture: capture.png, ask, quality },
+              () => send({ type: 'ping' }),
+            )
+              .then(remote => {
+                cloudAccount.credits = remote.credits
+                return { ...remote, provider: remote.provider ?? 'roomia' }
+              })
+              .finally(() => clearInterval(beat))
+          : await generatePhotoreal(capture.png, buildSceneRenderPrompt(lighting), { ask, quality }).finally(() => clearInterval(beat))
         run.photoSeconds = Number(photo.seconds.toFixed(1))
         // Keep every finished photo on disk: it was paid for, even if the browser never receives it.
         const photoName = `${new Date().toISOString().replace(/[:.]/g, '-')}-${camera.name.replace(/\W+/g, '_')}`
@@ -157,6 +160,7 @@ export async function POST(req: NextRequest) {
           fellBack: photo.fellBack,
           photoFile: `${photoName}.jpg`,
           ...(user ? { credits: Number(getDb().prepare('SELECT credits FROM users WHERE id = ?').get(user.id)?.credits ?? 0) } : {}),
+          ...(cloudAccount.credits !== null ? { credits: cloudAccount.credits } : {}),
         })
       } catch (err: unknown) {
         // No photo: the reserved credit goes back (also when the user is asked to choose).

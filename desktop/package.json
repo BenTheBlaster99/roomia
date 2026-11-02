@@ -1,0 +1,69 @@
+{
+  "name": "roomia-desktop",
+  "productName": "Roomia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Roomia Studio : rendus, visite 360° et plans sur votre propre carte graphique",
+  "author": "Roomia",
+  "main": "main.js",
+  "scripts": {
+    "server:linux": "node scripts/package-server.mjs --platform=linux",
+    "server:win": "node scripts/package-server.mjs --platform=win32",
+    "start": "electron .",
+    "dist:linux": "node scripts/package-server.mjs --platform=linux && electron-builder --linux dir",
+    "dist:win": "node scripts/package-server.mjs --platform=win32 && electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.roomia.desktop",
+    "productName": "Roomia",
+    "copyright": "Roomia",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "engine.js",
+      "splash.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "app-server",
+        "to": "app-server"
+      },
+      {
+        "from": "pylib-${platform}",
+        "to": "pylib"
+      },
+      {
+        "from": "runtime-${platform}",
+        "to": "runtime"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Roomia",
+      "artifactName": "Roomia-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": "dir",
+      "category": "Graphics"
+    }
+  }
+}

@@ -49,12 +49,14 @@ function pump(): void {
  */
 function runPrepProcess(meta: SceneMeta): Promise<void> {
   const root = /* turbopackIgnore: true */ process.cwd()
-  const tsxCli = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs')
-  const script = path.join(root, 'scripts', 'prepare-scene.ts')
+  // Roomia Desktop has no tsx: it packs the script already bundled (desktop/scripts/package-server.mjs)
+  const bundled = process.env.ROOMIA_PREP_SCRIPT
+  const runner = bundled
+    ? [bundled]
+    : [path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs'), path.join(root, 'scripts', 'prepare-scene.ts')]
   const args = [
     `--max-old-space-size=${MAX_MEMORY_MB}`,
-    tsxCli,
-    script,
+    ...runner,
     originalPath(meta.id, meta.format),
     sceneDir(meta.id),
   ]

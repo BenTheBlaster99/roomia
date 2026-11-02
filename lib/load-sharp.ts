@@ -14,6 +14,8 @@ type SharpInstance = {
   stats: () => Promise<{ channels: { mean: number; stdev: number }[] }>
   png: () => SharpInstance
   jpeg: (opts?: { quality?: number }) => SharpInstance
+  flatten: (opts?: { background?: string }) => SharpInstance
+  toFile: (file: string) => Promise<unknown>
   toBuffer: {
     (): Promise<Buffer>
     (opts: { resolveWithObject: true }): Promise<{

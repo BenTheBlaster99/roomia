@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+    <title>Roomia</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f4efe8;
+        color: #2b2420;
+        font: 15px/1.5 'Segoe UI', system-ui, sans-serif;
+      }
+      main {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 34px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      #text {
+        min-height: 1.5em;
+        color: #6b5d52;
+      }
+      .bar {
+        width: 320px;
+        height: 4px;
+        border-radius: 2px;
+        background: #e3d9cd;
+        overflow: hidden;
+      }
+      .fill {
+        height: 100%;
+        width: 30%;
+        background: #8a6a52;
+        animation: slide 1.4s ease-in-out infinite;
+      }
+      .fill.known {
+        animation: none;
+        transition: width 0.25s;
+      }
+      @keyframes slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(340%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Roomia</h1>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div id="text">Démarrage…</div>
+    </main>
+    <script>
+      const text = document.getElementById('text')
+      const fill = document.getElementById('fill')
+      window.roomiaDesktop?.onStatus(s => {
+        text.textContent = s.text
+        if (s.fraction === null) {
+          fill.classList.remove('known')
+          fill.style.width = '30%'
+        } else {
+          fill.classList.add('known')
+          fill.style.width = Math.round(s.fraction * 100) + '%'
+        }
+      })
+    </script>
+  </body>
+</html>

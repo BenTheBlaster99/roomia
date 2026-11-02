@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { freemem, tmpdir } from 'node:os'
 import path from 'node:path'
 import { blenderLighting, NEUTRAL_CAPTURE_LIGHT, type Lighting } from './render-lighting'
 import { FINISH_ROUGHNESS, type MaterialRoles } from './material-roles'
@@ -48,10 +48,13 @@ export function guardMemory(child: ChildProcess, onStop: (reason: string) => voi
     child.kill('SIGKILL')
   }
   const timer = setInterval(() => {
-    readFile('/proc/meminfo', 'utf8')
-      .then(info => {
-        const kb = Number(/MemAvailable:\s+(\d+)/.exec(info)?.[1])
-        if (kb && kb / 1024 < MIN_FREE_MB) stop(`mémoire presque pleine (${Math.round(kb / 1024)} Mo libres)`)
+    // Linux counts the file cache it can drop as available; elsewhere (Roomia Desktop on Windows) the OS's free memory
+    const available = process.platform === 'linux'
+      ? readFile('/proc/meminfo', 'utf8').then(info => Number(/MemAvailable:\s+(\d+)/.exec(info)?.[1]) / 1024)
+      : Promise.resolve(freemem() / 1048576)
+    available
+      .then(mb => {
+        if (mb && mb < MIN_FREE_MB) stop(`mémoire presque pleine (${Math.round(mb)} Mo libres)`)
       })
       .catch(() => undefined)
     execFile('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500 }, (err, out) => {

@@ -41,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     update?: unknown
     mirrors?: unknown
     complete?: unknown
+    bake?: unknown
   } | null
   try {
     if (body?.point) {
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const light: TourAiLight = TOUR_AI_LIGHTS.find(l => l === body.light) ?? 'soleil'
       return Response.json({ status: await startTourBuild(id, { photoQuality: light }) })
     }
-    return Response.json({ status: await startTourBuild(id) })
+    // {bake: true}: the build also bakes the free walk's light (experiment, 2 Nov)
+    return Response.json({ status: await startTourBuild(id, body?.bake === true ? { bakeExplorer: true } : {}) })
   } catch (err) {
     return Response.json({ detail: err instanceof Error ? err.message : String(err) }, { status: 400 })
   }

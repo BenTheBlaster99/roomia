@@ -9,6 +9,8 @@ import { sendSceneFile } from '@/lib/studio-import/server-prep'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
 
 interface TourData {
+  /** AI 360°s offered at all (ROOMIA_AI_360=1); off since 2 Nov: the Cycles 360° is the product. */
+  ai360?: boolean
   status: TourStatus
   plan: { file: string; hd?: string; lines?: string; width: number; height: number } | null
   /** A site with several levels: one plan each, bottom up. */
@@ -364,16 +366,27 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
           <>
             {status.state === 'failed' && <span className="tour-error">{status.error}</span>}
             {error && <span className="tour-error">{error}</span>}
-            <span>
-              Roomia place les points de vue dans chaque pièce, prépare les 360° et le plan, puis passe chaque point en qualité photo
-              (1 image par point, environ 2 min par point).
-            </span>
-            <button type="button" onClick={() => prepare(true)} disabled={!!busy}>
-              Créer la visite complète en qualité photo
-            </button>
-            <button type="button" className="tour-secondary" onClick={() => prepare()} disabled={!!busy}>
-              Version Blender seulement (gratuite, 1 à 5 min)
-            </button>
+            {data.ai360 ? (
+              <>
+                <span>
+                  Roomia place les points de vue dans chaque pièce, prépare les 360° et le plan, puis passe chaque point en qualité photo
+                  (6 images par point, environ 2 min par point).
+                </span>
+                <button type="button" onClick={() => prepare(true)} disabled={!!busy}>
+                  Créer la visite complète en qualité photo
+                </button>
+                <button type="button" className="tour-secondary" onClick={() => prepare()} disabled={!!busy}>
+                  Version Blender seulement (gratuite, 1 à 5 min)
+                </button>
+              </>
+            ) : (
+              <>
+                <span>Roomia place les points de vue dans chaque pièce, puis prépare les 360° (rendu Cycles) et le plan.</span>
+                <button type="button" onClick={() => prepare()} disabled={!!busy}>
+                  Créer la visite 360°
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
@@ -582,16 +595,16 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
                   Générer les {missingPhotos} photos manquantes
                 </button>
               )}
-              {editing && current.pano && !current.panoAi && (
+              {editing && data.ai360 && current.pano && !current.panoAi && (
                 <>
-                  <span>360° en qualité photo pour {current.name} : le rendu affiné, sa lumière gardée (1 image, environ 1 min).</span>
+                  <span>360° en qualité photo pour {current.name} : six photos IA calées sur le rendu (6 images, environ 2 min).</span>
                   <button type="button" onClick={() => upgradePano([current.index], 'soleil')} disabled={!!busy}>
                     Passer en qualité photo
                   </button>
                 </>
               )}
-              {editing && <a href={`/studio/tour/${sceneId}/faces`}>Revue des faces IA</a>}
-              {editing && unapprovedAi > 0 && (
+              {editing && data.ai360 && <a href={`/studio/tour/${sceneId}/faces`}>Revue des faces IA</a>}
+              {editing && data.ai360 && unapprovedAi > 0 && (
                 <button type="button" onClick={() => applyUpdate('mirrors')} disabled={!!busy}>
                   Remettre les vrais miroirs dans les 360° non validés (gratuit, aucune image achetée)
                 </button>
@@ -628,9 +641,9 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
                   )}
                 </>
               )}
-              {editing && blenderStops.length > 1 && (
+              {editing && data.ai360 && blenderStops.length > 1 && (
                 <>
-                  <span>Toute la visite en qualité photo ({blenderStops.length} points, {blenderStops.length} images) :</span>
+                  <span>Toute la visite en qualité photo ({blenderStops.length} points, {blenderStops.length * 6} images) :</span>
                   <button type="button" onClick={() => upgradePano(blenderStops, 'soleil')} disabled={!!busy}>
                     Passer toute la visite en qualité photo
                   </button>

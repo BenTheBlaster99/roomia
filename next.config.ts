@@ -3,7 +3,12 @@ import createNextIntlPlugin from 'next-intl/plugin'
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
 
+// Roomia Desktop (desktop/scripts/package-server.mjs): a standalone server in its own folder, so building the app
+// never touches the Studio's .next.
+const desktop = process.env.ROOMIA_DESKTOP_BUILD === '1'
+
 const nextConfig: NextConfig = {
+  ...(desktop ? { output: 'standalone' as const, distDir: '.next-desktop' } : {}),
   // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
   allowedDevOrigins: ['*.trycloudflare.com', '*.coconutstudio.io'],
   serverExternalPackages: ['sharp'],

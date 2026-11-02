@@ -69,6 +69,8 @@ export default function SceneSidebar() {
   const [placeholders, setPlaceholders] = useState(0)
   /** Signed-in account and its render credits (null where the Studio has no accounts). */
   const [account, setAccount] = useState<{ name: string; credits: number } | null>(null)
+  /** Roomia Desktop with nobody signed in (or Roomia's server out of reach): the photo IA needs the account. */
+  const [desktopAccount, setDesktopAccount] = useState<'signed-out' | 'offline' | null>(null)
   /** The last delivered photo, so it can be reported if it doesn't respect the design. */
   const [lastPhoto, setLastPhoto] = useState<string | null>(null)
   const [reporting, setReporting] = useState(false)
@@ -90,9 +92,11 @@ export default function SceneSidebar() {
   useEffect(() => {
     let cancelled = false
     fetch('/api/auth/me')
-      .then(res => (res.ok ? (res.json() as Promise<{ user: { name: string; credits: number } }>) : null))
-      .then(data => {
-        if (!cancelled && data) setAccount({ name: data.user.name, credits: data.user.credits })
+      .then(async res => {
+        const data = (await res.json().catch(() => null)) as { user?: { name: string; credits: number }; desktop?: boolean } | null
+        if (cancelled || !data) return
+        if (res.ok && data.user) setAccount({ name: data.user.name, credits: data.user.credits })
+        else if (data.desktop) setDesktopAccount(res.status === 401 ? 'signed-out' : 'offline')
       })
       .catch(() => undefined)
     return () => {
@@ -609,6 +613,19 @@ export default function SceneSidebar() {
           {account && account.credits < 1 && (
             <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Plus de crédits sur ce compte. Contactez Roomia pour recharger.</p>
           )}
+          {desktopAccount === 'signed-out' && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Les photos IA utilisent votre compte Roomia.{' '}
+              <a className="font-semibold underline underline-offset-2" href={`/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/studio' : window.location.pathname + window.location.search)}`}>
+                Se connecter
+              </a>
+            </p>
+          )}
+          {desktopAccount === 'offline' && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Serveur Roomia injoignable : les rendus Blender marchent, les photos IA attendent la connexion.
+            </p>
+          )}
 
           {running && (
             <div className="mt-3 rounded-xl border border-[var(--rm-text)]/10 bg-[var(--rm-bg)] p-3">
@@ -812,7 +829,7 @@ export default function SceneSidebar() {
         >
           Visite virtuelle de tout l’appartement →
           <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">
-            360° de chaque pièce en qualité photo et plan, points de vue placés automatiquement
+            360° de chaque pièce (rendu Cycles) et plan, points de vue placés automatiquement
             {cameras.length ? ` (+ ${cameras.length} vue${cameras.length > 1 ? 's' : ''} du fichier)` : ''}.
           </span>
         </a>

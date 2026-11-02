@@ -9,6 +9,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import type { TourLevel, TourView } from '@/lib/scene-tour'
 import PanoViewer, { type PanoSpot } from '../../tour/[id]/PanoViewer'
 import { createAiLayer, type AiMode, type AiProjection } from './aiLayer'
@@ -87,6 +88,18 @@ interface LookFile {
   light?: Partial<typeof LIGHTS> & { room?: number }
   /** Contact shadows' strength (GTAO), 0 = none. */
   ao?: number
+  /**
+   * AI-redrawn textures (2 Nov), by the model's texture name (or material name): the same layout and colour as the
+   * designer's texture, photographed detail, and a relief map made from that detail. Files in the tour folder.
+   */
+  textures?: Record<string, { map: string; normal?: string; normalScale?: number }>
+  /**
+   * The lamps' own light (2 Nov): a warm light in each glowing lamp (candela), the strongest `shadows` of them casting
+   * soft shadows (drawn once: nothing in the room moves). The walk had only sky and studio light, no pools under lamps.
+   */
+  lamps?: { light: number; shadows?: number; at?: [number, number, number][]; around?: number; angle?: number }
+  /** Glow around lamps and daylight (bloom strength, 0 = none). */
+  bloom?: number
 }
 
 const STOCK_CHUNK = THREE.ShaderChunk.tonemapping_pars_fragment
@@ -136,7 +149,9 @@ const LIGHTS = { env: 1, sky: 1.1, ground: '7a6a58', sun: 1.4, sunHeight: 9 }
 
 /** What glows in the Blender renders glows in the walk too: Enscape's and D5's light objects, and light materials by
  *  name (lib/blender-render.ts, role "light"). */
-const LAMP_OBJECT = /Enscape\.\w*Light|D5RenderLight/i
+// three's loader drops the dot from node names (Enscape.RectangularLight → EnscapeRectangularLight): the glow had never
+// matched in the walk (2 Nov)
+const LAMP_OBJECT = /Enscape\.?\w*Light|D5RenderLight/i
 const LAMP_MATERIAL = /^(led|light|lights|lamp|spot)$|\bled\b|bedside lights|lumin|plafonnier|neon/i
 const GLOW = new THREE.Color(1.0, 0.86, 0.62)
 
@@ -196,8 +211,9 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
         setNav(n)
       })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
-    fetch(`/api/scenes/${sceneId}/tour/explore.json`, { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
+    // The baked light only when asked (?bake=1, 2 Nov): an experiment, never the walk a visitor gets by default.
+    ;(query.get('bake') === '1' ? fetch(`/api/scenes/${sceneId}/tour/explore.json`, { cache: 'no-store' }) : Promise.resolve(null))
+      .then(r => (r?.ok ? r.json() : null))
       .then(b => setBake(b && typeof b.lo === 'number' ? b : null))
       .catch(() => setBake(null))
     // ?grade=r,g,b,contrast tries another grade than the scene's own (look.json); ?look=0 shows the walk without one
@@ -299,10 +315,22 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
     // ?ao=<strength>: light contact shadows where furniture meets the floor and the walls (screen-space GTAO), drawn
     // through a composer whose last pass does the tone mapping and the grade
     const aoStrength = num0('ao', bake ? 0 : (lookFile?.ao ?? 0))
+    // ?bloom=: glow around what is brighter than white (lamps, daylight), before the tone mapping
+    const bloomStrength = num0('bloom', bake ? 0 : (lookFile?.bloom ?? 0))
+    // ?lamp=<candela>&lampshadows=<n>: the lamps' own light
+    const lampLight = num0('lamp', bake ? 0 : (lookFile?.lamps?.light ?? 0))
+    const lampShadows = Math.min(8, num0('lampshadows', lookFile?.lamps?.shadows ?? 6))
+    if (lampLight > 0 && lampShadows > 0) {
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      renderer.shadowMap.autoUpdate = false
+    }
     let composer: EffectComposer | null = null
-    if (aoStrength > 0) {
+    if (aoStrength > 0 || bloomStrength > 0) {
       composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }))
       composer.addPass(new RenderPass(scene, camera))
+    }
+    if (composer && aoStrength > 0) {
       const gtao = new GTAOPass(scene, camera, 1, 1)
       gtao.blendIntensity = aoStrength
       gtao.updateGtaoMaterial({ radius: 0.4, distanceFallOff: 1, thickness: 1, scale: 1, samples: 16 })
@@ -320,8 +348,11 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
         })
       }
       composer.addPass(gtao)
-      composer.addPass(new OutputPass())
     }
+    // only what is brighter than the daylight behind the windows (2.4-2.55 when graded): the lamps; at 1.2 the windows
+    // fogged the whole room
+    if (composer && bloomStrength > 0) composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), bloomStrength, 0.4, num0('bloomt', 2.7)))
+    if (composer) composer.addPass(new OutputPass())
 
     // Where a person can stand: the room around a point, read smoothly between the 25 cm spots so the walk slides
     // along walls instead of stepping from spot to spot.
@@ -479,6 +510,132 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
       unlit.set(m, basic)
       return basic
     }
+    // The AI-redrawn textures (look.json, ?tex=0 without), placed exactly like the ones they replace; every texture
+    // filtered for grazing views (the floor went soft a few metres ahead).
+    const anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy())
+    const upgrades = !bake && query.get('tex') !== '0' ? (lookFile?.textures ?? {}) : {}
+    const textureFiles = new Map<string, THREE.Texture>()
+    const textureLoader = new THREE.TextureLoader()
+    const fileTexture = (file: string, like: THREE.Texture, color: boolean) => {
+      const key = `${file}|${like.uuid}`
+      let t = textureFiles.get(key)
+      if (!t) {
+        t = textureLoader.load(`/api/scenes/${sceneId}/tour/${file}?v=${version}`)
+        t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace
+        t.flipY = false
+        t.wrapS = like.wrapS
+        t.wrapT = like.wrapT
+        t.offset.copy(like.offset)
+        t.repeat.copy(like.repeat)
+        t.rotation = like.rotation
+        t.center.copy(like.center)
+        t.channel = like.channel
+        t.anisotropy = anisotropy
+        textureFiles.set(key, t)
+      }
+      return t
+    }
+    const upgrade = (std: THREE.MeshStandardMaterial) => {
+      for (const t of [std.map, std.normalMap, std.roughnessMap]) if (t) t.anisotropy = anisotropy
+      const map = std.map
+      const up = map && (upgrades[map.name] ?? upgrades[std.name.replace(/\.\d{3}$/, '')])
+      if (!map || !up) return
+      std.map = fileTexture(up.map, map, true)
+      if (up.normal && !std.normalMap) {
+        std.normalMap = fileTexture(up.normal, map, false)
+        // three's own glTF rule for normal maps on meshes without tangents
+        std.normalScale.set(up.normalScale ?? 1, -(up.normalScale ?? 1))
+      }
+      std.needsUpdate = true
+    }
+    // One warm light per lamp (lamp meshes closer than 40 cm are one lamp), a little under its middle; the ones nearest
+    // the start cast shadows. Lamp shades never cast: the light sits inside them.
+    const lamps: THREE.Mesh[] = []
+    const addLampLights = (model: THREE.Object3D) => {
+      model.updateMatrixWorld(true)
+      // The lamp shapes can come merged into one mesh (the browser model joins objects): each lamp is found as a group of
+      // touching 20 cm cells of their vertices.
+      const CELL = 0.2
+      const cells = new Map<string, { x: number; y: number; z: number; sum: THREE.Vector3; n: number }>()
+      const v = new THREE.Vector3()
+      for (const m of lamps) {
+        const pos = m.geometry.getAttribute('position')
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld)
+          const [x, y, z] = [Math.floor(v.x / CELL), Math.floor(v.y / CELL), Math.floor(v.z / CELL)]
+          const key = `${x},${y},${z}`
+          const c = cells.get(key) ?? { x, y, z, sum: new THREE.Vector3(), n: 0 }
+          c.sum.add(v)
+          c.n += 1
+          cells.set(key, c)
+        }
+      }
+      const spots: { at: THREE.Vector3; n: number }[] = []
+      // the lamp markers of the full model when the scene's look lists them (the browser model merges them away)
+      for (const p of lookFile?.lamps?.at ?? []) {
+        const at = new THREE.Vector3(...p)
+        const near = spots.find(s => s.at.distanceTo(at) < 0.4)
+        if (near) near.at.lerp(at, 1 / ++near.n)
+        else spots.push({ at, n: 1 })
+      }
+      if (spots.length) cells.clear()
+      const seen = new Set<string>()
+      for (const [key, c0] of cells) {
+        if (seen.has(key)) continue
+        seen.add(key)
+        const sum = new THREE.Vector3()
+        let n = 0
+        const queue = [c0]
+        while (queue.length) {
+          const c = queue.pop()!
+          sum.add(c.sum)
+          n += c.n
+          for (let dx = -1; dx <= 1; dx++)
+            for (let dy = -1; dy <= 1; dy++)
+              for (let dz = -1; dz <= 1; dz++) {
+                const k = `${c.x + dx},${c.y + dy},${c.z + dz}`
+                const next = cells.get(k)
+                if (next && !seen.has(k)) {
+                  seen.add(k)
+                  queue.push(next)
+                }
+              }
+        }
+        spots.push({ at: sum.divideScalar(n), n })
+      }
+      const start = views[0] ? new THREE.Vector3(...views[0].position) : new THREE.Vector3()
+      spots.sort((a, b) => a.at.distanceTo(start) - b.at.distanceTo(start))
+      spots.forEach((s, k) => {
+        // a wide cone downwards, as a pendant throws it: lit all round, the lamps made the ceiling 0.1 brighter than the
+        // 360°s' (measured 2 Nov)
+        const light = new THREE.SpotLight(0xffe2bd, lampLight, 10, num0('lampangle', lookFile?.lamps?.angle ?? 1.2), 0.9, 2)
+        light.position.copy(s.at).add(new THREE.Vector3(0, -0.12, 0))
+        light.target.position.copy(light.position).add(new THREE.Vector3(0, -1, 0))
+        scene.add(light.target)
+        // and what a shade lets through all round (walls and ceiling), without shadows: with the cone alone the walls
+        // and the ceiling came out 0.05-0.06 darker than in the 360°s
+        const around = lampLight * num0('lampup', lookFile?.lamps?.around ?? 0.35)
+        if (around > 0) {
+          const glow = new THREE.PointLight(0xffe2bd, around, 9, 2)
+          glow.position.copy(light.position)
+          scene.add(glow)
+        }
+        if (renderer.shadowMap.enabled && k < lampShadows) {
+          light.castShadow = true
+          light.shadow.mapSize.set(2048, 2048)
+          // the shade around the light (merged into other objects, so it cannot be told apart) is nearer than this:
+          // it cast hard cones on the walls
+          light.shadow.camera.near = num0('lampnear', 0.45)
+          light.shadow.camera.far = 9
+          light.shadow.bias = -0.0015
+          light.shadow.normalBias = 0.02
+          light.shadow.radius = 4
+        }
+        scene.add(light)
+      })
+      renderer.shadowMap.needsUpdate = true
+      console.log('walk lamps:', spots.length, 'lights,', Math.min(spots.length, renderer.shadowMap.enabled ? lampShadows : 0), 'with shadows')
+    }
     loader.load(
       bake ? `/api/scenes/${sceneId}/tour/explore.glb?v=${version}` : `/api/scenes/${sceneId}/viewport`,
       async gltf => {
@@ -490,6 +647,13 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
           const kind = !bake ? null : mesh.geometry.getAttribute('uv1') && map ? 'lightmap' : mesh.geometry.getAttribute('color') ? 'vertex' : null
           let lampObject = false
           for (let o: THREE.Object3D | null = mesh; o && !lampObject; o = o.parent) lampObject = LAMP_OBJECT.test(o.name)
+          const lampMesh = lampObject || (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(m => LAMP_MATERIAL.test(m.name.replace(/\.\d{3}$/, '')))
+          if (lampMesh) lamps.push(mesh)
+          if (renderer.shadowMap.enabled) {
+            const clear = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(m => m.transparent)
+            mesh.castShadow = !lampMesh && !clear
+            mesh.receiveShadow = true
+          }
           if (query.get('glow') !== '0') {
             const lit = (m: THREE.Material) => {
               const std = m as THREE.MeshStandardMaterial
@@ -511,6 +675,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
               ? FINISHES.find(([re]) => re.test(std.name))?.[1]
               : undefined
             if (finish) Object.assign(std, finish)
+            if (std.isMeshStandardMaterial) upgrade(std)
             ai?.patch(m)
           }
           if (kind && bake) {
@@ -519,6 +684,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
           }
         })
         scene.add(gltf.scene)
+        if (lampLight > 0) addLampLights(gltf.scene)
         // draw distance sized to the model: 500 m left the contact shadows' depth too coarse indoors (everything darkened)
         const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3()).length()
         camera.far = Math.min(500, Math.max(30, size * 1.2))

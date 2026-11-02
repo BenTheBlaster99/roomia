@@ -32,7 +32,7 @@ async function glbJsonBytes(file: string): Promise<number> {
 async function compacted(input: string, outDir: string): Promise<string | null> {
   if ((await glbJsonBytes(input)) < COMPACT_JSON_BYTES) return null
   const out = join(outDir, 'compact.glb')
-  const { stdout } = await promisify(execFile)('python3', [join(dirname(fileURLToPath(import.meta.url)), 'compact-glb.py'), input, out], { maxBuffer: 1 << 20 })
+  const { stdout } = await promisify(execFile)(process.env.ROOMIA_PYTHON ?? 'python3', [join(dirname(fileURLToPath(import.meta.url)), 'compact-glb.py'), input, out], { maxBuffer: 1 << 20 })
   console.log(stdout.trim())
   return stdout.includes('COMPACT_OK') ? out : null
 }

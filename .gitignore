@@ -64,3 +64,11 @@ claude.txt
 
 # Studio accounts, sessions and credit ledger (SQLite) stay on this PC
 /.data/
+
+# Roomia Desktop build outputs
+/.next-desktop
+/desktop/node_modules/
+/desktop/app-server/
+/desktop/pylib-*/
+/desktop/dist/
+/desktop/runtime-*/
