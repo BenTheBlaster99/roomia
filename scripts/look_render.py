@@ -74,6 +74,16 @@ cam_data.clip_end = 1000.0
 
 
 def place(v):
+    if v.get("pano"):
+        # a 360 from an eye position (glTF), the capture's convention: the middle of the picture looks along +yaw
+        cam_data.type = "PANO"
+        cam_data.panorama_type = "EQUIRECTANGULAR"
+        cam.location = gl2b(v["position"])
+        cam.rotation_euler = (math.pi / 2, 0.0, math.radians(float(v.get("yaw", 0))) - math.pi / 2)
+        scene.render.resolution_x, scene.render.resolution_y = int(v.get("width", 3072)), int(v.get("height", 1536))
+        return
+    cam_data.type = "PERSP"
+    scene.render.resolution_x, scene.render.resolution_y = WIDTH, HEIGHT
     if v.get("scene"):
         c = cams[v["scene"]]
         pos, tgt = gl2b(c["position"]), gl2b(c["target"])
@@ -184,6 +194,152 @@ if JOB.get("mode", "render") == "render":
         write_png(os.path.join(OUT, "%s-combined.png" % name), grade(comb, R.get("grade", {})))
         report["views"].append(entry)
         print("LOOK_VIEW", json.dumps(entry), flush=True)
+elif JOB["mode"] == "pano":
+    # 360s with the recipe: the light groups summed at the fitted weights inside the compositor (one denoise, one small
+    # file), plus the passes the finishing step's masks come from (ceiling, mirrors and glass, fixtures, sky, materials)
+    import glob, re as _re
+    for attr in ("use_pass_normal", "use_pass_position", "use_pass_emit", "use_pass_diffuse_color", "use_pass_z", "use_pass_material_index"):
+        setattr(vl, attr, True)
+    mats = list(bpy.data.materials)
+    for i_, m_ in enumerate(mats):
+        m_.pass_index = i_ + 1
+    json.dump({str(i_ + 1): m_.name for i_, m_ in enumerate(mats)}, open(os.path.join(OUT, "material-ids.json"), "w"))
+    vl.cycles.denoising_store_passes = True
+    scene.cycles.use_denoising = False  # the compositor's denoise on the summed light, with the albedo and normal guides
+    FG = R.get("fit", {})
+    wts = PRESETS.get(JOB.get("preset", "golden"), {})
+    scene.use_nodes = True
+    tree = scene.node_tree
+    tree.nodes.clear()
+    rl = tree.nodes.new("CompositorNodeRLayers")
+    comp = tree.nodes.new("CompositorNodeComposite")
+    tree.links.new(rl.outputs["Image"], comp.inputs["Image"])
+    print("LOOK_INFO pass sockets:", ",".join(o.name for o in rl.outputs if o.enabled), flush=True)
+    acc = None
+    for g, w in wts.items():
+        sock = rl.outputs.get("Combined_" + g)
+        gain = float(w) * float(FG.get("gains", {}).get(g, 1.0))
+        if sock is None or gain == 0:
+            continue
+        tint = FG.get("tints", {}).get(g, [1, 1, 1])
+        mul = tree.nodes.new("CompositorNodeMixRGB")
+        mul.blend_type, mul.use_clamp = "MULTIPLY", False
+        mul.inputs[0].default_value = 1.0
+        tree.links.new(sock, mul.inputs[1])
+        mul.inputs[2].default_value = (gain * tint[0], gain * tint[1], gain * tint[2], 1.0)
+        if acc is None:
+            acc = mul
+        else:
+            add = tree.nodes.new("CompositorNodeMixRGB")
+            add.blend_type, add.use_clamp = "ADD", False
+            add.inputs[0].default_value = 1.0
+            tree.links.new(acc.outputs[0], add.inputs[1])
+            tree.links.new(mul.outputs[0], add.inputs[2])
+            acc = add
+    dn = tree.nodes.new("CompositorNodeDenoise")
+    dn.prefilter = "ACCURATE"
+    tree.links.new(acc.outputs[0], dn.inputs["Image"])
+    tree.links.new(rl.outputs["Denoising Normal"], dn.inputs["Normal"])
+    tree.links.new(rl.outputs["Denoising Albedo"], dn.inputs["Albedo"])
+    fo = tree.nodes.new("CompositorNodeOutputFile")
+    fo.format.file_format = "OPEN_EXR_MULTILAYER"
+    fo.format.color_depth = "32"
+    fo.layer_slots.clear()
+    fo.layer_slots.new("img")
+    tree.links.new(dn.outputs[0], fo.inputs["img"])
+    for slot_, sock_ in (("normal", "Normal"), ("pos", "Position"), ("emit", "Emit"), ("albedo", "DiffCol"), ("depth", "Depth"), ("mat", "IndexMA")):
+        if rl.outputs.get(sock_) is not None:
+            fo.layer_slots.new(slot_)
+            tree.links.new(rl.outputs[sock_], fo.inputs[slot_])
+    scene.cycles.samples = int(JOB.get("samples", 128))
+    GLASS_RX = _re.compile(r"glass|verre|vitre|window", _re.I)
+    MIRROR_RX = _re.compile(r"mirror|miroir", _re.I)
+    mirror_ids = [i_ + 1 for i_, m_ in enumerate(mats) if MIRROR_RX.search(m_.name)]
+    glass_ids = [i_ + 1 for i_, m_ in enumerate(mats) if GLASS_RX.search(m_.name) and not MIRROR_RX.search(m_.name)]
+
+    def read_multi(path_):
+        inp_ = oiio.ImageInput.open(path_)
+        sp_ = inp_.spec()
+        names_ = list(sp_.channelnames)
+        px_ = inp_.read_image(0, 0, 0, len(names_), "float").reshape(sp_.height, sp_.width, len(names_))
+        inp_.close()
+        out_ = {}
+        for i_, n_ in enumerate(names_):
+            parts_ = n_.split(".")
+            out_.setdefault(parts_[-2] if len(parts_) >= 2 else n_, {})[parts_[-1]] = i_
+        res_ = {}
+        for k_, v_ in out_.items():
+            ch_ = [v_[c] for c in ("R", "G", "B") if c in v_] or [v_[c] for c in ("X", "Y", "Z") if c in v_] or [v_[c] for c in v_]
+            res_[k_] = px_[..., ch_]
+        return res_
+
+    for v in JOB["views"]:
+        v = dict(v, pano=True)
+        place(v)
+        name = v["name"]
+        scene.render.filepath = os.path.join(OUT, name + "-tmp.exr")
+        pref = os.path.join(OUT, name + "-pano-")
+        for old_ in glob.glob(pref + "*.exr"):
+            os.remove(old_)
+        fo.base_path = pref
+        t_r = time.time()
+        bpy.ops.render.render(write_still=True)
+        files = sorted(glob.glob(pref + "*.exr"))
+        L = read_multi(files[-1])
+        lin = L["img"][..., :3]
+        np.save(os.path.join(OUT, name + "-lin.npy"), lin.astype(np.float16))
+        write_png(os.path.join(OUT, name + "-pano.png"), grade(lin, R.get("grade", {})))
+        # masks, at half size
+        eye_z = float(gl2b(v["position"]).z)
+        nz = L["normal"][..., 2] if "normal" in L else np.zeros(lin.shape[:2], np.float32)
+        pz = L["pos"][..., 2] if "pos" in L else np.zeros(lin.shape[:2], np.float32)
+        px_, py_ = (L["pos"][..., 0], L["pos"][..., 1]) if "pos" in L else (np.zeros(lin.shape[:2]), np.zeros(lin.shape[:2]))
+        dist = np.sqrt((px_ - cam.location.x) ** 2 + (py_ - cam.location.y) ** 2 + (pz - cam.location.z) ** 2)
+        mid = np.round(L["mat"][..., 0]).astype(np.int32) if "mat" in L else np.zeros(lin.shape[:2], np.int32)
+        emit = L["emit"][..., :3].max(-1) if "emit" in L else np.zeros(lin.shape[:2], np.float32)
+        masks = {
+            "ceiling": (nz < -0.55) & (pz > eye_z + 0.3),
+            "mirror": np.isin(mid, mirror_ids),
+            "glass": np.isin(mid, glass_ids),
+            "sky": dist > 40.0,
+            "emit": emit > 0.02,
+        }
+        half = lambda a: a[::2, ::2]
+        np.savez_compressed(os.path.join(OUT, name + "-masks.npz"), mat=half(mid).astype(np.uint16), albedo=half(L["albedo"][..., :3]).astype(np.float16) if "albedo" in L else np.zeros(1),
+                            depth=half(np.minimum(dist, 100)).astype(np.float16), **{k_: half(m_) for k_, m_ in masks.items()})
+        os.remove(files[-1])
+        if os.path.exists(scene.render.filepath):
+            os.remove(scene.render.filepath)
+        entry = {"name": name, "seconds": round(time.time() - t_r, 1), "size": [int(lin.shape[1]), int(lin.shape[0])],
+                 "share": {k_: round(float(m_.mean()), 3) for k_, m_ in masks.items()}}
+        report["views"].append(entry)
+        print("LOOK_PANO", json.dumps(entry), flush=True)
+    # one exposure for the whole set (a tour is one apartment: no point should be brighter than its neighbour just
+    # because it faces a dark door): the median of the points' medians brought to the hero photo's median
+    LUMW = np.array([0.2126, 0.7152, 0.0722], np.float32)
+    meds = []
+    for v in JOB["views"]:
+        lin_ = np.load(os.path.join(OUT, v["name"] + "-lin.npy")).astype(np.float32)[::4, ::4]
+        meds.append(lin_ @ LUMW)
+    allv = np.concatenate([m_.ravel() for m_ in meds])
+    target = float(JOB.get("targetMedian", 0.40))
+    gr = dict(R.get("grade", {}))
+    lo_, hi_ = -6.0, 6.0
+    for _ in range(14):
+        mid_ = (lo_ + hi_) / 2
+        g_ = dict(gr, exposure=mid_)
+        sample = np.stack([np.full_like(allv, float(np.median(allv)))] * 3, -1)[:1000].reshape(1, -1, 3)
+        disp = float(np.median(grade(sample, g_) @ LUMW))
+        if disp < target:
+            lo_ = mid_
+        else:
+            hi_ = mid_
+    gr["exposure"] = (lo_ + hi_) / 2
+    report["commonGrade"] = gr
+    for v in JOB["views"]:
+        lin_ = np.load(os.path.join(OUT, v["name"] + "-lin.npy")).astype(np.float32)
+        write_png(os.path.join(OUT, v["name"] + "-pano.png"), grade(lin_, gr))
+    print("LOOK_INFO common exposure %.2f EV (grade exposure %.2f)" % (gr["exposure"] - R.get("grade", {}).get("exposure", 0), gr["exposure"]), flush=True)
 elif JOB["mode"] == "sunsearch":
     # sun only, low resolution: where its light lands for each candidate direction (the patch fit)
     for o in scene.objects:

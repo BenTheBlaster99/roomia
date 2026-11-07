@@ -478,3 +478,140 @@ for rule in R.get("materials", []):
                 b = n.inputs["Base Color"].default_value
                 n.inputs["Base Color"].default_value = (b[0] * rule["tint"][0], b[1] * rule["tint"][1], b[2] * rule["tint"][2], 1)
 
+
+
+# --- real texture detail (8 Nov, step 3): what the SketchUp files lack is micro-structure (plaster grain, fabric weave,
+# wood grain, marble veins). Each rule keeps the material's own colour and design and adds a free CC0 texture's detail on
+# top: its brightness as an OVERLAY on the base colour (neutral grey = no change) and its height as a bump. World-space
+# box mapping at a real-world tile size, so no UVs are needed and nothing stretches.
+#   {"match": regex, "dir": folder, "set": "velour_velvet", "scaleM": 0.12, "albedo": 0.35, "bump": 0.5}
+_detail_cache = {}
+
+
+def _detail_images(folder, name):
+    if name in _detail_cache:
+        return _detail_cache[name]
+    import numpy as _np
+    import os as _os
+    def load(suffix):
+        for ext in ("jpg", "png"):
+            pth = _os.path.join(folder, "%s_%s.%s" % (name, suffix, ext))
+            if _os.path.exists(pth):
+                return bpy.data.images.load(pth, check_existing=True)
+        return None
+    diff, disp = load("diff"), load("disp")
+    ov = None
+    if diff is not None:
+        w_, h_ = diff.size
+        px_ = _np.empty(w_ * h_ * 4, _np.float32)
+        diff.pixels.foreach_get(px_)
+        px_ = px_.reshape(-1, 4)
+        lum_ = _np.power(_np.clip(px_[:, :3], 0, 1), 2.2) @ _np.array([0.2126, 0.7152, 0.0722], _np.float32)
+        rel_ = lum_ / max(float(lum_.mean()), 1e-4)
+        v_ = _np.clip(0.5 * rel_, 0.0, 1.0)  # 0.5 = the texture's own average = no change under OVERLAY
+        out_ = _np.stack([v_, v_, v_, _np.ones_like(v_)], -1).astype(_np.float32)
+        ov = bpy.data.images.new("look_detail_%s" % name, w_, h_, float_buffer=False)
+        ov.pixels.foreach_set(out_.ravel())
+        ov.colorspace_settings.name = "Non-Color"
+        ov.pack()
+    if disp is not None:
+        disp.colorspace_settings.name = "Non-Color"
+    _detail_cache[name] = (ov, disp)
+    return ov, disp
+
+
+def _box_tex(nt_, image, geo_pos, scale):
+    mp = nt_.nodes.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (1.0 / scale, 1.0 / scale, 1.0 / scale)
+    nt_.links.new(geo_pos, mp.inputs["Vector"])
+    tx = nt_.nodes.new("ShaderNodeTexImage")
+    tx.image = image
+    tx.projection = "BOX"
+    tx.projection_blend = 0.2
+    tx.interpolation = "Cubic"
+    nt_.links.new(mp.outputs["Vector"], tx.inputs["Vector"])
+    return tx
+
+
+_detailed = []
+for rule_ in R.get("details", []):
+    rx_ = re.compile(rule_["match"], re.I)
+    ov_img, disp_img = _detail_images(rule_["dir"], rule_["set"])
+    for m in bpy.data.materials:
+        if not m.use_nodes or not rx_.search(m.name) or m.get("look_detail"):
+            continue
+        bsdf_ = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if bsdf_ is None:
+            continue
+        nt_ = m.node_tree
+        geo_ = nt_.nodes.new("ShaderNodeNewGeometry")
+        scale_ = float(rule_.get("scaleM", 0.5))
+        if ov_img is not None and float(rule_.get("albedo", 0)) > 0:
+            tex_ = _box_tex(nt_, ov_img, geo_.outputs["Position"], scale_)
+            mix_ = nt_.nodes.new("ShaderNodeMix")
+            mix_.data_type = "RGBA"
+            mix_.blend_type = "OVERLAY"
+            mix_.inputs["Factor"].default_value = float(rule_["albedo"])
+            base_in = bsdf_.inputs["Base Color"]
+            if base_in.is_linked:
+                nt_.links.new(base_in.links[0].from_socket, mix_.inputs["A"])
+            else:
+                mix_.inputs["A"].default_value = base_in.default_value
+            nt_.links.new(tex_.outputs["Color"], mix_.inputs["B"])
+            nt_.links.new(mix_.outputs["Result"], base_in)
+        if disp_img is not None and float(rule_.get("bump", 0)) > 0:
+            tex_ = _box_tex(nt_, disp_img, geo_.outputs["Position"], scale_)
+            bump_ = nt_.nodes.new("ShaderNodeBump")
+            bump_.inputs["Strength"].default_value = float(rule_["bump"])
+            bump_.inputs["Distance"].default_value = float(rule_.get("distance", 0.003))
+            nt_.links.new(tex_.outputs["Color"], bump_.inputs["Height"])
+            nrm_in = bsdf_.inputs["Normal"]
+            if nrm_in.is_linked:
+                nt_.links.new(nrm_in.links[0].from_socket, bump_.inputs["Normal"])
+            nt_.links.new(bump_.outputs["Normal"], nrm_in)
+        m["look_detail"] = rule_["set"]
+        _detailed.append(m.name)
+print("LOOK_INFO details on %d materials: %s" % (len(_detailed), ", ".join(_detailed[:10])), flush=True)
+
+
+# --- polished floors (8 Nov): what the AI edit added to every floor was gloss, a physical property. Any material that is
+# the up-facing surface at floor height (>= minM2 square metres, found from the geometry, not from names) gets a polished
+# finish, so every point shows the same floor reflections without paying for an edit.
+#   "floors": {"z": 26.53, "roughness": 0.08, "coat": 0.4, "minM2": 2.0}
+FL_ = R.get("floors")
+if FL_:
+    import numpy as _np
+    _fz = float(FL_["z"])
+    _area = {}
+    for _ob in scene.objects:
+        if _ob.type != "MESH" or _ob.hide_render or not len(_ob.data.polygons) or not _ob.material_slots:
+            continue
+        _me = _ob.data
+        _n = len(_me.polygons)
+        _c = _np.empty(_n * 3, _np.float32); _me.polygons.foreach_get("center", _c); _c = _c.reshape(-1, 3)
+        _nr = _np.empty(_n * 3, _np.float32); _me.polygons.foreach_get("normal", _nr); _nr = _nr.reshape(-1, 3)
+        _a = _np.empty(_n, _np.float32); _me.polygons.foreach_get("area", _a)
+        _mi = _np.empty(_n, _np.int32); _me.polygons.foreach_get("material_index", _mi)
+        _mw = _np.array(_ob.matrix_world, _np.float32)
+        _cw = _c @ _mw[:3, :3].T + _mw[:3, 3]
+        _nw = _nr @ _mw[:3, :3].T
+        _nw /= _np.maximum(_np.linalg.norm(_nw, axis=1, keepdims=True), 1e-9)
+        _sc = float(abs(_np.linalg.det(_mw[:3, :3]))) ** (2 / 3)
+        _sel = (_np.abs(_cw[:, 2] - _fz) < 0.12) & (_nw[:, 2] > 0.95)
+        if not _sel.any():
+            continue
+        for _k in _np.unique(_mi[_sel]):
+            if _k < len(_ob.material_slots) and _ob.material_slots[_k].material:
+                _nm = _ob.material_slots[_k].material.name
+                _area[_nm] = _area.get(_nm, 0.0) + float(_a[_sel & (_mi == _k)].sum()) * _sc
+    _floors = [n_ for n_, a_ in _area.items() if a_ >= float(FL_.get("minM2", 2.0))]
+    for _nm in _floors:
+        _m = bpy.data.materials[_nm]
+        for _n in _m.node_tree.nodes if _m.use_nodes else []:
+            if _n.type != "BSDF_PRINCIPLED":
+                continue
+            for _s, _v in (("Roughness", float(FL_.get("roughness", 0.08))), ("Coat Weight", float(FL_.get("coat", 0.4))), ("Coat Roughness", 0.03)):
+                for _l in list(_n.inputs[_s].links):
+                    _m.node_tree.links.remove(_l)
+                _n.inputs[_s].default_value = _v
+    print("LOOK_INFO polished floors: %s" % ", ".join("%s (%.0f m2)" % (n_, _area[n_]) for n_ in _floors), flush=True)
