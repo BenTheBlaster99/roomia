@@ -622,7 +622,8 @@ if FL_:
             if _k < len(_ob.material_slots) and _ob.material_slots[_k].material:
                 _nm = _ob.material_slots[_k].material.name
                 _area[_nm] = _area.get(_nm, 0.0) + float(_a[_sel & (_mi == _k)].sum()) * _sc
-    _floors = [n_ for n_, a_ in _area.items() if a_ >= float(FL_.get("minM2", 2.0))]
+    _ex = re.compile(FL_["exclude"], re.I) if FL_.get("exclude") else None  # carpets, rugs and wood are not polished
+    _floors = [n_ for n_, a_ in _area.items() if a_ >= float(FL_.get("minM2", 2.0)) and not (_ex and _ex.search(n_))]
     for _nm in _floors:
         _m = bpy.data.materials[_nm]
         for _n in _m.node_tree.nodes if _m.use_nodes else []:
