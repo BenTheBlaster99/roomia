@@ -11,12 +11,15 @@
  */
 const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require('electron')
 const { spawn } = require('node:child_process')
+const crypto = require('node:crypto')
 const fs = require('node:fs')
 const http = require('node:http')
 const net = require('node:net')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const engine = require('./engine')
+const { makeReport } = require('./report')
+const updates = require('./updates')
 
 const APP_NAME = 'Roomia'
 // Everything local (not the roaming profile): projects are gigabytes. %LOCALAPPDATA%\Roomia on Windows.
@@ -29,6 +32,8 @@ const DIRS = {
   db: path.join(DATA, 'data'),
   logs: path.join(DATA, 'logs'),
   tmp: path.join(DATA, 'tmp'),
+  // models sent by the SketchUp extension "Envoyer à Roomia", one folder each (lib/desktop-inbox.ts)
+  inbox: path.join(DATA, 'inbox'),
 }
 const RES = app.isPackaged ? process.resourcesPath : __dirname
 // packaged: resources/app-server; from source: stage/app-server (one level down, see package.json extraResources)
@@ -40,6 +45,13 @@ const ENGINE_FILE = path.join(DATA, 'engine.json')
 // Roomia's server: accounts, credits and the paid photos (the AI key stays there). ROOMIA_CLOUD_URL overrides it for tests.
 const CLOUD_URL = process.env.ROOMIA_CLOUD_URL || 'https://studio.room-ia.com'
 const ACCOUNT_FILE = path.join(DATA, 'account.json')
+const UPDATE_FILE = path.join(DATA, 'update.json')
+// The SketchUp extension, packed with the app (desktop/scripts/package-server.mjs builds it from sketchup/).
+const SKETCHUP_DIR = path.join(RES, app.isPackaged ? 'sketchup' : 'stage/sketchup')
+// Only the window process may tell the server to import an inbox folder (app/api/desktop/inbox).
+const INBOX_TOKEN = crypto.randomBytes(24).toString('hex')
+const HOME = '/studio/projets'
+const PROTOCOL = 'roomia'
 
 let win = null
 let server = null
@@ -51,10 +63,14 @@ let engineInfo = { engine: null, hardware: null, error: null }
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    if (!win) return
-    if (win.isMinimized()) win.restore()
-    win.focus()
+  // roomia://import/<folder>: SketchUp's "Envoyer à Roomia" wakes the app (a second instance passes it here)
+  app.on('second-instance', (_e, argv) => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+    scanInbox()
+    void argv
   })
   app.whenReady().then(start).catch(fatal)
 }
@@ -79,6 +95,7 @@ function fatal(err) {
 async function start() {
   for (const d of Object.values(DIRS)) fs.mkdirSync(d, { recursive: true })
   log(`start ${app.getVersion()} electron ${process.versions.electron} node ${process.versions.node} ${process.platform}`)
+  const updateResult = await settleUpdate().catch(err => log(`update settle ${err}`))
   lockDown()
   Menu.setApplicationMenu(menu())
   win = new BrowserWindow({
@@ -100,17 +117,287 @@ async function start() {
   status('Démarrage du Studio…')
   origin = await startServer()
   await win.loadURL(`${origin}${await firstPage()}`)
+  registerProtocol()
+  watchInbox()
+  void reportUpdate(updateResult)
+  setTimeout(() => void checkUpdates(false), 20000)
+  setInterval(() => void checkUpdates(false), 6 * 3600000)
 }
 
-/** The Studio, or the sign-in first when nobody is signed in (offline: the Studio, Blender works without the account). */
+/** Mes projets, or the sign-in first when nobody is signed in (offline: the projects, Blender works without the account). */
 function firstPage() {
   return new Promise(resolve => {
     const req = http.get(`${origin}/api/auth/me`, { timeout: 15000 }, res => {
       res.resume()
-      resolve(res.statusCode === 401 ? '/login?next=%2Fstudio' : '/studio')
+      resolve(res.statusCode === 401 ? `/login?next=${encodeURIComponent(HOME)}` : HOME)
     })
-    req.on('error', () => resolve('/studio'))
+    req.on('error', () => resolve(HOME))
     req.on('timeout', () => req.destroy())
+  })
+}
+
+function go(pathname) {
+  if (origin && win && !win.isDestroyed()) win.loadURL(`${origin}${pathname}`)
+}
+
+/** roomia:// opens the app (the SketchUp extension uses it to wake Roomia after an export). */
+function registerProtocol() {
+  try {
+    if (app.isPackaged) app.setAsDefaultProtocolClient(PROTOCOL)
+    else app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1] ?? '.')])
+  } catch (err) {
+    log(`protocol ${err}`)
+  }
+}
+
+// ── SketchUp "Envoyer à Roomia": the extension writes a folder in inbox/ and a "ready" file last ──
+const importing = new Set()
+
+function watchInbox() {
+  try {
+    fs.watch(DIRS.inbox, () => scanInbox())
+  } catch (err) {
+    log(`inbox watch ${err}`)
+  }
+  // the watch sees a new folder, not the "ready" file written into it last: look again every few seconds (a readdir)
+  setInterval(scanInbox, 3000).unref()
+  // a send made while Roomia was closed
+  scanInbox()
+}
+
+function scanInbox() {
+  if (!origin) return
+  let names = []
+  try {
+    names = fs.readdirSync(DIRS.inbox)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(name) || importing.has(name)) continue
+    if (!fs.existsSync(path.join(DIRS.inbox, name, 'ready'))) continue
+    importing.add(name)
+    void importSent(name).finally(() => importing.delete(name))
+  }
+}
+
+function importSent(name) {
+  log(`inbox ${name}`)
+  return new Promise(resolve => {
+    const req = http.request(
+      `${origin}/api/desktop/inbox`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roomia-inbox': INBOX_TOKEN }, timeout: 300000 },
+      res => {
+        let body = ''
+        res.setEncoding('utf8')
+        res.on('data', d => (body += d))
+        res.on('end', async () => {
+          let data = {}
+          try {
+            data = JSON.parse(body)
+          } catch {}
+          if (res.statusCode === 200 && data.id) {
+            if (win) {
+              if (win.isMinimized()) win.restore()
+              win.show()
+              win.focus()
+            }
+            // a model sent before: Mes projets offers to update that project; otherwise straight into the Studio
+            go(data.previous ? HOME : `/studio?scene=${data.id}`)
+          } else {
+            log(`inbox ${name} failed ${res.statusCode} ${body.slice(0, 300)}`)
+            await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: "L'envoi depuis SketchUp n'a pas pu être importé.", detail: data.detail ?? `Erreur ${res.statusCode}` })
+            fs.rmSync(path.join(DIRS.inbox, name), { recursive: true, force: true })
+          }
+          resolve()
+        })
+      },
+    )
+    req.on('error', err => {
+      log(`inbox ${name} ${err}`)
+      resolve()
+    })
+    req.end(JSON.stringify({ dir: name }))
+  })
+}
+
+// ── updates ──
+// Packaged on Windows, in a folder this user can write to (an unzipped copy): updates install themselves
+// (updates.js). Otherwise Roomia only says a new version exists and opens its page.
+const UPDATES_DIR = path.join(DATA, 'updates')
+const INSTALL_DIR = path.dirname(process.execPath)
+let readyUpdate = null
+let applyOnQuit = null // null, or { relaunch }
+let updating = false
+
+function readUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(UPDATE_FILE, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function selfUpdating() {
+  return app.isPackaged && process.platform === 'win32' && updates.canWrite(INSTALL_DIR)
+}
+
+/** At start-up, before anything else: lets a running update finish, then says how the last one went. */
+async function settleUpdate() {
+  fs.mkdirSync(UPDATES_DIR, { recursive: true })
+  await updates.waitForApply(UPDATES_DIR)
+  const result = updates.takeResult(UPDATES_DIR)
+  const staged = path.join(UPDATES_DIR, 'next')
+  if (!result) {
+    readyUpdate = updates.readReady(staged)
+    if (readyUpdate && !updates.newer(readyUpdate.version, app.getVersion())) readyUpdate = null
+    if (!readyUpdate) fs.rmSync(staged, { recursive: true, force: true })
+    return null
+  }
+  fs.rmSync(staged, { recursive: true, force: true })
+  fs.rmSync(path.join(UPDATES_DIR, 'backup'), { recursive: true, force: true })
+  log(`update ${result.version} ${result.ok ? 'installed' : `failed: ${result.error}`} (running ${app.getVersion()})`)
+  return result
+}
+
+async function reportUpdate(result) {
+  if (!result) return
+  if (result.ok && result.version === app.getVersion()) {
+    await dialog.showMessageBox(win, { type: 'info', title: APP_NAME, message: `Roomia est à jour : version ${result.version}.` })
+  } else {
+    await dialog.showMessageBox(win, {
+      type: 'warning',
+      title: APP_NAME,
+      message: `La mise à jour ${result.version} n’a pas pu s’installer.`,
+      detail: `Roomia ${app.getVersion()} est resté tel quel. ${result.error ?? ''}\n\nVous pouvez télécharger la nouvelle version depuis le menu Aide → Rechercher une mise à jour.`,
+    })
+  }
+}
+
+async function checkUpdates(asked) {
+  if (updating) {
+    if (asked) await dialog.showMessageBox(win, { type: 'info', title: APP_NAME, message: 'Une mise à jour est en cours de téléchargement.' })
+    return
+  }
+  // already downloaded: it installs when Roomia closes; only the menu asks again
+  if (readyUpdate) return asked ? askRestart() : undefined
+  const state = readUpdateState()
+  let found = null
+  try {
+    found = await updates.plan(app.getVersion())
+  } catch (err) {
+    log(`update check ${err}`)
+    if (asked) await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: 'Impossible de vérifier les mises à jour.', detail: 'Vérifiez la connexion internet.' })
+    return
+  }
+  fs.writeFileSync(UPDATE_FILE, JSON.stringify({ ...state, checkedAt: new Date().toISOString() }))
+  if (!found) {
+    if (asked) await dialog.showMessageBox(win, { type: 'info', title: APP_NAME, message: `Roomia ${app.getVersion()} est à jour.` })
+    return
+  }
+  log(`update ${found.version} found: ${found.steps.map(s => s.asset.name).join(', ')} (${Math.round(found.bytes / 1e6)} MB)`)
+  if (found.auto && selfUpdating()) {
+    updating = true
+    try {
+      if (asked) await dialog.showMessageBox(win, { type: 'info', title: APP_NAME, message: `Roomia ${found.version} est disponible.`, detail: `Téléchargement en arrière-plan (${Math.max(1, Math.round(found.bytes / 1e6))} Mo). Vous pouvez continuer à travailler.` })
+      readyUpdate = await updates.prepare(found, path.join(UPDATES_DIR, 'next'), f => win && !win.isDestroyed() && win.setProgressBar(f))
+      log(`update ${found.version} ready: ${readyUpdate.files.length} files, ${readyUpdate.removed.length} removed`)
+    } catch (err) {
+      log(`update download ${err.stack ?? err}`)
+      if (asked) await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: 'Le téléchargement de la mise à jour a échoué.', detail: String(err.message ?? err) })
+      return
+    } finally {
+      updating = false
+      if (win && !win.isDestroyed()) win.setProgressBar(-1)
+    }
+    return askRestart()
+  }
+  // Not installable from here (a protected folder, or not Windows): the download page.
+  if (!asked && state.skip === found.version) return
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: APP_NAME,
+    message: `Roomia ${found.version} est disponible`,
+    detail: `Vous avez la version ${app.getVersion()}. Téléchargez le zip, fermez Roomia et remplacez le dossier de l'application : vos projets sont gardés.`,
+    buttons: ['Télécharger', 'Plus tard', 'Ignorer cette version'],
+    defaultId: 0,
+    cancelId: 1,
+  })
+  if (response === 0) shell.openExternal(found.page)
+  if (response === 2) fs.writeFileSync(UPDATE_FILE, JSON.stringify({ ...readUpdateState(), skip: found.version }))
+}
+
+async function askRestart() {
+  if (!readyUpdate) return
+  applyOnQuit = { relaunch: false } // "Plus tard" still installs it when Roomia closes
+  const notes = String(readyUpdate.notes ?? '').split(/\r?\n/).filter(l => l.trim() && !/^SHA-256|^Windows 10/.test(l)).slice(0, 4).join('\n')
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: APP_NAME,
+    message: `Roomia ${readyUpdate.version} est prête à être installée`,
+    detail: `${notes ? notes + '\n\n' : ''}Redémarrer maintenant l’installe en quelques secondes ; un rendu en cours serait arrêté. Sinon, elle s’installera quand vous fermerez Roomia.`,
+    buttons: ['Redémarrer maintenant', 'Plus tard'],
+    defaultId: 0,
+    cancelId: 1,
+  })
+  if (response === 0) {
+    applyOnQuit = { relaunch: true }
+    app.quit()
+  }
+}
+
+function startApply() {
+  if (!readyUpdate || !applyOnQuit) return
+  try {
+    updates.launchApply(readyUpdate, { root: UPDATES_DIR, installDir: INSTALL_DIR, exe: process.execPath, relaunch: applyOnQuit.relaunch })
+    log(`update ${readyUpdate.version} handed to the installer (relaunch ${applyOnQuit.relaunch})`)
+  } catch (err) {
+    log(`update apply ${err.stack ?? err}`)
+  }
+  readyUpdate = null
+}
+
+// ── problem report ──
+async function createReport() {
+  try {
+    const { name, bytes } = makeReport({ data: DATA, dirs: DIRS, appVersion: app.getVersion(), engineInfo })
+    const target = path.join(app.getPath('desktop'), name)
+    fs.writeFileSync(target, bytes)
+    log(`report ${target}`)
+    shell.showItemInFolder(target)
+    await dialog.showMessageBox(win, {
+      type: 'info',
+      title: APP_NAME,
+      message: 'Rapport créé sur le Bureau',
+      detail: `${name}\n\nEnvoyez ce fichier à Roomia avec une phrase sur ce qui s'est passé. Il contient les journaux et l'état des projets, jamais vos modèles, vos rendus ni votre mot de passe.`,
+    })
+    return target
+  } catch (err) {
+    log(`report failed ${err.stack ?? err}`)
+    await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: 'Le rapport n’a pas pu être créé.', detail: String(err.message ?? err) })
+    return null
+  }
+}
+
+/** Opens the folder with the SketchUp extension and says how to install it. */
+async function sketchupExtension() {
+  const rbz = path.join(SKETCHUP_DIR, 'Roomia-Envoyer.rbz')
+  if (!fs.existsSync(rbz)) {
+    await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: "L'extension SketchUp n'est pas dans cette version." })
+    return
+  }
+  shell.showItemInFolder(rbz)
+  await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'Extension SketchUp « Envoyer à Roomia »',
+    message: 'Installer l’extension dans SketchUp',
+    detail: [
+      '1. Dans SketchUp : Extensions → Extension Manager → Install Extension.',
+      '2. Choisissez le fichier Roomia-Envoyer.rbz (le dossier vient de s’ouvrir).',
+      '3. Un bouton « Envoyer à Roomia » apparaît (menu Extensions et barre d’outils Roomia).',
+      '',
+      'Ensuite : enregistrez vos scènes SketchUp (les vues), cliquez « Envoyer à Roomia » ; le projet arrive dans Roomia. Renvoyer le même modèle propose de mettre à jour le projet existant.',
+    ].join('\n'),
   })
 }
 
@@ -196,10 +483,14 @@ function serverEnv(port) {
     HOSTNAME: '127.0.0.1',
     ROOMIA_DESKTOP: '1',
     SCENES_DIR: DIRS.projects,
+    // the projects are the architect's: never pruned (lib/scene-store.ts)
+    SCENE_TTL_HOURS: '0',
     ROOMIA_DB_PATH: path.join(DIRS.db, 'roomia.db'),
     ROOMIA_PREP_SCRIPT: path.join(SERVER_DIR, 'desktop-bin', 'prepare-scene.mjs'),
     ROOMIA_CLOUD_URL: CLOUD_URL,
     ROOMIA_CLOUD_TOKEN_FILE: ACCOUNT_FILE,
+    ROOMIA_INBOX_DIR: DIRS.inbox,
+    ROOMIA_INBOX_TOKEN: INBOX_TOKEN,
     TMP: DIRS.tmp,
     TEMP: DIRS.tmp,
     TMPDIR: DIRS.tmp,
@@ -211,7 +502,14 @@ function serverEnv(port) {
   if (hw) {
     env.ROOMIA_GPU_BACKEND = hw.backend
     env.ROOMIA_RENDER_PROFILE = hw.profile
+    // for the Studio's notices before a heavy render (app/api/desktop/health)
+    env.ROOMIA_GPU_NAME = hw.gpu?.name ?? ''
+    env.ROOMIA_GPU_VRAM_MB = String(hw.gpu?.vramMb ?? 0)
+    env.ROOMIA_RAM_MB = String(hw.ramMb ?? 0)
   }
+  env.ROOMIA_APP_VERSION = app.getVersion()
+  // the server watches it and stops by itself if the app is killed (lib/desktop-watchdog.ts)
+  env.ROOMIA_PARENT_PID = String(process.pid)
   // scipy and Pillow for the plan and 360° scripts, packed with the app, next to Blender's own numpy
   if (fs.existsSync(PYLIB)) env.PYTHONPATH = PYLIB
   // VS Code and others set it; the server's Node must not pass it on as if it were Electron
@@ -239,7 +537,8 @@ async function startServer() {
     log(`server exit ${code} ${signal}`)
     if (quitting || child !== server) return
     server = null
-    onServerCrash()
+    // the renders it started (Blender) must not go on next to the ones the new server resumes
+    void killOrphans(child.pid).then(onServerCrash)
   })
   const url = `http://127.0.0.1:${port}`
   await waitHealthy(url, 120000)
@@ -266,6 +565,38 @@ function waitHealthy(url, timeoutMs) {
   })
 }
 
+/**
+ * The processes a dead server left behind. Linux and macOS: its process group (it was started detached). Windows: no
+ * group, but an orphan keeps its parent's id, so every descendant of that id is found and stopped.
+ */
+function killOrphans(pid) {
+  if (process.platform !== 'win32') {
+    try {
+      process.kill(-pid, 'SIGKILL')
+    } catch {}
+    return Promise.resolve()
+  }
+  return new Promise(resolve => {
+    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }'], { windowsHide: true })
+    let out = ''
+    ps.stdout.on('data', d => (out += d))
+    ps.on('error', () => resolve())
+    ps.on('close', () => {
+      const children = new Map()
+      for (const line of out.split(/\r?\n/)) {
+        const [id, parent] = line.trim().split(/\s+/).map(Number)
+        if (id && parent) children.set(parent, [...(children.get(parent) ?? []), id])
+      }
+      const doomed = []
+      const walk = p => (children.get(p) ?? []).forEach(c => (doomed.push(c), walk(c)))
+      walk(pid)
+      log(`orphans of ${pid}: ${doomed.join(' ') || 'none'}`)
+      for (const c of doomed) spawn('taskkill', ['/pid', String(c), '/T', '/F'], { windowsHide: true })
+      setTimeout(resolve, doomed.length ? 1500 : 0)
+    })
+  })
+}
+
 /** A crashed server restarts on the same window, three times a minute at most. */
 async function onServerCrash() {
   const now = Date.now()
@@ -278,7 +609,7 @@ async function onServerCrash() {
     if (win && !win.isDestroyed()) await win.loadFile(path.join(__dirname, 'splash.html'))
     status('Le Studio a redémarré après une erreur…')
     origin = await startServer()
-    if (win && !win.isDestroyed()) await win.loadURL(`${origin}/studio`)
+    if (win && !win.isDestroyed()) await win.loadURL(`${origin}${HOME}`)
   } catch (err) {
     fatal(err)
   }
@@ -299,6 +630,7 @@ function stopServer() {
 app.on('before-quit', () => {
   quitting = true
   stopServer()
+  startApply()
 })
 app.on('window-all-closed', () => app.quit())
 
@@ -354,6 +686,12 @@ ipcMain.handle('roomia:engine', event => {
 ipcMain.handle('roomia:open-projects', event => {
   if (fromUs(event)) shell.openPath(DIRS.projects)
 })
+ipcMain.handle('roomia:report', event => (fromUs(event) ? createReport() : null))
+// links to Roomia's own sites only (a client tour link, the release page)
+ipcMain.handle('roomia:open-external', (event, url) => {
+  if (!fromUs(event) || typeof url !== 'string') return
+  if (/^https:\/\/([a-z0-9-]+\.)*(room-ia\.com|github\.com)\//i.test(url)) shell.openExternal(url)
+})
 
 function menu() {
   const engineDialog = async () => {
@@ -390,6 +728,9 @@ function menu() {
     {
       label: 'Fichier',
       submenu: [
+        { label: 'Mes projets', accelerator: 'CmdOrCtrl+Shift+P', click: () => go(HOME) },
+        { label: 'Nouveau projet', accelerator: 'CmdOrCtrl+N', click: () => go('/studio') },
+        { type: 'separator' },
         { label: 'Ouvrir le dossier des projets', click: () => shell.openPath(DIRS.projects) },
         { label: 'Ouvrir le journal', click: () => shell.openPath(DIRS.logs) },
         { type: 'separator' },
@@ -411,13 +752,15 @@ function menu() {
     {
       label: 'Compte',
       submenu: [
-        { label: 'Se connecter / changer de compte', click: () => origin && win?.loadURL(`${origin}/login?next=%2Fstudio`) },
+        { label: 'Mon espace (crédits, photos, visites publiées)', click: () => go('/studio/compte') },
+        { type: 'separator' },
+        { label: 'Se connecter / changer de compte', click: () => go(`/login?next=${encodeURIComponent(HOME)}`) },
         {
           label: 'Se déconnecter',
           click: async () => {
             if (!origin) return
             await post('/api/auth/logout')
-            win?.loadURL(`${origin}/login?next=%2Fstudio`)
+            go(`/login?next=${encodeURIComponent(HOME)}`)
           },
         },
       ],
@@ -431,7 +774,15 @@ function menu() {
     },
     {
       label: 'Aide',
-      submenu: [{ label: `À propos de Roomia ${app.getVersion()}`, click: engineDialog }],
+      submenu: [
+        { label: 'Installer l’extension SketchUp « Envoyer à Roomia »…', click: sketchupExtension },
+        { label: 'Guide d’utilisation', click: () => shell.openExternal('https://github.com/BenTheBlaster99/roomia#roomia-desktop') },
+        { type: 'separator' },
+        { label: 'Créer un rapport de problème…', click: () => void createReport() },
+        { label: 'Rechercher une mise à jour…', click: () => void checkUpdates(true) },
+        { type: 'separator' },
+        { label: `À propos de Roomia ${app.getVersion()}`, click: engineDialog },
+      ],
     },
   ])
 }

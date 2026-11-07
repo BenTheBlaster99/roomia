@@ -27,12 +27,15 @@ export function sessionUser(req: NextRequest): User | null {
  * else's scene answers "not found", so ids can't be probed.
  */
 export async function accessDenied(req: NextRequest, sceneId?: string): Promise<Response | null> {
+  // A tour published from Roomia Desktop is meant for the architect's clients: anyone with the link can view it, and
+  // nobody can change it or start work on it through the Studio's API (it is updated by publishing it again).
+  const meta = sceneId !== undefined && isSceneId(sceneId) ? await readMeta(sceneId) : null
+  if (meta?.published) return req.method === 'GET' || req.method === 'HEAD' ? null : Response.json({ detail: 'Visite publiée : lecture seule.' }, { status: 403 })
   // Accounts off: the Studio is open, as it was before accounts existed.
   if (!accountsEnabled()) return null
   const user = sessionUser(req)
   if (!user) return Response.json({ detail: 'Connectez-vous pour utiliser le Studio.' }, { status: 401 })
   if (sceneId === undefined) return null
-  const meta = isSceneId(sceneId) ? await readMeta(sceneId) : null
   if (!meta || (user.role !== 'admin' && meta.ownerId !== user.id)) {
     return Response.json({ detail: 'Scène introuvable' }, { status: 404 })
   }

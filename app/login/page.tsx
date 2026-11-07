@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useState, useSyncExternalStore } from 'react'
 
 /** Studio sign-in: one account per office or freelancer, created by Roomia. */
 export default function LoginPage() {
@@ -9,8 +10,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Roomia Desktop (its preload): the Studio also works without the account, for everything but the photos IA
-  const [desktop, setDesktop] = useState(false)
-  useEffect(() => setDesktop(typeof window !== 'undefined' && 'roomiaDesktop' in window), [])
+  const desktop = useSyncExternalStore(
+    () => () => undefined,
+    () => 'roomiaDesktop' in window,
+    () => false,
+  )
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -62,9 +66,9 @@ export default function LoginPage() {
           {busy ? 'Connexion…' : 'Se connecter'}
         </button>
         {desktop && (
-          <a href="/studio" className="mt-3 block text-center text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]">
+          <Link href="/studio/projets" className="mt-3 block text-center text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]">
             Continuer sans compte (rendus Blender seulement)
-          </a>
+          </Link>
         )}
       </form>
     </main>

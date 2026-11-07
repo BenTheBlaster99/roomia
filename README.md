@@ -9,26 +9,26 @@ Roomia turns an architect's 3D model into a client presentation: photoreal image
 
 ## Roomia Desktop
 
-> **Version 0.1.1, preview.** Version 0.1.0 is withdrawn: its package was incomplete and the app couldn't start. Use 0.1.1 or later. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
+> **Version 0.3.0, preview.** Version 0.1.0 is withdrawn: its package was incomplete and the app couldn't start. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
 
 ### Download
 
 | File | Platform | Size |
 |---|---|---|
-| [**Roomia-0.1.1-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.1.1/Roomia-0.1.1-windows-x64.zip) | Windows 10 / 11, 64-bit | 280 MB |
+| [**Roomia-0.3.0-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.3.0/Roomia-0.3.0-windows-x64.zip) | Windows 10 / 11, 64-bit | 281 MB |
 
 All versions are on the [Releases page](https://github.com/BenTheBlaster99/roomia/releases).
 
 **SHA-256** (optional; lets you check that the download is intact):
 
 ```
-190fd39daab76952f455d17fa68ecc1fff0a4dd3ace706663c062aed4c804c1a
+cc5304cef84fa45a906b2f540f789044685ae3a6877e35670c8b188fb8e5593d
 ```
 
 To check it in PowerShell:
 
 ```powershell
-Get-FileHash .\Roomia-0.1.1-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\Roomia-0.3.0-windows-x64.zip -Algorithm SHA256
 ```
 
 ### System requirements
@@ -53,7 +53,7 @@ The app detects your card by itself. Before you install, update your graphics dr
 
 ### Installation
 
-1. Download **Roomia-0.1.1-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.1.1).
+1. Download **Roomia-0.3.0-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.3.0).
 2. Right-click the file and choose **Extract All…**. Pick a folder you will keep, for example `C:\Roomia`.
    Don't run the app from inside the zip: Windows only shows its contents, and Roomia won't start.
 3. Open the extracted folder and double-click **Roomia.exe**.
@@ -76,7 +76,24 @@ The first start takes a few minutes. A progress window shows each step:
 
 3. **Sign in.** Sign in with the Roomia account you were given, or click **Continuer sans compte** to use Blender renders only.
 
-Later launches take about 15 seconds.
+Roomia then opens on **Mes projets**. Later launches take about 15 seconds.
+
+### Working with Roomia
+
+| Page | What it's for |
+|---|---|
+| **Mes projets** | Every project on this PC: open it in the Studio, open or create its 360° tour, start the walk-through, rename, delete. Also shows the disk space used and the graphics card Roomia renders on. |
+| **Studio** | Pick a view, set the light, render it with Blender (free) or as an AI photo (1 credit). |
+| **Visite 360°** | Build the tour (Blender, free), then **Publier pour mes clients** to get a link for your clients. |
+| **Mon espace** | Your account on Roomia's server: credits, credit history, every AI photo you received (download them again from any PC), and your published tours (copy the link, remove it). |
+
+**Sending a model from SketchUp.** Install the extension once: **Aide → Installer l’extension SketchUp « Envoyer à Roomia »…** opens the folder with `Roomia-Envoyer.rbz`; in SketchUp, go to **Extensions → Extension Manager → Install Extension** and pick that file. Then, in SketchUp, save your views as scenes and click **Envoyer à Roomia**: the model and its scenes arrive in Roomia as a new project. Sending the same model again offers to update the existing project, so its tour is rebuilt for free and keeps its photos.
+
+**Publishing a tour.** On a project's 360° tour, click **Publier pour mes clients**. The tour (360°, photos, plan, walk-through) is sent to Roomia's server and gets a link your clients open in any browser, on a computer or a phone, with no account. Publishing again updates the same link. This is free.
+
+**Before a heavy render** Roomia tells you how long it should take on your PC and that the graphics card will run at full load. On a PC without a usable graphics card it asks before starting a tour, because rendering on the processor takes hours.
+
+**If Roomia closes during a render**, the import or the tour starts again by itself the next time you open Roomia. A paid AI step never restarts on its own.
 
 > **About your graphics card:** while Roomia renders a 360° tour, a walk-through or a plan, your graphics card runs at full load. Other heavy programs, like a game or a second renderer, will be slow during that time. Closing Roomia stops every render it started.
 
@@ -98,11 +115,11 @@ Use the **Compte** menu to sign in, switch accounts or sign out. The app stays s
 
 | Menu | What it's for |
 |---|---|
-| **Fichier** | Open the projects folder, open the log, quit |
+| **Fichier** | Mes projets, new project, open the projects folder, open the log, quit |
 | **Affichage** | Reload, zoom, full screen |
-| **Compte** | Sign in, switch account, sign out |
+| **Compte** | Mon espace, sign in, switch account, sign out |
 | **Moteur** | See the graphics card and engine report; redo the graphics card test (after a driver update or a new card) |
-| **Aide** | Version and engine information |
+| **Aide** | Install the SketchUp extension, this guide, create a problem report, check for updates, version information |
 
 ### Where your files are
 
@@ -114,10 +131,20 @@ Your projects stay on your PC, in your Windows user folder. They are kept when y
 | Local database | `%LOCALAPPDATA%\Roomia\data` |
 | Logs | `%LOCALAPPDATA%\Roomia\logs` |
 | Render engine | `%LOCALAPPDATA%\Roomia\engine` |
+| Models sent from SketchUp, before import | `%LOCALAPPDATA%\Roomia\inbox` |
 
 To open one, paste its path into the File Explorer address bar.
 
 ### Updating
+
+From version 0.3.0, Roomia updates itself. It checks for a new version at start-up and every few hours (**Aide → Rechercher une mise à jour…** checks now), downloads it in the background (usually a few MB), checks its SHA-256, then asks:
+
+- **Redémarrer maintenant** installs it in a few seconds and reopens Roomia. A render in progress is stopped.
+- **Plus tard** installs it the next time you close Roomia.
+
+If an update can't be installed, Roomia restores the previous version and says so. Automatic updates need the app folder to be writable, which it is when you extracted the zip yourself (for example `C:\Roomia`). In a protected folder such as Program Files, Roomia only says a new version is out.
+
+Versions before 0.3.0 update by hand, once:
 
 1. Close Roomia.
 2. Download the new zip from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases).
@@ -142,19 +169,17 @@ Your projects, your sign-in and the render engine are kept.
 | "Le serveur Roomia est injoignable" | AI images need an internet connection. Blender renders keep working offline. |
 | "Plus de crédits sur ce compte" | Contact Roomia to top up your account. |
 
-To report a problem, send the following:
+To report a problem, use **Aide → Créer un rapport de problème…**. It saves one zip on your Desktop with the logs, the graphics card test and the state of your projects; send it to Roomia with a sentence about what happened. The report never contains your models, your renders or your password.
 
-- the content of **Moteur → Carte graphique et moteur…**;
-- the files from **Fichier → Ouvrir le journal**.
-
-### Known limitations (0.1.1)
+### Known limitations (0.3.0)
 
 - Windows only.
 - No installer yet: the app ships as a zip.
 - Not code-signed yet, so Windows shows the SmartScreen warning.
-- No automatic updates: download new versions from the Releases page.
-- No sync between PCs yet. Projects stay on the PC where they were made.
-- The SketchUp plugin and video walkthroughs are coming in later versions.
+- Versions before 0.3.0 must be replaced by hand once; from 0.3.0 updates install themselves.
+- Projects stay on the PC where they were made; only AI photos and published tours are kept on Roomia's server.
+- The SketchUp extension is new: it exports through SketchUp's COLLADA (.dae) exporter.
+- Video walkthroughs are coming in a later version.
 
 ---
 

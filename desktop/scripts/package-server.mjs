@@ -188,6 +188,27 @@ if (!fs.existsSync(nodeExe)) {
 }
 console.log('node', nodeExe)
 
+// 5c. the SketchUp extension "Envoyer à Roomia" (sketchup/), as the .rbz SketchUp's Extension Manager installs
+step('SketchUp extension')
+{
+  const { zipSync } = await import('fflate')
+  const src = path.join(ROOT, 'sketchup')
+  const files = {}
+  const walk = (dir, rel = '') => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) walk(path.join(dir, e.name), r)
+      else files[r] = new Uint8Array(fs.readFileSync(path.join(dir, e.name)))
+    }
+  }
+  walk(src)
+  const target = path.join(DESKTOP, 'stage', 'sketchup')
+  fs.rmSync(target, { recursive: true, force: true })
+  fs.mkdirSync(target, { recursive: true })
+  fs.writeFileSync(path.join(target, 'Roomia-Envoyer.rbz'), zipSync(files, { level: 9 }))
+  console.log('sketchup', Object.keys(files).join(', '))
+}
+
 // 6. no secrets in what goes to clients
 step('secret check')
 const envFile = path.join(ROOT, '.env.local')

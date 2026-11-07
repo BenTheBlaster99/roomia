@@ -155,3 +155,129 @@ export async function cloudPhoto(
     504,
   )
 }
+
+// ── "Mon espace": the account's photos and published tours on Roomia's server (lib/desktop-drive.ts) ──
+
+export interface CloudLedgerEntry {
+  at: number
+  kind: string
+  delta: number
+  balance_after: number
+  outcome: string | null
+  detail: string | null
+}
+
+export interface CloudDrive {
+  user: CloudUser
+  ledger: CloudLedgerEntry[]
+  photos: { job: string; project: string; view: string; at: number }[]
+  tours: { id: string; title: string; at: number; bytes: number; from?: string; url: string }[]
+}
+
+async function authed(): Promise<string> {
+  const token = await readToken()
+  if (!token) throw new CreditError('Connectez-vous à votre compte Roomia (menu Compte).', 401)
+  return token
+}
+
+async function json<T>(res: Response): Promise<T> {
+  const data = (await res.json().catch(() => ({}))) as T & { detail?: string }
+  if (!res.ok) throw new CreditError(data.detail ?? `Serveur Roomia : erreur ${res.status}`, res.status)
+  return data
+}
+
+export const cloudPublicUrl = (pathname: string) => `${base()}${pathname}`
+
+export async function cloudDrive(): Promise<CloudDrive> {
+  const token = await authed()
+  const get = (p: string) => call(p, {}, token).catch(() => {
+    throw unreachable()
+  })
+  const [me, photos, tours] = await Promise.all([
+    get('/api/desktop/me').then(r => json<{ user: CloudUser; ledger: CloudLedgerEntry[] }>(r)),
+    get('/api/desktop/photos').then(r => json<{ photos: CloudDrive['photos'] }>(r)),
+    get('/api/desktop/tours').then(r => json<{ tours: Omit<CloudDrive['tours'][number], 'url'>[] }>(r)),
+  ])
+  return { user: me.user, ledger: me.ledger, photos: photos.photos, tours: tours.tours.map(t => ({ ...t, url: cloudPublicUrl(`/studio/tour/${t.id}`) })) }
+}
+
+/** One delivered photo of the account, as the server sends it. */
+export async function cloudPhotoFile(job: string): Promise<Response> {
+  const token = await authed()
+  return call(`/api/desktop/photos/${encodeURIComponent(job)}`, { headers: {} }, token).catch(() => {
+    throw unreachable()
+  })
+}
+
+export async function cloudUnpublish(id: string): Promise<void> {
+  const token = await authed()
+  await json(await call(`/api/desktop/tours/${encodeURIComponent(id)}`, { method: 'DELETE' }, token).catch(() => {
+    throw unreachable()
+  }))
+}
+
+export interface PublishProgress {
+  state: 'sending' | 'done' | 'failed'
+  sent: number
+  total: number
+  url?: string
+  id?: string
+  error?: string
+}
+
+/**
+ * Sends a project's tour to Roomia's server, for a link the architect gives their clients. `files` are the tour's
+ * files as [path on the server, path on this PC, size]. Each file goes in pieces; a cut piece is sent again from
+ * what the server has. With `id`, the same link is updated.
+ */
+export async function cloudPublishTour(
+  args: { title: string; id?: string; files: [string, string, number][] },
+  onProgress: (sent: number, total: number) => void,
+): Promise<{ id: string; url: string }> {
+  const token = await authed()
+  const { open } = await import('node:fs/promises')
+  const start = await json<{ id: string; chunk: number }>(
+    await call('/api/desktop/tours', { method: 'POST', body: JSON.stringify({ title: args.title, from: hostname(), ...(args.id ? { id: args.id } : {}) }) }, token).catch(() => {
+      throw unreachable()
+    }),
+  )
+  const total = args.files.reduce((n, [, , size]) => n + size, 0)
+  let sent = 0
+  for (const [remote, local, size] of args.files) {
+    const handle = await open(local, 'r')
+    try {
+      let offset = 0
+      let failures = 0
+      while (offset < size || (size === 0 && offset === 0)) {
+        const length = Math.min(start.chunk, size - offset)
+        const piece = Buffer.alloc(length)
+        await handle.read(piece, 0, length, offset)
+        try {
+          const res = await call(
+            `/api/desktop/tours/${start.id}?path=${encodeURIComponent(remote)}&offset=${offset}`,
+            { method: 'PUT', body: piece, headers: { 'Content-Type': 'application/octet-stream' }, signal: AbortSignal.timeout(120_000) },
+            token,
+          )
+          const { size: have } = await json<{ size: number }>(res)
+          sent += have - offset
+          offset = have
+          failures = 0
+          onProgress(sent, total)
+          if (size === 0) break
+        } catch (err) {
+          if (err instanceof CreditError && err.status < 500 && err.status !== 408 && err.status !== 429) throw err
+          if (++failures > 6) throw new CreditError('La connexion coupe trop souvent : relancez la publication, elle reprendra.', 503)
+          await new Promise(r => setTimeout(r, 3000 * failures))
+        }
+      }
+    } finally {
+      await handle.close()
+    }
+  }
+  const done = await json<{ id: string; url: string }>(
+    await call(`/api/desktop/tours/${start.id}/finish`, { method: 'POST', body: JSON.stringify({ files: args.files.map(([path, , bytes]) => ({ path, bytes })) }) }, token).catch(() => {
+      throw unreachable()
+    }),
+  )
+  return { id: done.id, url: cloudPublicUrl(done.url) }
+}
