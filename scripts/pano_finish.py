@@ -24,7 +24,8 @@ base_p, ai_p, masks_p, ids_p, out_p = sys.argv[1:6]
 opt = json.loads(sys.argv[6]) if len(sys.argv) > 6 else {}
 W = int(opt.get("width", 3840))
 H = W // 2
-SIGMA = float(opt.get("sigma", 5.0))          # px at W: the split between colour/light and texture
+S = W / 3840.0                                  # every pixel size below is given at 3840 and scales with the width
+SIGMA = S * float(opt.get("sigma", 5.0))          # px at W: the split between colour/light and texture
 A_DEFAULT, A_FLOOR, A_SOFT, A_GLASS = float(opt.get("walls", 0.35)), float(opt.get("floor", 0.60)), float(opt.get("fabric", 0.60)), 0.15
 
 base = cv2.cvtColor(cv2.imread(base_p), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
@@ -47,7 +48,7 @@ def blur(x, s):
 gray = lambda x: cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)
 
 # ---- 1. fit: dense flow from the render to the edit at 1/4 size, capped, smoothed, applied to the edit
-q = 4
+q = max(2, round(4 * S))
 gb = cv2.resize(gray(base), (W // q, H // q), interpolation=cv2.INTER_AREA)
 ga = cv2.resize(gray(ai), (W // q, H // q), interpolation=cv2.INTER_AREA)
 # match the edit's brightness to the render's for the flow only
@@ -73,8 +74,8 @@ alpha_small[np.isin(mat, soft_ids)] = A_SOFT
 alpha_small[glass] = A_GLASS
 alpha = up(alpha_small, cv2.INTER_NEAREST)
 protect = ((ceiling | mirror | sky | emit)).astype(np.uint8)
-protect = cv2.dilate(up(protect), np.ones((2 * int(opt.get("margin", 6)) + 1,) * 2, np.uint8))
-alpha = alpha * (1 - np.clip(blur(protect, 3), 0, 1))
+protect = cv2.dilate(up(protect), np.ones((2 * int(opt.get("margin", 6) * S) + 1,) * 2, np.uint8))
+alpha = alpha * (1 - np.clip(blur(protect, 3 * S), 0, 1))
 # the AI never edits where the edit has moved the structure more than the fit explains: later check; the seam fades out
 seam = np.ones(W, np.float32)
 n = int(W * 0.03)
@@ -86,19 +87,20 @@ alpha = alpha * seam[None, :]
 # blending them draws a ghost copy (8 Nov: the bed and nightstand doubled), so the AI is switched off there.
 def band(x):
     g = gray(x)
-    return blur(g, 2) - blur(g, 12)
+    return blur(g, 2 * S) - blur(g, 12 * S)
 
 
 bb, ba = band(base), band(ai_fit)
-box = lambda x: cv2.blur(x, (31, 31))
+BOXN = int(31 * S) | 1
+box = lambda x: cv2.blur(x, (BOXN, BOXN))
 cov = box(bb * ba) - box(bb) * box(ba)
 ncc = cov / np.sqrt(np.maximum((box(bb * bb) - box(bb) ** 2) * (box(ba * ba) - box(ba) ** 2), 1e-12))
 trust = np.clip((ncc - float(opt.get("nccLow", 0.55))) / (float(opt.get("nccHigh", 0.85)) - float(opt.get("nccLow", 0.55))), 0, 1)
 flat_area = (box(bb * bb) - box(bb) ** 2) < 1e-6   # nothing to compare (a blank wall): trust the usual alpha
 trust = np.where(flat_area, 1.0, trust)
-trust = blur(trust.astype(np.float32), 4)
+trust = blur(trust.astype(np.float32), 4 * S)
 alpha = alpha * trust
-alpha = blur(alpha, 2)
+alpha = blur(alpha, 2 * S)
 
 # ---- 3. blend
 # Two splits: at SIGMA (a few px) only the AI's texture enters (walls, default); on floors and fabrics the split is at
@@ -110,9 +112,9 @@ def blend(sigma):
     return bl + (1 - alpha[..., None]) * (base - bl) + alpha[..., None] * (ai_fit - al)
 
 
-SIGMA_BIG = float(opt.get("sigmaBig", 40.0))
+SIGMA_BIG = S * float(opt.get("sigmaBig", 40.0))
 big_small = np.isin(mat, floor_ids + soft_ids).astype(np.float32)
-big = np.clip(blur(up(big_small, cv2.INTER_NEAREST), 6), 0, 1)[..., None]
+big = np.clip(blur(up(big_small, cv2.INTER_NEAREST), 6 * S), 0, 1)[..., None]
 final = np.clip(big * blend(SIGMA_BIG) + (1 - big) * blend(SIGMA), 0, 1)
 b_low = blur(base, SIGMA)
 
@@ -131,7 +133,7 @@ for mid in np.unique(mat_full):
         continue
     d = np.median(lab_b[mk], 0) - np.median(lab_f[mk], 0)
     d = np.clip(d, -12, 12)
-    w = blur(mk.astype(np.float32), 8)
+    w = blur(mk.astype(np.float32), 8 * S)
     shift += d[None, None, :] * w[..., None]
     wsum += w
     corrections.append({"material": ids.get(str(int(mid)), str(mid)), "dLab": [round(float(x), 2) for x in d], "share": round(float(mk.mean()), 3)})
@@ -141,7 +143,7 @@ final = np.clip(cv2.cvtColor(lab_f, cv2.COLOR_LAB2RGB), 0, 1)
 
 # ---- 5. checks
 def ssim_like(a, b):
-    a, b = blur(gray(a), 10), blur(gray(b), 10)
+    a, b = blur(gray(a), 10 * S), blur(gray(b), 10 * S)
     c = np.corrcoef(a.ravel(), b.ravel())[0, 1]
     return float(c)
 
@@ -149,7 +151,7 @@ def ssim_like(a, b):
 def blobs(x):
     m = (gray(x) > 0.93).astype(np.uint8)
     n_, _, st, _ = cv2.connectedComponentsWithStats(cv2.dilate(m, np.ones((5, 5), np.uint8)))
-    return int(sum(1 for i in range(1, n_) if st[i, 4] > 60))
+    return int(sum(1 for i in range(1, n_) if st[i, 4] > 60 * S * S))
 
 
 def seam_err(x):

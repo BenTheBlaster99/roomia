@@ -20,6 +20,29 @@ base = dict(recipe.get("grade", {}))
 lin = {n: np.load(os.path.join(d, n + "-lin.npy")).astype(np.float32) for n in names}
 
 
+def seam_heal(x, frac=0.06, probe=3):
+    """Cycles' denoiser is not wrap-aware: the two edge columns of an equirect differ by 1-6 % (a visible vertical step on smooth
+    ceilings and floors). Gains per row (smoothed vertically, clamped) bring both edges to their geometric mean and fade out
+    over frac*width columns. Multiplicative, so texture and light direction stay untouched."""
+    h, w, _ = x.shape
+    L, R = x[:, :probe].mean(1) + 1e-4, x[:, -probe:].mean(1) + 1e-4
+    T = np.sqrt(L * R)
+    gl, gr = T / L, T / R
+    k = np.exp(-0.5 * (np.arange(-40, 41) / 14.0) ** 2); k /= k.sum()
+    sm = lambda g: np.stack([np.convolve(np.pad(g[:, c], 40, mode="edge"), k, mode="valid") for c in range(3)], 1)
+    gl, gr = np.clip(sm(gl), 0.8, 1.25), np.clip(sm(gr), 0.8, 1.25)
+    W = int(w * frac)
+    f = (0.5 + 0.5 * np.cos(np.pi * np.arange(W) / W)).astype(np.float32)  # 1 at the seam -> 0 away from it
+    y = x.copy()
+    y[:, :W] *= (1 + (gl[:, None, :] - 1) * f[None, :, None])
+    y[:, -W:] *= (1 + (gr[:, None, :] - 1) * f[::-1][None, :, None])
+    return y
+
+
+if os.environ.get("SEAM_HEAL", "1") == "1":
+    lin = {n: seam_heal(x) for n, x in lin.items()}
+
+
 def own_exposure(x):
     s = x[::8, ::8]
     lo, hi = -8.0, 10.0
