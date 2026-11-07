@@ -12,9 +12,10 @@ export const metadata: Metadata = { title: 'Visite · Roomia' }
 export default async function TourPage({ params }: { params: Promise<{ id: string }> }) {
   await connection()
   const { id } = await params
-  await pageUser(`/studio/tour/${id}`)
   if (!isSceneId(id)) notFound()
   const meta = await readMeta(id)
+  // a tour published from Roomia Desktop is for the architect's clients: no account needed to view it
+  if (!meta?.published) await pageUser(`/studio/tour/${id}`)
   if (!meta || meta.status !== 'ready') notFound()
-  return <TourClient sceneId={id} title={meta.fileName.replace(/\.(glb|dae|zip)$/i, '')} />
+  return <TourClient sceneId={id} title={meta.fileName.replace(/\.(glb|dae|zip)$/i, '')} published={!!meta.published} />
 }

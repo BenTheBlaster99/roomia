@@ -133,6 +133,30 @@ function dropSmallestObjects(doc: Document, targetTriangles: number): { dropped:
 }
 
 /**
+ * The Studio places a model by its bounding box (fit-imported-room.ts), so the light copy must keep the source's
+ * box exactly, or every view picked on it lands off in the render. Simplifying or dropping an object at the edge
+ * (a far tree, a stray line of faces) shrinks the box; one zero-area triangle from corner to corner puts it back.
+ * It draws nothing and no ray can hit it.
+ */
+function keepBounds(doc: Document, expected: number[], log: Log): void {
+  const now = sceneBounds(doc)
+  const drift = Math.max(...now.map((v, i) => Math.abs(v - expected[i])))
+  if (!(drift > 0.001)) return
+  const [x0, y0, z0, x1, y1, z1] = expected
+  const buffer = doc.getRoot().listBuffers()[0] ?? doc.createBuffer()
+  const position = doc
+    .createAccessor('roomia-bounds')
+    .setType('VEC3')
+    .setArray(new Float32Array([x0, y0, z0, x0, y0, z0, x1, y1, z1]))
+    .setBuffer(buffer)
+  const prim = doc.createPrimitive().setAttribute('POSITION', position)
+  const node = doc.createNode('roomia-bounds').setMesh(doc.createMesh('roomia-bounds').addPrimitive(prim))
+  const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0]
+  scene.addChild(node)
+  log(`     bounds kept: the preview had moved ${(drift * 100).toFixed(1)} cm, corner anchor added`)
+}
+
+/**
  * Heavy GLB in → light GLB out for the Studio viewport. The input is never modified and
  * the output keeps the same world coordinates, so a camera picked on it is valid for the
  * heavy source. Throws if Studio would not accept or misread the result.
@@ -171,6 +195,7 @@ export async function makeViewportGlb(input: string, output: string, log: Log = 
     const { dropped, largestDropped } = dropSmallestObjects(doc, TARGET_TRIANGLES)
     log(`     dropped ${dropped} smallest objects from the preview (largest ${(largestDropped * 100).toFixed(0)} cm): ${drawnTriangles(doc)} drawn tris`)
   }
+  keepBounds(doc, expected, log)
   // No normals on purpose: rebuilding them would split every shared vertex apart (3x the size).
   // Studio shades a mesh without normals flat, like SketchUp.
   await doc.transform(prune(), quantize())

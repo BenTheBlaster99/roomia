@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { applySceneView } from '@/lib/studio-import/heavy-view-camera'
 import { captureHeavyCamera } from '@/lib/studio-import/heavy-view-camera'
 import { UNIT_LABELS, type ImportLengthUnit } from '@/lib/studio-import/fit-imported-room'
@@ -10,6 +11,7 @@ import { useStudioStore } from '@/store/useStudioStore'
 import MaterialRolesPanel from './MaterialRolesPanel'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
+import DesktopRenderNotice from './DesktopRenderNotice'
 
 type Phase = 'idle' | 'checking' | 'running' | 'done' | 'error'
 type Step = 'capture' | 'photo' | null
@@ -69,6 +71,12 @@ export default function SceneSidebar() {
   const [placeholders, setPlaceholders] = useState(0)
   /** Signed-in account and its render credits (null where the Studio has no accounts). */
   const [account, setAccount] = useState<{ name: string; credits: number } | null>(null)
+  // inside Roomia Desktop (its preload): a way back to Mes projets
+  const desktop = useSyncExternalStore(
+    () => () => undefined,
+    () => !!window.roomiaDesktop,
+    () => false,
+  )
   /** Roomia Desktop with nobody signed in (or Roomia's server out of reach): the photo IA needs the account. */
   const [desktopAccount, setDesktopAccount] = useState<'signed-out' | 'offline' | null>(null)
   /** The last delivered photo, so it can be reported if it doesn't respect the design. */
@@ -388,14 +396,21 @@ export default function SceneSidebar() {
   if (!importedRoom?.sceneId) return null
   const running = phase === 'running'
   const busy = running || phase === 'checking'
+  // No photo without a credit: the request would be refused anyway, after a capture that takes minutes on a CPU-only PC.
+  const noCredits = !!account && account.credits < 1
   const hasView = useCurrent || selected !== null
 
   return (
     <aside className="flex h-full w-[22rem] flex-shrink-0 flex-col overflow-y-auto border-l border-[var(--rm-text)]/10 bg-[var(--rm-surface)]">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--rm-text)]/8 px-5 py-4">
         <div className="min-w-0">
+          {desktop && (
+            <Link href="/studio/projets" className="mb-1 inline-block text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)]">
+              ← Mes projets
+            </Link>
+          )}
           <p className="truncate text-sm font-semibold text-[var(--rm-text)]" title={importedRoom.fileName}>
-            {importedRoom.fileName}
+            {importedRoom.fileName.replace(/\.zip$/i, '')}
           </p>
           <p className="mt-0.5 text-xs text-[var(--rm-muted)]">Scène importée · prête à rendre</p>
           {account && (
@@ -599,11 +614,12 @@ export default function SceneSidebar() {
           <button
             type="button"
             onClick={() => void generate()}
-            disabled={busy || !hasView}
+            disabled={busy || !hasView || noCredits}
             className="w-full rounded-xl bg-[var(--rm-primary)] px-4 py-3 text-sm font-semibold text-[var(--rm-surface)] shadow-sm transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {running ? 'Génération en cours…' : !hasView ? 'Choisissez une vue' : 'Générer la photo'}
+            {running ? 'Génération en cours…' : !hasView ? 'Choisissez une vue' : noCredits ? 'Plus de crédits' : 'Générer la photo'}
           </button>
+          {!busy && <DesktopRenderNotice kind="view" />}
           {!busy && (
             <p className="mt-1.5 text-center text-xs text-[var(--rm-muted)]">
               {checked ? 'Vue vérifiée : la photo prend environ 1 minute' : 'Compter 2 à 3 minutes'}

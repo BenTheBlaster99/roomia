@@ -5,7 +5,7 @@ import { loadSharp } from '../load-sharp'
 
 const SPEC_GLOSS = 'KHR_materials_pbrSpecularGlossiness'
 /** SketchUp glass lives in a material's opacity setting, which GLB/DAE exports often drop. */
-export const GLASS_NAME = /glass|verre|vitre|window/i
+export const GLASS_NAME = /glass|verre|vitre(?!ous)|window/i
 export const GLASS_ALPHA = 0.25
 
 const PLACEHOLDER_EXTENSIONS = new Set(['KHR_materials_ior', 'KHR_materials_specular'])

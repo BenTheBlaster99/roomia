@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { freemem, tmpdir } from 'node:os'
 import path from 'node:path'
 import { blenderLighting, NEUTRAL_CAPTURE_LIGHT, type Lighting } from './render-lighting'
+import { SHEETS_APART_PY } from './blender-sheets'
 import { FINISH_ROUGHNESS, type MaterialRoles } from './material-roles'
 import { lookAtQuaternion, verticalFov, type SceneCamera } from './scene-cameras'
 
@@ -99,10 +101,25 @@ import glob, os
 glb = spec["glb"]
 st = os.stat(glb)
 cache = os.path.join(os.path.dirname(glb), "scene-cache-%d-%d-%s.blend" % (st.st_size, int(st.st_mtime), bpy.app.version_string.split(" ")[0]))
+def images_without_pixels():
+    # reading the size loads the image; a texture Blender cannot load is drawn pink (lilac after the view transform)
+    return [img.name for img in bpy.data.images if img.source == "FILE" and img.size[0] == 0]
+
+opened = False
 if spec.get("blendCache", True) and os.path.exists(cache):
     bpy.ops.wm.open_mainfile(filepath=cache, load_ui=False)
-    print("SCENE_CACHE opened", flush=True)
-else:
+    lost = images_without_pixels()
+    if lost:
+        # a cache whose textures did not come back (5 Nov, a Windows laptop: lilac walls in the view check): the GLB again
+        print("SCENE_CACHE dropped: %d textures without pixels, e.g. %s" % (len(lost), lost[:3]), flush=True)
+        try:
+            os.remove(cache)
+        except OSError:
+            pass
+    else:
+        opened = True
+        print("SCENE_CACHE opened", flush=True)
+if not opened:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
     if spec.get("blendCache", True):
@@ -150,7 +167,7 @@ if flipped:
 # So mirrors, glass and lights are recognised by name and given the right look for the capture.
 import re
 MIRROR = re.compile(r"mirror|miroir", re.I)
-GLASS = re.compile(r"glass|verre|vitre|window", re.I)
+GLASS = re.compile(r"glass|verre|vitre(?!ous)|window", re.I)
 # Sheer curtains are see-through too, but cloth, not glass: they keep their soft transparency.
 FABRIC = re.compile(r"curtain|rideau|voilage|tulle|sheer|drape|cortina", re.I)
 LIGHT = re.compile(r"^(led|light|lights|lamp|spot)$|\bled\b|bedside lights|lumin|plafonnier|neon", re.I)
@@ -528,6 +545,9 @@ if energy > 0:
     sun.rotation_euler = (math.radians(90 - light.get("sunElevation", 38)), 0, math.radians(light.get("sunAzimuth", 35)))
 
 scene = bpy.context.scene
+# Two materials on one plane (a finish laid on a painted panel): the one SketchUp shows goes on top, as in the 360°
+# (lib/blender-sheets.ts). Without it EEVEE drew the colour underneath (5 Nov, Sarah's Suite).
+sheets_apart(scene, spec)
 if spec.get("viewTransform"):
     # "Standard" shows material colours as they are; Blender's default AgX flattens and greys them.
     scene.view_settings.view_transform = spec["viewTransform"]
@@ -537,7 +557,9 @@ if spec.get("engine") == "CYCLES":
     scene.cycles.device = "CPU"
     if spec.get("cyclesDevice") == "GPU":
         prefs = bpy.context.preferences.addons["cycles"].preferences
-        for kind in ("OPTIX", "CUDA"):
+        # Roomia Desktop passes the backend its graphics card test chose (CPU: none works); NVIDIA first otherwise.
+        picked = os.environ.get("ROOMIA_GPU_BACKEND", "")
+        for kind in [] if picked == "CPU" else list(dict.fromkeys([k for k in (picked, "OPTIX", "CUDA", "HIP", "ONEAPI", "METAL") if k])):
             try:
                 prefs.compute_device_type = kind
                 prefs.get_devices()
@@ -564,6 +586,21 @@ if spec.get("engine") == "CYCLES":
     fill.location = mat.translation
 else:
     scene.render.engine = "BLENDER_EEVEE_NEXT"
+    # EEVEE keeps every texture at full size on the graphics card; a large SketchUp file (180 textures) on an 8 GB laptop
+    # card lost some of them, which came out lilac (5 Nov). Big textures are scaled down in memory first, like the
+    # Cycles 360° (texture_limit 1024); the file is not touched. A view at 1536 px does not need more than 2048.
+    cap = int(spec.get("eeveeTextureLimit", 2048))
+    scaled = 0
+    for img in bpy.data.images:
+        try:
+            w, h = img.size[:]
+            if img.source == "FILE" and max(w, h) > cap:
+                k = cap / max(w, h)
+                img.scale(max(1, int(w * k)), max(1, int(h * k)))
+                scaled += 1
+        except Exception as err:
+            print("TEXTURE_SCALE failed", img.name, err, flush=True)
+    print("TEXTURES %d, %d scaled to %d px, %d without pixels %s" % (len(bpy.data.images), scaled, cap, len(images_without_pixels()), images_without_pixels()[:5]), flush=True)
     if spec.get("raytrace"):
         # Ray-traced reflections and refraction; the sphere probe at the camera lets mirrors reflect
         # the room behind the camera, which screen-space tracing alone cannot see.
@@ -590,7 +627,9 @@ bpy.ops.render.render(write_still=True)
 print("HEAVY_VIEW_OK")
 `
 
-const BLENDER_SCRIPT = SCENE_SETUP_SCRIPT + VIEW_SCRIPT
+const BLENDER_SCRIPT = SCENE_SETUP_SCRIPT + SHEETS_APART_PY + VIEW_SCRIPT
+/** Changes with the capture script itself: a kept capture made by an older Roomia is not handed out again (5 Nov). */
+export const CAPTURE_SCRIPT_VERSION = createHash('sha1').update(BLENDER_SCRIPT).digest('hex').slice(0, 12)
 
 function runBlender(scriptPath: string, specPath: string): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
@@ -598,8 +637,14 @@ function runBlender(scriptPath: string, specPath: string): Promise<{ code: numbe
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stderr = ''
-    // Blender prints progress to stdout; if nobody reads it the pipe fills up and Blender freezes.
-    child.stdout.resume()
+    // Blender prints progress to stdout; if nobody reads it the pipe fills up and Blender freezes. The texture and cache
+    // lines go to the server log (the problem report carries it).
+    let pending = ''
+    child.stdout.on('data', chunk => {
+      const lines = (pending + String(chunk)).split('\n')
+      pending = lines.pop() ?? ''
+      for (const line of lines) if (/^(TEXTURES|TEXTURE_SCALE|SCENE_CACHE|TOUR_INFO cycles (layers|sheets))/.test(line)) console.log('view', line.trim())
+    })
     const timer = setTimeout(() => child.kill('SIGKILL'), TIMEOUT_MS)
     const unguard = guardMemory(child, reason => (stderr += `\nArrêté : ${reason}`))
     child.stderr.on('data', chunk => {

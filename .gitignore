@@ -67,6 +67,7 @@ claude.txt
 
 # Roomia Desktop build outputs
 /.next-desktop
+/.next-test
 /desktop/node_modules/
 /desktop/stage/
 /desktop/pylib-*/

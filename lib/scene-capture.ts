@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { CAPTURE_HEIGHT, CAPTURE_WIDTH, DEFAULT_CAPTURE, renderSceneView, viewFromSceneCamera, type ViewSpec } from './blender-render'
+import { CAPTURE_HEIGHT, CAPTURE_SCRIPT_VERSION, CAPTURE_WIDTH, DEFAULT_CAPTURE, renderSceneView, viewFromSceneCamera, type ViewSpec } from './blender-render'
 import type { MaterialRoles } from './material-roles'
 import { isTimeOfDay, type Lighting } from './render-lighting'
 import { DEFAULT_LENS, isLensId, lensHfov, verticalFov, type LensId, type SceneCamera } from './scene-cameras'
@@ -72,7 +72,7 @@ async function captureFile(sceneId: string, request: CaptureRequest, roles: Mate
   const { mtimeMs } = await stat(sourcePath(sceneId))
   const light = DEFAULT_CAPTURE.neutralLight ? { interior: request.lighting.interior } : request.lighting
   const key = createHash('sha1')
-    .update(JSON.stringify([request.view, DEFAULT_CAPTURE, light, roles, mtimeMs]))
+    .update(JSON.stringify([request.view, DEFAULT_CAPTURE, light, roles, mtimeMs, CAPTURE_SCRIPT_VERSION]))
     .digest('hex')
     .slice(0, 20)
   return path.join(sceneDir(sceneId), 'captures', `${key}.png`)

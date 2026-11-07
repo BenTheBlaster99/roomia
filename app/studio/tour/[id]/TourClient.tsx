@@ -6,7 +6,9 @@ import type { PanoAiCheck } from '@/lib/pano-ai'
 import type { TourLevel, TourStatus, TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { sendSceneFile } from '@/lib/studio-import/server-prep'
+import DesktopPublish from './DesktopPublish'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
+import DesktopRenderNotice, { isCpuOnly, loadDesktopEngine, renderEstimate } from '../../components/DesktopRenderNotice'
 
 interface TourData {
   /** AI 360°s offered at all (ROOMIA_AI_360=1); off since 2 Nov: the Cycles 360° is the product. */
@@ -82,7 +84,8 @@ function direction(from: TourView, to: TourView) {
   return { yaw, pitch, dist }
 }
 
-export default function TourClient({ sceneId, title }: { sceneId: string; title: string }) {
+/** published: a tour sent from Roomia Desktop for the architect's clients — viewing only, no Studio tools. */
+export default function TourClient({ sceneId, title, published = false }: { sceneId: string; title: string; published?: boolean }) {
   const [data, setData] = useState<TourData | null>(null)
   const [error, setError] = useState('')
   const [step, setStep] = useState(0)
@@ -97,7 +100,7 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
   const [planLevel, setPlanLevel] = useState<number | null>(null)
   const [busy, setBusy] = useState('')
   // ?edit=1: Roomia's own controls (paid upgrades); a client opening the tour never sees them.
-  const [editing] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1')
+  const [editing] = useState(() => !published && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1')
   const swipe = useRef<{ x: number; y: number } | null>(null)
   const [film, setFilm] = useState<VideoData | null>(null)
 
@@ -197,6 +200,8 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
 
   /** complete: the build, then every stop in photo quality (paid). */
   async function prepare(complete = false) {
+    const engine = await loadDesktopEngine()
+    if (isCpuOnly(engine) && !window.confirm(`Ce PC n’a pas de carte graphique utilisable : la visite sera rendue sur le processeur. ${renderEstimate(engine!, 'tour', Math.max(views.length, 4))}\n\nLancer quand même ?`)) return
     setBusy('pano')
     try {
       const res = await fetch(`/api/scenes/${sceneId}/tour`, {
@@ -352,6 +357,7 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
   // No view yet (a file without saved views, before the first build): Blender places the points itself.
   if (!current) {
     const { status } = data
+    if (published) return <div className="tour tour-message">Cette visite n’est pas disponible pour le moment.</div>
     return (
       <div className="tour tour-message">
         {status.state === 'building' ? (
@@ -378,6 +384,7 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
                 <button type="button" className="tour-secondary" onClick={() => prepare()} disabled={!!busy}>
                   Version Blender seulement (gratuite, 1 à 5 min)
                 </button>
+                <DesktopRenderNotice kind="tour" points={Math.max(views.length, 4)} />
               </>
             ) : (
               <>
@@ -385,6 +392,7 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
                 <button type="button" onClick={() => prepare()} disabled={!!busy}>
                   Créer la visite 360°
                 </button>
+                <DesktopRenderNotice kind="tour" points={Math.max(views.length, 4)} />
               </>
             )}
           </>
@@ -414,15 +422,18 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
   return (
     <div className="tour">
       <header className="tour-bar">
-        <a className="tour-back" href={`/studio?scene=${sceneId}`}>
-          ← Studio
-        </a>
+        {!published && (
+          <a className="tour-back" href={`/studio?scene=${sceneId}`}>
+            ← Studio
+          </a>
+        )}
         <div className="tour-title">
           <strong>{title}</strong>
           <span>
             {current.name} · {step + 1} / {order.length}
           </span>
         </div>
+        {!published && <DesktopPublish sceneId={sceneId} />}
         <div className="tour-modes" role="group" aria-label="Mode de visite">
           <button type="button" aria-pressed={shown === 'photo'} disabled={!current.photo} onClick={() => setMode('photo')}>
             Photo
@@ -554,7 +565,7 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
         )}
       </main>
 
-      {(missingPanos > 0 || missingPhotos > 0 || building || busy || data.status.state === 'failed' || editing) && (
+      {!published && (missingPanos > 0 || missingPhotos > 0 || building || busy || data.status.state === 'failed' || editing) && (
         <aside className="tour-prep">
           {building ? (
             <>
@@ -586,9 +597,12 @@ export default function TourClient({ sceneId, title }: { sceneId: string; title:
                 <span>La photo de {current.name} montre une partie modifiée du fichier : elle sera refaite par la mise à jour.</span>
               )}
               {missingPanos > 0 && (
-                <button type="button" onClick={() => prepare()} disabled={!!busy}>
-                  Préparer la visite 360° ({views.length} vues, 1 à 5 min selon la taille)
-                </button>
+                <>
+                  <button type="button" onClick={() => prepare()} disabled={!!busy}>
+                    Préparer la visite 360° ({views.length} vues, 1 à 5 min selon la taille)
+                  </button>
+                  <DesktopRenderNotice kind="tour" points={Math.max(views.length, 4)} />
+                </>
               )}
               {missingPhotos > 0 && (
                 <button type="button" onClick={renderMissingPhotos} disabled={!!busy}>

@@ -22,7 +22,7 @@ import {
 /** What the capture does with a material left on Auto (same rules as the Blender script). */
 function autoRole(material: SceneMaterialInfo): string {
   if (/mirror|miroir/i.test(material.name)) return 'miroir (nom)'
-  if (/glass|verre|vitre|window/i.test(material.name) || material.seeThrough) return 'verre'
+  if (/glass|verre|vitre(?!ous)|window/i.test(material.name) || material.seeThrough) return 'verre'
   if (/^(led|light|lights|lamp|spot)$|\bled\b|bedside lights|lumin|plafonnier|neon/i.test(material.name)) return 'lumière (nom)'
   return 'normal'
 }

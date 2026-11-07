@@ -12,7 +12,7 @@ import { generatePhotoreal, PhotoChoiceError, renderErrorDetail } from '@/lib/ph
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 import { getCapture, parseCaptureRequest } from '@/lib/scene-capture'
 import { buildSceneRenderPrompt } from '@/lib/scene-render-prompt'
-import { cloudMode, cloudPhoto } from '@/lib/roomia-cloud'
+import { cloudMe, cloudMode, cloudPhoto } from '@/lib/roomia-cloud'
 import { isSceneId, readCameras, readMeta, sceneDir } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
@@ -57,7 +57,16 @@ export async function POST(req: NextRequest) {
   // signed in on this PC (lib/roomia-cloud.ts, app/api/desktop/photo).
   const cloud = cloudMode()
   if (cloud && !isJobId(jobId)) return Response.json({ detail: 'Requête incomplète : rechargez la page.' }, { status: 400 })
-  if (!cloud) {
+  if (cloud) {
+    // Ask the account before the capture: on a PC without a usable graphics card the capture alone takes minutes.
+    try {
+      const account = await cloudMe()
+      if (!account) return Response.json({ detail: 'Connectez-vous à votre compte Roomia pour les photos IA (menu Compte).' }, { status: 401 })
+      if (account.credits < 1) return Response.json({ detail: 'Plus de crédits sur ce compte. Contactez Roomia pour recharger.' }, { status: 402 })
+    } catch (err) {
+      return Response.json({ detail: err instanceof Error ? err.message : 'Le serveur Roomia est injoignable.' }, { status: 503 })
+    }
+  } else {
     try {
       getOpenAIClient()
     } catch (err) {

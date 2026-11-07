@@ -9,6 +9,8 @@ const desktop = process.env.ROOMIA_DESKTOP_BUILD === '1'
 
 const nextConfig: NextConfig = {
   ...(desktop ? { output: 'standalone' as const, distDir: '.next-desktop' } : {}),
+  // ROOMIA_DIST=.next-test: a test build beside the running Studio's .next (never touches it)
+  ...(!desktop && process.env.ROOMIA_DIST ? { distDir: process.env.ROOMIA_DIST } : {}),
   // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
   allowedDevOrigins: ['*.trycloudflare.com', '*.coconutstudio.io'],
   serverExternalPackages: ['sharp'],

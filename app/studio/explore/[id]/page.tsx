@@ -13,9 +13,10 @@ export const metadata: Metadata = { title: 'Visite libre · Roomia' }
 export default async function ExplorePage({ params }: { params: Promise<{ id: string }> }) {
   await connection()
   const { id } = await params
-  await pageUser(`/studio/explore/${id}`)
   if (!isSceneId(id)) notFound()
   const meta = await readMeta(id)
+  // a tour published from Roomia Desktop is for the architect's clients: no account needed to view it
+  if (!meta?.published) await pageUser(`/studio/explore/${id}`)
   if (!meta || meta.status !== 'ready') notFound()
-  return <ExploreClient sceneId={id} title={meta.fileName.replace(/\.(glb|dae|zip)$/i, '')} />
+  return <ExploreClient sceneId={id} title={meta.fileName.replace(/\.(glb|dae|zip)$/i, '')} published={!!meta.published} />
 }

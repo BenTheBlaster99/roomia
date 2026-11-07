@@ -122,3 +122,20 @@
 @media (prefers-reduced-motion: reduce) {
   .tour-photo.in, .tour-photo.out { animation-duration: 0.01s; }
 }
+
+/* Roomia Desktop: publishing the tour for the architect's clients (DesktopPublish.tsx) */
+.tour-publish { position: relative; }
+.tour-publish-toggle { border: 1px solid var(--line); background: var(--glass); color: var(--fg); padding: 7px 14px; border-radius: 999px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.tour-publish-toggle:hover { background: rgba(217, 166, 92, 0.85); color: var(--ink); }
+.tour-publish-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 28px)); display: grid; gap: 10px; padding: 14px;
+  border-radius: 14px; border: 1px solid var(--line); background: var(--ink); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); font-size: 13px; text-align: left;
+}
+.tour-publish-panel span { color: var(--muted); line-height: 1.45; }
+.tour-publish-panel progress { width: 100%; }
+.tour-publish-panel > button { border: 0; background: var(--fg); color: var(--ink); padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tour-publish-link { display: flex; gap: 6px; }
+.tour-publish-link input { flex: 1; min-width: 0; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--glass); color: var(--fg); font-size: 12px; }
+.tour-publish-link button { border: 1px solid var(--line); background: none; color: var(--fg); padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.tour-publish-more { color: var(--muted); font-size: 12px; }
+@media (max-width: 640px) { .tour-publish { display: none; } }

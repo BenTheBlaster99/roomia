@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { createSplatLayer, type SplatInfo, type SplatLayer } from './splatLayer'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
@@ -158,7 +159,8 @@ const GLOW = new THREE.Color(1.0, 0.86, 0.62)
 /** How near a point the visitor must stand to step into its photo-quality 360°, metres. */
 const PHOTO_NEAR = 0.8
 
-export default function ExploreClient({ sceneId, title }: { sceneId: string; title: string }) {
+/** published: a tour sent from Roomia Desktop for the architect's clients — walking only, no Studio tools. */
+export default function ExploreClient({ sceneId, title, published = false }: { sceneId: string; title: string; published?: boolean }) {
   const mount = useRef<HTMLDivElement>(null)
   const [tour, setTour] = useState<TourData | null>(null)
   const [nav, setNav] = useState<NavFile | null>(null)
@@ -194,14 +196,20 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
   const photoLook = useRef({ yaw: 0, pitch: 0 })
   /** Set by the 3D loop: glide to a point's eye and hand over to its AI 360°; take the walk back from it */
   const enterPhoto = useRef<(v: TourView) => void>(() => undefined)
+  /** undefined while asked, null when the tour has no splat (splat.json) or ?splat=0 */
+  const [splatInfo, setSplatInfo] = useState<SplatInfo | null | undefined>(undefined)
+  /** the walk drawn from the splat ("Rendu réel") instead of the model */
+  const [splatOn, setSplatOn] = useState(true)
+  const splatOnNow = useRef(true)
+  const [splatLoaded, setSplatLoaded] = useState(false)
   const leavePhoto = useRef<(v: TourView, yaw: number, pitch: number) => void>(() => undefined)
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
-    setEdit(query.get('edit') === '1')
+    setEdit(!published && query.get('edit') === '1')
     Promise.all([
       // ?edit=1: the reviewer also steps into AI 360°s that are not approved yet
-      fetch(`/api/scenes/${sceneId}/tour${query.get('edit') === '1' ? '?edit=1' : ''}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : Promise.reject(new Error('Visite introuvable.')))),
+      fetch(`/api/scenes/${sceneId}/tour${!published && query.get('edit') === '1' ? '?edit=1' : ''}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : Promise.reject(new Error('Visite introuvable.')))),
       fetch(`/api/scenes/${sceneId}/tour/nav.json`, { cache: 'no-store' }).then(r =>
         r.ok ? r.json() : Promise.reject(new Error('Cette visite n’a pas encore de carte des zones où l’on peut marcher : reconstruisez la visite.')),
       ),
@@ -234,9 +242,20 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
         .then(p => setProjection(p && Array.isArray(p.views) && p.views.length ? p : null))
         .catch(() => setProjection(null))
     else setProjection(null)
+    // The walk at Cycles quality (splatLayer.ts), when the tour has one; ?splat=0 shows the model's walk
+    if (query.get('splat') === '0') setSplatInfo(null)
+    else
+      fetch(`/api/scenes/${sceneId}/tour/splat${/^[a-z0-9]{1,8}$/.test(query.get('sv') ?? '') ? '-' + query.get('sv') : ''}.json`, { cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(i => setSplatInfo(i && typeof i.lo === 'number' && typeof i.file === 'string' ? i : null))
+        .catch(() => setSplatInfo(null))
     const m = Number(query.get('ai') ?? 1)
     setAiMode(m === 0 || m === 2 || m === 3 ? m : 1)
-  }, [sceneId])
+  }, [sceneId, published])
+
+  useEffect(() => {
+    splatOnNow.current = splatOn
+  }, [splatOn])
 
   useEffect(() => {
     aiModeNow.current = aiMode
@@ -252,7 +271,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
 
   useEffect(() => {
     const host = mount.current
-    if (!host || !nav || !tour || !levels.length || bake === undefined || projection === undefined || lookFile === undefined) return
+    if (!host || !nav || !tour || !levels.length || bake === undefined || projection === undefined || lookFile === undefined || splatInfo === undefined) return
     let disposed = false
     // ?at=<point>: stand exactly where that 360° was taken, looking its way (&match=1: with its exposure), to set the
     // walk beside the 360° it should look like.
@@ -274,6 +293,9 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
     const matchEv = bake && at && query.get('match') ? bake.viewEv[String(at.index)] : undefined
     renderer.toneMappingExposure = matchEv !== undefined && bake ? 2 ** (matchEv - bake.exposureEv) : 1
     host.appendChild(renderer.domElement)
+    const splat: SplatLayer | null = splatInfo
+      ? createSplatLayer(renderer, splatInfo, `/api/scenes/${sceneId}/tour/${splatInfo.file}?v=${encodeURIComponent(splatInfo.builtAt ?? '')}`)
+      : null
     const scene = new THREE.Scene()
     // baked: the daylight outside the windows, burnt white as in the 360° exposed for the room
     // graded: daylight bright enough to stay white through the grade (the stock grey-blue turned beige under it)
@@ -465,6 +487,11 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
 
     const loader = new GLTFLoader()
     loader.setMeshoptDecoder(MeshoptDecoder)
+    if (splat && splatInfo?.model) {
+      loader.load(`/api/scenes/${sceneId}/tour/${splatInfo.model}?v=${encodeURIComponent(splatInfo.builtAt ?? '')}`, g => {
+        if (!disposed) splat.setModel(g.scene)
+      })
+    }
     const version = encodeURIComponent(tour.builtAt ?? '')
     const lightmap = bake
       ? new THREE.TextureLoader().loadAsync(`/api/scenes/${sceneId}/tour/explore-light.png?v=${version}`).then(t => {
@@ -684,6 +711,8 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
           }
         })
         scene.add(gltf.scene)
+        // the splat's colours come from the capture's own model when it has one (splat.json model), else this one
+        if (!splatInfo?.model) splat?.setModel(gltf.scene)
         if (lampLight > 0) addLampLights(gltf.scene)
         // draw distance sized to the model: 500 m left the contact shadows' depth too coarse indoors (everything darkened)
         const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3()).length()
@@ -858,6 +887,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
       const { clientWidth: w, clientHeight: h } = host
       renderer.setSize(w, h)
       composer?.setSize(w, h)
+      splat?.resize()
       camera.aspect = w / Math.max(1, h)
       camera.updateProjectionMatrix()
     }
@@ -870,6 +900,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
     let last = performance.now()
     let shown = 0
     let frame = 0
+    let splatShown = false
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick)
       const dt = Math.min(0.05, (now - last) / 1000)
@@ -917,7 +948,13 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
       camera.position.set(pos.x, pos.eye, -pos.y)
       camera.rotation.set(pitch, yaw, 0)
       ai?.setCamera(camera.position)
-      if (composer) composer.render(dt)
+      if (splat && splatOnNow.current) {
+        splat.render(camera, dt)
+        if (splat.loaded && !splatShown) {
+          splatShown = true
+          setSplatLoaded(true)
+        }
+      } else if (composer) composer.render(dt)
       else renderer.render(scene, camera)
       // the plan's dot, a few times a second; the photo-quality point the visitor stands at
       if (now - shown > 80) {
@@ -955,6 +992,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
       room?.env.dispose()
       room?.panorama.dispose()
       composer?.dispose()
+      splat?.dispose()
       stock.dispose()
       enterPhoto.current = () => undefined
       leavePhoto.current = () => undefined
@@ -974,7 +1012,7 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [sceneId, nav, tour, levels, views, bake, projection, lookFile])
+  }, [sceneId, nav, tour, levels, views, bake, projection, lookFile, splatInfo])
 
   // The plan of the level the visitor is on, and how Blender's floor plane maps onto it: the level's frame when the
   // build wrote it, otherwise fitted on the tour's points (each has a place on the plan and in the model).
@@ -1032,8 +1070,8 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
   return (
     <div className="tour explore">
       <header className="tour-bar">
-        <a className="tour-back" href={`/studio?scene=${sceneId}`}>
-          ← Studio
+        <a className="tour-back" href={published ? `/studio/tour/${sceneId}` : `/studio?scene=${sceneId}`}>
+          {published ? '← Visite' : '← Studio'}
         </a>
         <div className="tour-title">
           <strong>{title}</strong>
@@ -1050,6 +1088,30 @@ export default function ExploreClient({ sceneId, title }: { sceneId: string; tit
           >
             {aiReady ? 'Rendu IA' : 'Rendu IA…'}
           </button>
+        )}
+        {splatInfo && (
+          <button
+            type="button"
+            className="explore-ai"
+            aria-pressed={splatOn}
+            title="La visite rendue comme les 360° (Cycles), ou le modèle 3D"
+            onClick={() => setSplatOn(!splatOn)}
+          >
+            {splatOn && !splatLoaded ? 'Rendu réel…' : 'Rendu réel'}
+          </button>
+        )}
+        {splatOn && splatInfo?.looks && splatInfo.looks.length > 1 && (
+          <div className="tour-modes" role="group" aria-label="Moment de la journée">
+            {splatInfo.looks.map(l => {
+              const look = l.replace(/^splat-/, '')
+              const label = look === 'golden' ? 'Coucher de soleil' : look === 'day' ? 'Journée' : look === 'night' ? 'Soirée' : look === 'ai' ? 'Coucher de soleil + IA' : look
+              return (
+                <a key={l} href={`/studio/explore/${sceneId}?sv=${look}${edit ? '&edit=1' : ''}`} aria-current={splatInfo.look === look ? 'page' : undefined}>
+                  {label}
+                </a>
+              )
+            })}
+          </div>
         )}
         <div className="tour-modes" role="group" aria-label="Mode de visite">
           <a href={`/studio/tour/${sceneId}${edit ? '?edit=1' : ''}`}>360°</a>

@@ -6,6 +6,7 @@ import { cleanRoles, type MaterialRoles } from './material-roles'
 
 export const SCENES_DIR = process.env.SCENES_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), '.scenes')
 export const MAX_SCENE_BYTES = Number(process.env.SCENE_MAX_BYTES ?? 2 * 1024 ** 3)
+/** Old scenes are pruned after SCENE_TTL_HOURS (default 7 days); 0 turns pruning off (Roomia Desktop: the projects are the architect's). */
 const SCENE_TTL_MS = Number(process.env.SCENE_TTL_HOURS ?? 24 * 7) * 3600_000
 
 /** Size of each piece the browser sends in a resumable upload. Small enough to finish in seconds on a weak line. */
@@ -41,6 +42,15 @@ export interface SceneMeta {
   ownerId?: number
   /** The project's files, oldest first, when new versions were sent (see startNewVersion in scene-tour.ts). */
   versions?: { fileName: string; at: number }[]
+  /**
+   * Roomia's server: a tour a Roomia Desktop account published (lib/desktop-drive.ts). Only the tour and the photos
+   * are here, no model; anyone with the link can view it.
+   */
+  published?: { userId: number; at: number; bytes: number; from?: string }
+  /** Roomia Desktop: sent by the SketchUp extension (lib/desktop-inbox.ts); `versionOf` is the project it was sent as before. */
+  source?: { kind: 'sketchup'; guid?: string; at: number; versionOf?: string }
+  /** Roomia Desktop: where this project's tour was published, to update the same link (lib/roomia-cloud.ts). */
+  publishedAs?: { id: string; url: string; at: number }
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{21}$/
@@ -108,14 +118,20 @@ export async function deleteScene(id: string): Promise<void> {
   await rm(sceneDir(id), { recursive: true, force: true })
 }
 
-/** Removes scenes older than SCENE_TTL_HOURS (default 7 days). Best effort. */
+/**
+ * Removes scenes older than SCENE_TTL_HOURS (default 7 days). Best effort. Never a published tour (a client link
+ * must keep working), never on Roomia Desktop (SCENE_TTL_HOURS=0).
+ */
 async function pruneOldScenes(): Promise<void> {
+  if (!(SCENE_TTL_MS > 0)) return
   try {
     const now = Date.now()
     for (const id of await readdir(SCENES_DIR)) {
       if (!isSceneId(id)) continue
       const s = await stat(sceneDir(id))
-      if (now - s.mtimeMs > SCENE_TTL_MS) await deleteScene(id)
+      if (now - s.mtimeMs <= SCENE_TTL_MS) continue
+      if ((await readMeta(id).catch(() => null))?.published) continue
+      await deleteScene(id)
     }
   } catch {
     // nothing to prune yet
