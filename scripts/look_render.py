@@ -215,6 +215,14 @@ elif JOB["mode"] == "pano":
     # panorama inside memory (the 3072 px render with all 12 passes peaked at 10.8 GB and took Cursor down with it, 8 Nov)
     for lg_ in [g_ for g_ in vl.lightgroups if wts.get(g_.name, 0) == 0 or float(FG.get("gains", {}).get(g_.name, 1.0)) == 0]:
         vl.lightgroups.remove(lg_)
+    for i_, f_ in enumerate(JOB.get("fills", [])):  # a soft fill for a room with no fixtures of its own (a closet renders black)
+        ld_ = bpy.data.lights.new("look_fill%d" % i_, "POINT")
+        ld_.energy, ld_.shadow_soft_size = float(f_.get("power", 300)), float(f_.get("radius", 0.35))
+        ld_.color = tuple(f_.get("color", [1.0, 0.85, 0.65]))
+        ob_ = bpy.data.objects.new("look_fill%d" % i_, ld_)
+        ob_.location = gl2b(f_["position"])
+        ob_.lightgroup = "INTERIOR"
+        scene.collection.objects.link(ob_)
     scene.use_nodes = True
     tree = scene.node_tree
     tree.nodes.clear()

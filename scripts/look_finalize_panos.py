@@ -62,6 +62,9 @@ out = {}
 for n, x in lin.items():
     e = float(np.clip(own[n], med - rng, med + rng))
     img = np.clip(grade(x, dict(base, exposure=e)), 0, 1)
+    LIFT = float(os.environ.get("LIFT", "0"))  # shadows lifted a little: black cabinets keep their texture (the grade's contrast crushes them)
+    if LIFT:
+        img = np.clip(img + LIFT * (1 - img) ** 3, 0, 1)
     Image.fromarray((img * 255 + 0.5).astype(np.uint8)).save(os.path.join(d, n + "-pano.png"))
     out[n] = {"own": round(own[n], 2), "used": round(e, 2), "displayMedian": round(float(np.median(img @ LUM)), 3)}
     print("EXPOSURE", n, out[n], flush=True)

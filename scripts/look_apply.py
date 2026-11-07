@@ -316,7 +316,25 @@ if W.get("hdri"):
     tc = nt.nodes.get("look_tc") or nt.nodes.new("ShaderNodeTexCoord")
     tc.name = "look_tc"
     mp.inputs["Rotation"].default_value = (0, 0, math.radians(float(W.get("rotation", 0))))
-    nt.links.new(tc.outputs["Generated"], mp.inputs["Vector"])
+    if W.get("flattenGround") is not None:
+        # what the camera sees through the windows never goes below the horizon: a lookup clamped at +flattenGround of height
+        # (a stock quay and sea at the foot of every window looked random, 8 Nov); the light on the room keeps the full picture
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        mx = nt.nodes.new("ShaderNodeMath"); mx.operation = "MAXIMUM"; mx.inputs[1].default_value = float(W["flattenGround"])
+        cmb = nt.nodes.new("ShaderNodeCombineXYZ")
+        nrm = nt.nodes.new("ShaderNodeVectorMath"); nrm.operation = "NORMALIZE"
+        lp0 = nt.nodes.new("ShaderNodeLightPath")
+        vmix = nt.nodes.new("ShaderNodeMix"); vmix.data_type = "VECTOR"
+        nt.links.new(tc.outputs["Generated"], sep.inputs["Vector"])
+        nt.links.new(sep.outputs["X"], cmb.inputs["X"]); nt.links.new(sep.outputs["Y"], cmb.inputs["Y"])
+        nt.links.new(sep.outputs["Z"], mx.inputs[0]); nt.links.new(mx.outputs["Value"], cmb.inputs["Z"])
+        nt.links.new(cmb.outputs["Vector"], nrm.inputs[0])
+        nt.links.new(lp0.outputs["Is Diffuse Ray"], vmix.inputs["Factor"])
+        nt.links.new(nrm.outputs["Vector"], vmix.inputs["A"])
+        nt.links.new(tc.outputs["Generated"], vmix.inputs["B"])
+        nt.links.new(vmix.outputs["Result"], mp.inputs["Vector"])
+    else:
+        nt.links.new(tc.outputs["Generated"], mp.inputs["Vector"])
     nt.links.new(mp.outputs["Vector"], env.inputs["Vector"])
     nt.links.new(env.outputs["Color"], bgn.inputs["Color"])
     bgn.inputs["Strength"].default_value = float(W.get("strength", 1.0))
