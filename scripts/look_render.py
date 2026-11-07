@@ -199,7 +199,7 @@ elif JOB["mode"] == "pano":
     # file), plus the passes the finishing step's masks come from (ceiling, mirrors and glass, fixtures, sky, materials)
     import glob, re as _re
     for attr in ("use_pass_normal", "use_pass_position", "use_pass_emit", "use_pass_diffuse_color", "use_pass_z", "use_pass_material_index"):
-        setattr(vl, attr, True)
+        setattr(vl, attr, not JOB.get("noMasks"))  # noMasks: only the picture (no AI finish planned), 1.5 GB less
     mats = list(bpy.data.materials)
     for i_, m_ in enumerate(mats):
         m_.pass_index = i_ + 1
