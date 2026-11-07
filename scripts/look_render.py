@@ -208,6 +208,13 @@ elif JOB["mode"] == "pano":
     scene.cycles.use_denoising = False  # the compositor's denoise on the summed light, with the albedo and normal guides
     FG = R.get("fit", {})
     wts = PRESETS.get(JOB.get("preset", "golden"), {})
+    LOOK = R.get("looks", {}).get(JOB.get("preset", "golden"))
+    if LOOK:  # the walk's looks (own gains and tints per group), the same recipe the splat walk is built from
+        FG, wts = LOOK, {g: 1.0 for g in LOOK.get("gains", {})}
+    # a look uses a few of the 12 light groups: the others stay in Combined only (no pass of their own), which is what keeps the
+    # panorama inside memory (the 3072 px render with all 12 passes peaked at 10.8 GB and took Cursor down with it, 8 Nov)
+    for lg_ in [g_ for g_ in vl.lightgroups if wts.get(g_.name, 0) == 0 or float(FG.get("gains", {}).get(g_.name, 1.0)) == 0]:
+        vl.lightgroups.remove(lg_)
     scene.use_nodes = True
     tree = scene.node_tree
     tree.nodes.clear()
@@ -288,7 +295,7 @@ elif JOB["mode"] == "pano":
         L = read_multi(files[-1])
         lin = L["img"][..., :3]
         np.save(os.path.join(OUT, name + "-lin.npy"), lin.astype(np.float16))
-        write_png(os.path.join(OUT, name + "-pano.png"), grade(lin, R.get("grade", {})))
+        write_png(os.path.join(OUT, name + "-pano.png"), grade(lin, (LOOK or {}).get("grade") or R.get("grade", {})))
         # masks, at half size
         eye_z = float(gl2b(v["position"]).z)
         nz = L["normal"][..., 2] if "normal" in L else np.zeros(lin.shape[:2], np.float32)

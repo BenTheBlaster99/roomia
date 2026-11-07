@@ -16,7 +16,8 @@ d, recipe, names = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].split(
 target = float(sys.argv[4]) if len(sys.argv) > 4 else 0.45
 rng = float(sys.argv[5]) if len(sys.argv) > 5 else 1.5
 LUM = np.array([0.2126, 0.7152, 0.0722], np.float32)
-base = dict(recipe.get("grade", {}))
+LOOKNAME = os.environ.get("LOOK", "")
+base = dict((recipe.get("looks", {}).get(LOOKNAME) or {}).get("grade") or recipe.get("grade", {}))
 lin = {n: np.load(os.path.join(d, n + "-lin.npy")).astype(np.float32) for n in names}
 
 
