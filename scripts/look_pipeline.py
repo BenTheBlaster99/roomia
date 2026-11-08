@@ -8,6 +8,12 @@ python look_pipeline.py suggest <sceneId> [--n 4]                   which points
 python look_pipeline.py ai <sceneId> --points 6,10 [--ring 6] [--yes]  tiles for those points (14 DA per image; ring = 4 more
                                                                     views looking higher, for the listed points)
 
+python look_pipeline.py ai-prepare <sceneId> --points 6,10 [--ring 6]    the first half of "ai" (what the desktop app drives): re-render those
+                                                                    points with masks, cut the tiles, write auto/ai-manifest.json (the list
+                                                                    of images to send and their cost); nothing is sent
+python look_pipeline.py ai-finish <sceneId> --points 6,10 [--ring 6]     the second half: lay the returned tiles (<view>-ai.jpg beside each
+                                                                    <view>-in.png), fence, validate, install at 6144 px
+
 Everything lives in .scenes/<id>/look/auto/ ; the installed pano-<index>.jpg keep the old Cycles one as pano-<index>-cycles-old.jpg.
 Needs ROOMIA_BLENDER (.env.local) and the AI venv (python with cv2, torch): run it with that python.
 """
@@ -17,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "scripts")
 PY = sys.executable
 ap = argparse.ArgumentParser()
-ap.add_argument("stage", choices=["render", "suggest", "ai"])
+ap.add_argument("stage", choices=["render", "suggest", "ai", "ai-prepare", "ai-finish"])
 ap.add_argument("scene")
 ap.add_argument("--points")
 ap.add_argument("--ring")
@@ -34,6 +40,8 @@ os.makedirs(AUTO, exist_ok=True)
 
 
 def env(key):
+    if os.environ.get(key):
+        return os.environ[key]
     for line in open(os.path.join(ROOT, ".env.local")):
         if line.startswith(key + "="):
             return line.split("=", 1)[1].strip()
@@ -53,10 +61,15 @@ def points():
             probes = json.load(open(p)).get("probes")
             break
     out = []
+    cams = {}
+    cp = os.path.join(S, "cameras.json")
+    if os.path.exists(cp):
+        cams = {c["name"]: c["position"] for c in json.load(open(cp))}
     for v in tour["views"]:
-        if not v.get("pano"):
+        if v.get("hidden") or v.get("outside"):
             continue
-        pos = v.get("position") or (probes[v["index"]]["eye"] if probes and v["index"] < len(probes) else None)
+        # a view whose 360 failed to build (no pano yet) gets one too: its eye is the view's own, else the saved camera's, else the walk probe's
+        pos = v.get("position") or cams.get(v["name"]) or (probes[v["index"]]["eye"] if probes and v["index"] < len(probes) else None)
         if pos:
             out.append({"index": v["index"], "name": v["name"], "position": pos})
     return out
@@ -65,9 +78,11 @@ def points():
 def blender(job_path, script, log):
     t = time.time()
     # an out-of-memory kill takes Blender, not the desktop: the Blender process is the one the kernel picks
-    cmd = "echo 1000 > /proc/self/oom_score_adj; exec nice -n 10 '%s' -b '%s' --python '%s' -- '%s'" % (BLENDER, os.path.join(LOOK, "prepared.blend"), os.path.join(SCRIPTS, script), job_path)
+    argv = [BLENDER, "-b", os.path.join(LOOK, "prepared.blend"), "--python", os.path.join(SCRIPTS, script), "--", job_path]
+    if sys.platform.startswith("linux"):
+        argv = ["bash", "-c", "echo 1000 > /proc/self/oom_score_adj; exec nice -n 10 \"$@\"", "blender"] + argv
     with open(log, "w") as f:
-        subprocess.run(["bash", "-c", cmd], stdout=f, stderr=subprocess.STDOUT, check=False)
+        subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT, check=False)
     print("  %s %.0fs" % (script, time.time() - t), flush=True)
 
 
@@ -108,6 +123,15 @@ def install(width, pairs):
     subprocess.run([PY, os.path.join(SCRIPTS, "look_install_tour.py"), TOUR, str(width)] + ["%d=%s" % (i, f) for i, f in pairs], check=True)
     tour_p = os.path.join(TOUR, "tour.json")
     t = json.load(open(tour_p))
+    for i, _ in pairs:
+        for v in t["views"]:
+            if v["index"] == i and not v.get("pano"):
+                v["pano"] = "pano-%d.jpg" % i
+    if all(v.get("pano") or v.get("hidden") for v in t["views"]):
+        # a build that failed long ago (out of memory, 30 Oct) no longer shows its red notice on a tour that is complete
+        st = os.path.join(TOUR, "status.json")
+        if os.path.exists(st) and json.load(open(st)).get("state") == "failed":
+            json.dump({"state": "done"}, open(st, "w"))
     t["builtAt"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     json.dump(t, open(tour_p, "w"), ensure_ascii=False)
 
@@ -171,42 +195,70 @@ elif args.stage == "suggest":
     print("SUGGEST", json.dumps([{"index": i, "name": pts[i]["name"], "score": round(dict((b, a) for a, b in scored)[i], 3)} for i in chosen]))
     print("all ranked:", [(i, round(s, 3)) for s, i in scored])
 
-else:  # ai
+else:  # ai, ai-prepare, ai-finish
+    import shutil
     want = [int(x) for x in args.points.split(",")]
     ring = {int(x) for x in args.ring.split(",")} if args.ring else set()
     pts = [p for p in points() if p["index"] in want]
-    images = sum(6 + (4 if p["index"] in ring else 0) for p in pts)
-    print("AI tiles: %d points, %d images x 14 DA = %d DA" % (len(pts), images, images * 14))
-    if not args.yes:
-        raise SystemExit("not spending: run again with --yes")
-    # these points again with the masks the fence needs (same recipe, same light)
-    json.dump(job({}, pts, AUTO, True), open(os.path.join(AUTO, "job-ai.json"), "w"))
-    blender(os.path.join(AUTO, "job-ai.json"), "look_render.py", os.path.join(AUTO, "render-ai.log"))
-    finalize(["t%d" % p["index"] for p in pts])
-    done = []
-    for p in pts:
-        n = "t%d" % p["index"]
-        d = os.path.join(AUTO, "tiles-" + n)
-        os.makedirs(d, exist_ok=True)
-        subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "cut", os.path.join(AUTO, n + "-pano.png"), os.path.join(AUTO, n + "-masks.npz"), d], check=True)
-        sel = ",".join("v%d" % i for i in range(6))
-        subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/pano-tiles-gateway.mts", d, "1536x1536", sel], cwd=ROOT, check=True)
-        if p["index"] in ring:
-            d2 = d + "-r2"
-            os.makedirs(d2, exist_ok=True)
-            subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "cut", os.path.join(AUTO, n + "-pano.png"), os.path.join(AUTO, n + "-masks.npz"), d2, json.dumps({"pitch": 42, "yawStep": 90})], check=True)
-            subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/pano-tiles-gateway.mts", d2, "1536x1536"], cwd=ROOT, check=True)
-            m1, m2 = json.load(open(os.path.join(d, "views.json"))), json.load(open(os.path.join(d2, "views.json")))
-            import shutil
-            for k, v in enumerate(m2["views"]):
-                if os.path.exists(os.path.join(d2, v["name"] + "-ai.jpg")):
-                    shutil.copy(os.path.join(d2, v["name"] + "-ai.jpg"), os.path.join(d, "r%d-ai.jpg" % k))
+
+    def tiles_dir(n):
+        return os.path.join(AUTO, "tiles-" + n)
+
+    def prepare():
+        images = sum(6 + (4 if p["index"] in ring else 0) for p in pts)
+        print("AI tiles: %d points, %d images x 14 DA = %d DA" % (len(pts), images, images * 14), flush=True)
+        # these points again with the masks the fence needs (same recipe, same light)
+        json.dump(job({}, pts, AUTO, True), open(os.path.join(AUTO, "job-ai.json"), "w"))
+        blender(os.path.join(AUTO, "job-ai.json"), "look_render.py", os.path.join(AUTO, "render-ai.log"))
+        finalize(["t%d" % p["index"] for p in pts])
+        manifest = {"points": [], "images": images, "cost": images * 14, "size": "1536x1536"}
+        for p in pts:
+            n = "t%d" % p["index"]
+            d = tiles_dir(n)
+            os.makedirs(d, exist_ok=True)
+            subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "cut", os.path.join(AUTO, n + "-pano.png"), os.path.join(AUTO, n + "-masks.npz"), d], check=True)
+            entry = {"index": p["index"], "name": n, "dir": d, "views": ["v%d" % i for i in range(6)]}
+            if p["index"] in ring:
+                d2 = d + "-r2"
+                os.makedirs(d2, exist_ok=True)
+                subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "cut", os.path.join(AUTO, n + "-pano.png"), os.path.join(AUTO, n + "-masks.npz"), d2, json.dumps({"pitch": 42, "yawStep": 90})], check=True)
+                m1, m2 = json.load(open(os.path.join(d, "views.json"))), json.load(open(os.path.join(d2, "views.json")))
+                for k, v in enumerate(m2["views"]):  # the higher row joins the same folder as r0..r3
+                    shutil.copy(os.path.join(d2, v["name"] + "-in.png"), os.path.join(d, "r%d-in.png" % k))
                     m1["views"].append({"name": "r%d" % k, "yaw": v["yaw"], "pitch": v["pitch"]})
-            json.dump(m1, open(os.path.join(d, "views.json"), "w"))
-        subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "lay", d, n], check=True)
-        final = os.path.join(AUTO, n + "-final.png")
-        subprocess.run([PY, os.path.join(SCRIPTS, "pano_finish.py"), os.path.join(d, "up.png"), os.path.join(d, n + "-ai.png"), os.path.join(AUTO, n + "-masks.npz"), os.path.join(AUTO, "material-ids.json"), final,
-                        json.dumps({"width": 6144, "floor": 0.95, "walls": 0.7, "fabric": 0.9, "sigmaBig": 22, "nccLow": 0.35, "nccHigh": 0.7})], check=True)
-        done.append((p["index"], final))
-    install(6144, done)
-    print("AI_DONE", [i for i, _ in done])
+                    entry["views"].append("r%d" % k)
+                json.dump(m1, open(os.path.join(d, "views.json"), "w"))
+            manifest["points"].append(entry)
+        json.dump(manifest, open(os.path.join(AUTO, "ai-manifest.json"), "w"), indent=1)
+        print("AI_PREPARED", manifest["images"], "images", manifest["cost"], "DA", flush=True)
+        return manifest
+
+    def finish():
+        done = []
+        for p in pts:
+            n = "t%d" % p["index"]
+            d = tiles_dir(n)
+            subprocess.run([PY, os.path.join(SCRIPTS, "pano_tiles.py"), "lay", d, n], check=True)
+            final = os.path.join(AUTO, n + "-final.png")
+            subprocess.run([PY, os.path.join(SCRIPTS, "pano_finish.py"), os.path.join(d, "up.png"), os.path.join(d, n + "-ai.png"), os.path.join(AUTO, n + "-masks.npz"), os.path.join(AUTO, "material-ids.json"), final,
+                            json.dumps({"width": 6144, "floor": 0.95, "walls": 0.7, "fabric": 0.9, "sigmaBig": 22, "nccLow": 0.35, "nccHigh": 0.7})], check=True)
+            rep = json.load(open(os.path.join(AUTO, n + "-final-report.json")))
+            print("AI_POINT", n, rep["verdict"], flush=True)
+            done.append((p["index"], final))
+        install(6144, done)
+        print("AI_DONE", [i for i, _ in done], flush=True)
+
+    if args.stage == "ai-prepare":
+        prepare()
+    elif args.stage == "ai-finish":
+        finish()
+    else:  # ai: both halves with the command-line gateway (me, by hand)
+        images = sum(6 + (4 if p["index"] in ring else 0) for p in pts)
+        print("AI tiles: %d points, %d images x 14 DA = %d DA" % (len(pts), images, images * 14))
+        if not args.yes:
+            raise SystemExit("not spending: run again with --yes")
+        man = prepare()
+        for e in man["points"]:
+            sel = ",".join(e["views"])
+            subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/pano-tiles-gateway.mts", e["dir"], "1536x1536", sel], cwd=ROOT, check=True)
+        finish()

@@ -8,7 +8,9 @@ python look_make_recipe.py <analysis.json> <out recipe.json> [floorZ]
   defaults   clear glass that does not bend light, the sky never below the horizon, polished stone floors (not rugs, wood), the
              grade, the group gains and tints, the golden and day looks
 """
-import json, re, sys
+import json, os, re, sys
+
+ASSETS = os.environ.get("ROOMIA_ASSETS") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 an = json.load(open(sys.argv[1]))
 out = sys.argv[2]
@@ -26,13 +28,22 @@ for name, e in an.get("emissive", {}).items():
     glow.append(name)
     if e["medianSide"] <= 0.25:
         small.append(name)
+def side_rule(an, name, base):
+    """the visible glow of a fixture: 12 for a 4 cm LED, less for a bigger disc (the same value over 14 cm clips to a flat white
+    disc; the downlight spot placed under it does the lighting)"""
+    side = an["emissive"].get(name, {}).get("medianSide", 0.04)
+    if side > 0.5:  # a strip: thin, long, keeps its glow
+        return {name: round(base * 0.67, 2)}
+    return {name: round(base * min(1.0, max(0.06, (0.05 / max(side, 1e-3)) ** 2)), 2)}
+
+
 esc = lambda names: "^(" + "|".join(re.escape(n) for n in names) + ")$"
 
 R = {
     "sunGolden": {"azimuth": az, "elevation": 6, "kelvin": 2500, "energy": 4, "angle": 0.8},
-    "world": {"hdri": "/media/jackhammer/DATA/Linux-Work/roomia-assets/hdri/venice_sunset_nosun.hdr", "rotation": az - 165.6, "strength": 1.0, "viewScale": 0.018, "flattenGround": 0.25},
+    "world": {"hdri": os.path.join(ASSETS, "hdri", "venice_sunset_nosun.hdr"), "rotation": az - 165.6, "strength": 1.0, "viewScale": 0.018, "flattenGround": 0.25},
     "interior": {"kelvin": 3200, "scale": 1.0},
-    "practicals": {"rules": [{"match": esc(glow), "kelvin": 2700, "strength": 12}] if glow else []},
+    "practicals": {"rules": [{"match": esc([n]), "kelvin": 2700, "strength": side_rule(an, n, 12)[n]} for n in glow]},
     "materials": [
         {"match": "glass", "transmission": 1.0, "roughness": 0.0, "alpha": 1.0, "ior": 1.02},
     ],
@@ -42,7 +53,7 @@ R = {
         "tints": {"WORLD": [0.95, 1.0, 1.6], "INTERIOR": [0.85, 1.0, 1.4], "COVES": [0.85, 1.0, 1.4], "PENDANTS": [0.85, 1.0, 1.4], "PATCH": [1.1, 0.97, 0.75], "SUN_GOLDEN": [1.1, 0.97, 0.75]},
     },
     "sunDay": {"azimuth": az, "elevation": 35, "kelvin": 5600, "energy": 4, "angle": 0.6},
-    "worldDay": {"hdri": "/media/jackhammer/DATA/Linux-Work/roomia-assets/hdri/rooitou_park_nosun.hdr", "rotation": az - 166, "strength": 1.0, "viewScale": 0.3},
+    "worldDay": {"hdri": os.path.join(ASSETS, "hdri", "rooitou_park_nosun.hdr"), "rotation": az - 166, "strength": 1.0, "viewScale": 0.3},
     "presets": {
         "golden": {g: 1 for g in ("SUN_GOLDEN", "PATCH", "WORLD", "INTERIOR", "PRACTICALS", "COVES", "COVE_LINES", "PENDANTS", "PENDANT_GLOW", "SLOT")},
         "day": {"SUN_DAY": 1, "WORLD_DAY": 1, "INTERIOR": 1},

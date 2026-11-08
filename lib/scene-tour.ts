@@ -5028,6 +5028,8 @@ export interface TourView {
   panoAiStale: boolean
   /** The saved view looks at a wall (see TourViewPoint.facesWall): no photo on purpose, don't offer to make one. */
   noPhoto: boolean
+  /** The camera stands outside the building (TourViewPoint.outside): no 360° on purpose, not a failed build. */
+  outside?: boolean
   pano: string | null
   plan: TourViewPoint['plan']
   /** Its level on a site with several (TourBuild.levels), else null. */

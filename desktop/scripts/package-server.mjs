@@ -25,7 +25,7 @@ const OUT = path.join(DESKTOP, 'stage', 'app-server')
 const DIST = '.next-desktop'
 const SHARP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/sharp/package.json'), 'utf8')).version
 // Blender 4.5's Python is 3.11 with numpy 1.26.4: scipy 1.13 is the last line built against numpy 1.x
-const WHEELS = ['scipy==1.13.1', 'pillow==11.0.0']
+const WHEELS = ['scipy==1.13.1', 'pillow==11.0.0', 'opencv-python-headless==4.10.0.84'] // opencv: the look pipeline's finishing scripts (scripts/pano_*.py)
 const BLENDER_PYTHON = process.env.ROOMIA_BLENDER ? path.join(path.dirname(process.env.ROOMIA_BLENDER), '4.5/python/bin/python3.11') : null
 
 // the Node the server runs on, nodejs.org's own build (https://nodejs.org/dist/v24.18.0/SHASUMS256.txt)
@@ -102,6 +102,16 @@ sh(path.join(ROOT, 'node_modules/.bin/esbuild'), [
 ])
 fs.copyFileSync(path.join(ROOT, 'scripts/compact-glb.py'), path.join(bin, 'compact-glb.py'))
 
+// the look pipeline (lib/look-pipeline.ts runs these from <server>/scripts, like the tour's own Blender scripts) and the two sky pictures
+step('look pipeline scripts and skies')
+const LOOK_SCRIPTS = [
+  'look_pipeline.py', 'look_analyze.py', 'look_make_recipe.py', 'look_apply.py', 'look_render.py', 'look_prep.py', 'look_grade.py',
+  'look_finalize_panos.py', 'look_install_tour.py', 'pano_tiles.py', 'pano_finish.py',
+]
+fs.mkdirSync(path.join(OUT, 'scripts'), { recursive: true })
+for (const f of LOOK_SCRIPTS) fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(OUT, 'scripts', f))
+fs.cpSync(path.join(ROOT, 'assets/hdri'), path.join(OUT, 'assets/hdri'), { recursive: true })
+
 // 4. sharp for the target
 step(`sharp ${SHARP_VERSION} for ${PLATFORM}`)
 const img = path.join(OUT, 'node_modules/@img')
@@ -150,7 +160,7 @@ console.log('native modules:', natives.join(', ') || 'none')
 // 5. scipy and Pillow for Blender's Python
 step(`Python packages for ${PLATFORM}`)
 const pylib = path.join(DESKTOP, `pylib-${PLATFORM}`)
-if (!fs.existsSync(path.join(pylib, 'scipy'))) {
+if (!fs.existsSync(path.join(pylib, 'scipy')) || !fs.existsSync(path.join(pylib, 'cv2'))) {
   const pip = BLENDER_PYTHON && fs.existsSync(BLENDER_PYTHON) ? BLENDER_PYTHON : 'python3'
   const wheels = fs.mkdtempSync(path.join(os.tmpdir(), 'roomia-wheels-'))
   const plat = PLATFORM === 'win32' ? ['win_amd64'] : ['manylinux2014_x86_64', 'manylinux_2_17_x86_64']

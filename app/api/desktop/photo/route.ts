@@ -6,6 +6,7 @@ import { getDb } from '@/lib/db'
 import { bearerUser, cloudOff, desktopCloudEnabled, desktopPhotoPath, notSignedIn } from '@/lib/desktop-cloud'
 import { getOpenAIClient } from '@/lib/openai-client'
 import { checkDeliveredImage } from '@/lib/photo-check'
+import { panoFacePrompt } from '@/lib/pano-ai'
 import { generatePhotoreal, PhotoChoiceError, renderErrorDetail } from '@/lib/photoreal'
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 import { parseLighting } from '@/lib/scene-capture'
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
   const project = String(body?.project ?? '').slice(0, 80)
   const lighting = parseLighting(body?.lighting as Record<string, unknown> | undefined)
   const ask = body?.ask === true
+  // a 360 tile (lib/look-pipeline.ts): one square view of a panorama, edited with the face prompt; one credit like a photo
+  const tile = body?.kind === 'tile'
   const quality = body?.quality === 'medium' ? 'medium' : undefined
 
   const job = getDb().prepare('SELECT user_id, status, photo_file FROM jobs WHERE id = ?').get(jobId)
@@ -81,7 +84,9 @@ export async function POST(req: NextRequest) {
         reserved = true
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // The photo is made and kept even if the app left: it is paid for, and a retry with the same id gets it.
-        const photo = await generatePhotoreal(capture, buildSceneRenderPrompt(lighting), { ask, quality })
+        const photo = tile
+          ? await generatePhotoreal(capture, panoFacePrompt(), { ask, quality, size: '1536x1536', maxInput: 2048 })
+          : await generatePhotoreal(capture, buildSceneRenderPrompt(lighting), { ask, quality })
         const image = Buffer.from(photo.base64, 'base64')
         const unusable = await checkDeliveredImage(image)
         if (unusable) throw new Error(`Le serveur d’images a renvoyé une image inutilisable (${unusable}). Aucun crédit n’est utilisé.`)

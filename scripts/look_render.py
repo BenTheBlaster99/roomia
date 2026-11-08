@@ -200,6 +200,7 @@ elif JOB["mode"] == "pano":
     import glob, re as _re
     for attr in ("use_pass_normal", "use_pass_position", "use_pass_emit", "use_pass_diffuse_color", "use_pass_z", "use_pass_material_index"):
         setattr(vl, attr, not JOB.get("noMasks"))  # noMasks: only the picture (no AI finish planned), 1.5 GB less
+    vl.use_pass_diffuse_color = True  # always: the finishing step finds the neutral materials in it (white balance)
     mats = list(bpy.data.materials)
     for i_, m_ in enumerate(mats):
         m_.pass_index = i_ + 1
@@ -303,6 +304,8 @@ elif JOB["mode"] == "pano":
         L = read_multi(files[-1])
         lin = L["img"][..., :3]
         np.save(os.path.join(OUT, name + "-lin.npy"), lin.astype(np.float16))
+        if "albedo" in L:
+            np.save(os.path.join(OUT, name + "-albedo.npy"), L["albedo"][::4, ::4, :3].astype(np.float16))
         write_png(os.path.join(OUT, name + "-pano.png"), grade(lin, (LOOK or {}).get("grade") or R.get("grade", {})))
         # masks, at half size
         eye_z = float(gl2b(v["position"]).z)

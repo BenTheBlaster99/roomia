@@ -7,6 +7,7 @@ import type { TourLevel, TourStatus, TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { sendSceneFile } from '@/lib/studio-import/server-prep'
 import DesktopPublish from './DesktopPublish'
+import LookPanel from './LookPanel'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
 import DesktopRenderNotice, { isCpuOnly, loadDesktopEngine, renderEstimate } from '../../components/DesktopRenderNotice'
 
@@ -404,7 +405,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   const missingPhotos = views.filter(v => !v.photo && !v.noPhoto).length
   // Every stop still in Blender quality, for one order covering the whole apartment.
   const blenderStops = views.filter(v => v.pano && !v.panoAiFile && !v.hidden).map(v => v.index)
-  const missingPanos = views.filter(v => !v.pano).length
+  // a stop outside the building has no 360° on purpose
+  const missingPanos = views.filter(v => !v.pano && !v.outside).length
   const building = data.status.state === 'building'
   const coneAngle = (current.plan?.angle ?? 0) + (shown === 'pano' ? (lookYaw * 180) / Math.PI : 0)
   // On a site with several levels the plan is the current point's level, or the one the visitor picked.
@@ -433,6 +435,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             {current.name} · {step + 1} / {order.length}
           </span>
         </div>
+        {!published && <LookPanel sceneId={sceneId} />}
         {!published && <DesktopPublish sceneId={sceneId} />}
         <div className="tour-modes" role="group" aria-label="Mode de visite">
           <button type="button" aria-pressed={shown === 'photo'} disabled={!current.photo} onClick={() => setMode('photo')}>

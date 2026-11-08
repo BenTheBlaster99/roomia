@@ -56,16 +56,43 @@ def own_exposure(x):
     return (lo + hi) / 2
 
 
+def neutral_gains(n, x, e):
+    """White balance from the scene's own neutral materials (8 Nov, Pipeline v1): the pixels whose albedo is nearly colourless
+    (plaster, white paint, grey concrete) must stay near-neutral in the picture, with only a little warmth; the grade's cool tint
+    plus warm lights had pushed them toward magenta. Gains per channel, clamped, applied to the linear picture before the grade."""
+    p = os.path.join(d, n + "-albedo.npy")
+    if os.environ.get("NEUTRAL", "1") != "1" or not os.path.exists(p):
+        return np.ones(3, np.float32)
+    al = np.load(p).astype(np.float32)
+    h, w = al.shape[:2]
+    xs = x[::4, ::4][:h, :w]
+    mx, mn = al.max(-1), al.min(-1)
+    lum = al @ LUM
+    sat = (mx - mn) / np.maximum(mx, 1e-4)
+    neutral = (sat < 0.12) & (lum > 0.25) & (lum < 0.85)
+    shown = np.clip(grade(xs, dict(base, exposure=e)), 0, 1)
+    sl = shown @ LUM
+    ok = neutral & (sl > 0.12) & (sl < 0.9)
+    if ok.sum() < 0.01 * ok.size:
+        return np.ones(3, np.float32)
+    m = np.median(shown[ok], axis=0)
+    cur = np.array([m[0] / m[1], 1.0, m[2] / m[1]], np.float32)
+    tgt = np.array([1.03, 1.0, 0.95], np.float32)  # a touch of warmth
+    return np.clip(tgt / cur, 0.85, 1.15).astype(np.float32)
+
+
 own = {n: own_exposure(x) for n, x in lin.items()}
 med = float(np.median(list(own.values())))
 out = {}
 for n, x in lin.items():
     e = float(np.clip(own[n], med - rng, med + rng))
+    gains = neutral_gains(n, x, e)
+    x = x * gains[None, None, :]
     img = np.clip(grade(x, dict(base, exposure=e)), 0, 1)
     LIFT = float(os.environ.get("LIFT", "0"))  # shadows lifted a little: black cabinets keep their texture (the grade's contrast crushes them)
     if LIFT:
         img = np.clip(img + LIFT * (1 - img) ** 3, 0, 1)
     Image.fromarray((img * 255 + 0.5).astype(np.uint8)).save(os.path.join(d, n + "-pano.png"))
-    out[n] = {"own": round(own[n], 2), "used": round(e, 2), "displayMedian": round(float(np.median(img @ LUM)), 3)}
+    out[n] = {"wb": [round(float(v), 3) for v in gains], "own": round(own[n], 2), "used": round(e, 2), "displayMedian": round(float(np.median(img @ LUM)), 3)}
     print("EXPOSURE", n, out[n], flush=True)
 json.dump({"groupMedian": med, "range": rng, "target": target, "points": out}, open(os.path.join(d, "exposure.json"), "w"), indent=1)

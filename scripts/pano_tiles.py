@@ -11,7 +11,33 @@ import json, math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import cv2
-from ai_refiner import cut, look_bl
+
+
+def look_bl(yaw, pitch):
+    """camera-to-world rotation in Blender's frame, columns right, up, back (the capture's c2w)"""
+    f = np.array([math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch)])
+    r = np.cross(f, [0, 0, 1.0]); r /= np.linalg.norm(r)
+    u = np.cross(r, f)
+    return np.stack([r, u, -f], 1)
+
+
+def cut(pano, depth, R, size, fov):
+    """a pinhole view (colour, planar depth) of an equirect, in the capture's projection (no torch: cv2.remap)"""
+    H, W = pano.shape[:2]
+    fl = size / 2 / math.tan(math.radians(fov) / 2)
+    a = (np.arange(size) + 0.5 - size / 2) / fl
+    gy, gx = np.meshgrid(-a, a, indexing="ij")
+    loc = np.stack([gx, gy, -np.ones_like(gx)], -1)
+    d = loc @ R.T
+    d /= np.linalg.norm(d, axis=-1, keepdims=True)
+    az = np.arctan2(d[..., 1], d[..., 0])
+    lat = np.arcsin(np.clip(d[..., 2], -1, 1))
+    col = (np.mod(math.pi - az, 2 * math.pi) / (2 * math.pi) * W - 0.5).astype(np.float32)
+    row = ((math.pi / 2 - lat) / math.pi * H - 0.5).astype(np.float32)
+    img = cv2.remap(pano.astype(np.float32), col, row, cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+    z = cv2.remap(depth.astype(np.float32), col, row, cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+    return img, z / np.linalg.norm(loc, axis=-1)
+
 
 mode = sys.argv[1]
 if mode == "cut":

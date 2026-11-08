@@ -18,10 +18,11 @@ type PresetRow = Pick<
 /** French-first gate copy (studio tools are pre-i18n phase). */
 const COPY = {
   title: 'Comment voulez-vous commencer ?',
-  sub: 'Choisissez un preset curaté, ou créez votre propre pièce.',
-  create: 'Créer le vôtre',
-  createHint: 'Pièce vide prête à meubler',
+  sub: 'Importez votre projet pour obtenir plans, photos et visite 360°, ou partez d’un preset ou d’une pièce vide.',
+  create: 'Pièce vide',
+  createHint: 'Partez d’une pièce vide prête à meubler',
   importSketch: 'Importer une pièce SketchUp',
+  importOutputs: ['Plan 2D et 3D', 'Photos IA', 'Visite 360°', 'Présentation golden hour'],
   importHint:
     'Format conseillé : GLB, exporté depuis SketchUp (un seul fichier, textures incluses, bien plus léger). Un export COLLADA (.dae) fonctionne aussi, mais seulement s’il fait moins de 450 Mo ; ajoutez le .skp dans un zip pour récupérer les textures.',
   resume: 'Reprendre',
@@ -129,6 +130,34 @@ export default function StudioEntryGate({
             </button>
           )}
 
+          <div className="rm-panel p-8 text-left sm:col-span-2 border-2 border-[var(--rm-primary)]">
+            <div className="rm-display text-2xl font-bold">{COPY.importSketch}</div>
+            <ul className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--rm-primary)]">
+              {COPY.importOutputs.map(o => (
+                <li key={o} className="rounded-full border border-[var(--rm-primary)] px-3 py-1">
+                  {o}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.importHint}</p>
+            <StudioRoomImport
+              className="rm-btn-primary mt-5 px-5 py-2.5 text-sm"
+              label="Choisir un fichier 3D"
+              onImported={() => {
+                setDismissed(true)
+                useStudioStore.getState().setEntryGateOpen(false)
+                onEnterBlank()
+                const url = new URL(window.location.href)
+                url.searchParams.set('create', '1')
+                url.searchParams.delete('saved')
+                url.searchParams.delete('width')
+                url.searchParams.delete('length')
+                url.searchParams.delete('height')
+                window.history.replaceState({}, '', url.toString())
+              }}
+            />
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -148,27 +177,6 @@ export default function StudioEntryGate({
             <div className="rm-display text-xl font-bold">{COPY.create}</div>
             <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.createHint}</p>
           </button>
-
-          <div className="rm-panel p-6 text-left">
-            <div className="rm-display text-xl font-bold">{COPY.importSketch}</div>
-            <p className="mt-2 text-sm text-[var(--rm-muted)]">{COPY.importHint}</p>
-            <StudioRoomImport
-              className="rm-btn-primary mt-4 px-4 py-2 text-sm"
-              label="Choisir un fichier 3D"
-              onImported={() => {
-                setDismissed(true)
-                useStudioStore.getState().setEntryGateOpen(false)
-                onEnterBlank()
-                const url = new URL(window.location.href)
-                url.searchParams.set('create', '1')
-                url.searchParams.delete('saved')
-                url.searchParams.delete('width')
-                url.searchParams.delete('length')
-                url.searchParams.delete('height')
-                window.history.replaceState({}, '', url.toString())
-              }}
-            />
-          </div>
 
           <Link
             href="/configure"

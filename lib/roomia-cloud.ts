@@ -84,7 +84,7 @@ export interface CloudPhoto {
  * with the same job id for up to 6 minutes: the server answers the photo it kept, never charging twice.
  */
 export async function cloudPhoto(
-  args: { jobId: string; project: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium' },
+  args: { jobId: string; project: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium'; kind?: 'tile' },
   onPing: () => void,
 ): Promise<CloudPhoto> {
   const token = await readToken()
@@ -95,6 +95,7 @@ export async function cloudPhoto(
     view: args.view,
     lighting: args.lighting,
     ask: args.ask,
+    ...(args.kind ? { kind: args.kind } : {}),
     ...(args.quality ? { quality: args.quality } : {}),
     capture_base64: args.capture.toString('base64'),
   })

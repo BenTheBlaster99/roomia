@@ -125,11 +125,14 @@ for p in points:
     c = gl2b(p["position"])
     ds = sorted(cast(c, d, 60.0)[2] for d in dirs)
     med, mn = ds[len(ds) // 2], ds[0]
+    open_share = sum(1 for x in ds if x >= 59.0) / len(ds)  # rays that leave without touching anything: a camera outside the building
     near = sum(1 for x in ds if x < 0.45) / len(ds)
     verdict = "ok"
     if mn < 0.12 or med < 0.6:
         verdict = "inside furniture or too tight"
-    cams.append({"index": p["index"], "name": p.get("name"), "median": round(med, 2), "min": round(mn, 2), "nearShare": round(near, 2), "verdict": verdict})
+    if open_share > 0.5:
+        verdict = "outside the building"
+    cams.append({"index": p["index"], "name": p.get("name"), "median": round(med, 2), "min": round(mn, 2), "nearShare": round(near, 2), "openShare": round(open_share, 2), "verdict": verdict})
 json.dump({"sun": {"azimuth": best, "elevation": 6, "scores": scores}, "emissive": em_out, "cameras": cams}, open(os.path.join(OUT, "analysis.json"), "w"), indent=1)
 print("LOOK_ANALYSIS_OK", flush=True)
 os._exit(0)
