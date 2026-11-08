@@ -113,7 +113,7 @@ function killJob(child: ChildProcess) {
 
 function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string; scene?: string } = {}): Promise<number> {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' })
+    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' })
     if (opts.scene) {
       const set = kids.get(opts.scene) ?? new Set<ChildProcess>()
       set.add(child)
@@ -126,7 +126,7 @@ function run(cmd: string, args: string[], onLine: (line: string) => void, opts: 
       buf += chunk.toString()
       let i
       while ((i = buf.indexOf('\n')) >= 0) {
-        onLine(buf.slice(0, i))
+        onLine(buf.slice(0, i).replace(/\r$/, ''))
         buf = buf.slice(i + 1)
       }
     }
@@ -191,7 +191,7 @@ const STEPS: [RegExp, string][] = [
 function follow(id: string, s: LookState) {
   return (line: string) => {
     if (!line.trim()) return
-    s.log = [...s.log.slice(-39), line.slice(0, 220)]
+    s.log = [...s.log.slice(-39), line.replace(/\r$/, '').slice(0, 220)]
     for (const [rx, label] of STEPS) if (rx.test(line)) s.step = label
     save(id, s).catch(() => {})
   }

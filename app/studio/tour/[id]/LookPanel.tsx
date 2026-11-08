@@ -75,6 +75,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               </span>
               {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
               {state?.error && <span className="tour-error">{state.error}</span>}
+              {state?.error && state.log?.length > 0 && <pre className="look-log">{state.log.slice(-14).join('\n')}</pre>}
               {state?.step && state.stage === 'idle' && <span>{state.step}</span>}
               {!tourReady && <span className="tour-error">Préparez d’abord la visite 360° (bouton « Préparer la visite ») : la présentation s’appuie sur ses points et son plan.</span>}
               <button type="button" disabled={!tourReady} onClick={() => void start({ action: 'render' })}>

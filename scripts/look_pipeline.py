@@ -32,7 +32,9 @@ ap.add_argument("--yes", action="store_true")
 ap.add_argument("--dry", action="store_true")
 args = ap.parse_args()
 
-S = os.path.join(ROOT, ".scenes", args.scene)
+# where the app keeps its projects: SCENES_DIR (Roomia Desktop: %LOCALAPPDATA%\\Roomia\\projects), else .scenes beside the code
+SCENES = os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")
+S = os.path.join(os.path.abspath(SCENES), args.scene)
 LOOK = os.path.join(S, "look")
 AUTO = os.path.join(LOOK, "auto")
 TOUR = os.path.join(S, "tour")

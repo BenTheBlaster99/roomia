@@ -153,3 +153,4 @@
 /* "Arrêter" on a running preparation (TourClient.tsx, LookPanel.tsx) */
 .tour-stop { border: 1px solid var(--line); background: none; color: var(--fg); padding: 7px 14px; border-radius: 10px; font-size: 14px; cursor: pointer; justify-self: start; }
 .tour-stop:hover { background: rgba(217, 80, 80, 0.85); color: #fff; border-color: transparent; }
+.look-log { margin: 0; max-height: 160px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--glass); color: var(--muted); font-size: 11px; line-height: 1.35; white-space: pre-wrap; word-break: break-all; user-select: text; }
