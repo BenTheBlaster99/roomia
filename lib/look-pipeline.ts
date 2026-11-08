@@ -1,13 +1,13 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BLENDER } from './blender-render'
+import { BLENDER, withBlenderSlot } from './blender-render'
 import { panoFacePrompt } from './pano-ai'
 import { generatePhotoreal, isGatewayDown } from './photoreal'
 import { cloudMode, cloudPhoto } from './roomia-cloud'
 import { readCameras, readMeta, sceneDir } from './scene-store'
-import { TOUR_SCRIPT, tourDir, tourSceneSpec } from './scene-tour'
+import { killTree, TOUR_SCRIPT, tourDir, tourSceneSpec } from './scene-tour'
 
 /**
  * Roomia look pipeline v1 as a managed job (8 Nov), the production engine behind the "Présentation" panel of the tour page.
@@ -38,6 +38,8 @@ export interface LookState {
   stage: 'idle' | 'running' | 'ready' | 'done' | 'error' | 'interrupted'
   job: 'render' | 'ai' | null
   step: string
+  /** the latest word from Blender (which view, which sample), so the person can see it moving */
+  detail?: string
   log: string[]
   startedAt: number
   updatedAt: number
@@ -91,9 +93,32 @@ async function pythonExe(): Promise<string> {
   return 'python3'
 }
 
-function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string } = {}): Promise<number> {
+/** The processes of each scene's look job, and the scenes whose job the person stopped ("Arrêter"). */
+const kids = new Map<string, Set<ChildProcess>>()
+const stopped = new Set<string>()
+
+function killJob(child: ChildProcess) {
+  // Linux: the job runs in its own process group (Python and the Blender it started); Windows: taskkill /T
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+      return
+    } catch {
+      // not a group leader: fall through
+    }
+  }
+  killTree(child)
+}
+
+function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string; scene?: string } = {}): Promise<number> {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER }, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' })
+    if (opts.scene) {
+      const set = kids.get(opts.scene) ?? new Set<ChildProcess>()
+      set.add(child)
+      kids.set(opts.scene, set)
+      child.on('close', () => set.delete(child))
+    }
     if (child.pid && process.platform === 'linux') writeFile(`/proc/${child.pid}/oom_score_adj`, '900').catch(() => {})
     let buf = ''
     const take = (chunk: Buffer) => {
@@ -112,7 +137,7 @@ function run(cmd: string, args: string[], onLine: (line: string) => void, opts: 
 }
 
 const SCRIPT = path.join(process.cwd(), 'scripts', 'look_pipeline.py')
-const pipeline = async (id: string, args: string[], onLine: (l: string) => void) => run(await pythonExe(), [SCRIPT, ...args.slice(0, 1), id, ...args.slice(1)], onLine)
+const pipeline = async (id: string, args: string[], onLine: (l: string) => void) => run(await pythonExe(), [SCRIPT, ...args.slice(0, 1), id, ...args.slice(1)], onLine, { scene: id })
 
 /** The scene prepared for the look (lights, glass, mirrors, sky), saved once as look/prepared.blend. Same work as scripts/look-prep.mts. */
 export async function prepareLook(id: string, onLine: (l: string) => void = () => {}): Promise<void> {
@@ -148,7 +173,7 @@ export async function prepareLook(id: string, onLine: (l: string) => void = () =
       look: { outDir: out },
     }),
   )
-  const code = await run(BLENDER, ['--background', '--python', scriptPath, '--', specPath], l => /^(LOOK_|TOUR_TIME|TOUR_INFO)|Error|Traceback/.test(l) && onLine(l))
+  const code = await run(BLENDER, ['--background', '--python', scriptPath, '--', specPath], l => /^(LOOK_|TOUR_TIME|TOUR_INFO)|Error|Traceback/.test(l) && onLine(l), { scene: id })
   if (code !== 0 || !(await exists(path.join(out, 'prepared.blend')))) throw new Error('La scène n’a pas pu être préparée pour la présentation.')
 }
 
@@ -175,6 +200,40 @@ export function lookBusy(id: string): boolean {
   return active.get(id)?.stage === 'running'
 }
 
+/** "Arrêter": kills the job's processes now (Blender included). It does not restart by itself; the tiles already made are kept. */
+export async function stopLook(id: string): Promise<LookState> {
+  const s = active.get(id) ?? (await getLookState(id))
+  if (s.stage !== 'running') return s
+  stopped.add(id)
+  for (const child of kids.get(id) ?? []) killJob(child)
+  // a stopped free render starts clean; a stopped AI job keeps its tiles and offers to continue
+  s.stage = s.job === 'ai' ? 'interrupted' : 'idle'
+  s.step = 'Arrêtée. Vous pouvez la relancer.'
+  s.detail = undefined
+  await save(id, s)
+  return s
+}
+
+/** While Blender renders the points: which view it is on, from the finished files and Blender's own progress line. */
+function watchRender(id: string, s: LookState, total: () => number): () => void {
+  const timer = setInterval(async () => {
+    try {
+      const files = (await readdir(autoDir(id))).filter(f => /^t\d+-lin\.npy$/.test(f))
+      let fresh = 0
+      for (const f of files) if ((await stat(path.join(autoDir(id), f))).mtimeMs >= s.startedAt) fresh += 1
+      const n = total()
+      if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 3 minutes chacune)`
+      const tail = (await readFile(path.join(autoDir(id), 'render.log'), 'utf8').catch(() => '')).split('\n').slice(-40).reverse().find(l => /Sample \d+\/\d+/.test(l))
+      const m = tail && /Sample (\d+\/\d+)/.exec(tail)
+      s.detail = m ? `Échantillon ${m[1]}` : undefined
+      await save(id, s)
+    } catch {
+      // the next tick tries again
+    }
+  }, 5000)
+  return () => clearInterval(timer)
+}
+
 /** Free: analysis, the automatic recipe, every 360 point rendered and installed, then the suggestion of the points for the AI. */
 export async function startLookRender(id: string): Promise<LookState> {
   if (lookBusy(id)) return active.get(id)!
@@ -184,10 +243,25 @@ export async function startLookRender(id: string): Promise<LookState> {
   Object.assign(s, { stage: 'running', job: 'render', step: 'Préparation de la scène…', startedAt: Date.now() })
   await save(id, s)
   const line = follow(id, s)
+  stopped.delete(id)
   void (async () => {
     try {
-      await prepareLook(id, line)
-      const code = await pipeline(id, ['render'], line)
+      s.step = 'En attente du processeur graphique…'
+      await save(id, s)
+      let planned = 0
+      const stopWatching = watchRender(id, s, () => planned)
+      const code = await withBlenderSlot(async () => {
+        if (stopped.has(id)) throw new Error('Arrêtée.')
+        s.step = 'Préparation de la scène…'
+        await save(id, s)
+        await prepareLook(id, line)
+        return pipeline(id, ['render'], l => {
+          const m = /^points: (\d+) to render/.exec(l)
+          if (m) planned = Number(m[1])
+          line(l)
+        })
+      }).finally(stopWatching)
+      if (stopped.has(id)) throw new Error('Arrêtée.')
       if (code !== 0) throw new Error('Le rendu de la présentation a échoué (voir le journal).')
       const report = JSON.parse(await readFile(path.join(autoDir(id), 'render-report.json'), 'utf8')) as { rendered: string[]; skipped: Record<string, string> }
       s.rendered = report.rendered
@@ -202,8 +276,14 @@ export async function startLookRender(id: string): Promise<LookState> {
       s.stage = 'ready'
       s.step = 'La visite est prête. Vous pouvez demander la finition IA.'
     } catch (err) {
-      s.stage = 'error'
-      s.error = err instanceof Error ? err.message : String(err)
+      if (stopped.delete(id)) {
+        s.stage = 'idle'
+        s.step = 'Arrêtée. Vous pouvez la relancer.'
+        s.detail = undefined
+      } else {
+        s.stage = 'error'
+        s.error = err instanceof Error ? err.message : String(err)
+      }
     }
     await save(id, s)
   })()
@@ -271,10 +351,20 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
   s.ai = { points, ring, images: q.images, cost: q.cost, done: 0, paid: 0, cached: 0 }
   await save(id, s)
   const line = follow(id, s)
+  stopped.delete(id)
   void (async () => {
     try {
       const args = (stage: string) => [stage, '--points', points.join(','), ...(ring.length ? ['--ring', ring.join(',')] : [])]
-      if ((await pipeline(id, args('ai-prepare'), line)) !== 0) throw new Error('La préparation des vues IA a échoué (voir le journal).')
+      s.step = 'En attente du processeur graphique…'
+      await save(id, s)
+      const prepared = await withBlenderSlot(async () => {
+        if (stopped.has(id)) throw new Error('Arrêtée.')
+        s.step = 'Préparation des vues pour l’IA…'
+        await save(id, s)
+        return pipeline(id, args('ai-prepare'), line)
+      })
+      if (stopped.has(id)) throw new Error('Arrêtée.')
+      if (prepared !== 0) throw new Error('La préparation des vues IA a échoué (voir le journal).')
       const manifest = JSON.parse(await readFile(path.join(autoDir(id), 'ai-manifest.json'), 'utf8')) as { points: { dir: string; views: string[] }[] }
       s.step = 'Génération des images par l’IA…'
       await save(id, s)
@@ -282,6 +372,7 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
       let next = 0
       const worker = async () => {
         while (next < todo.length) {
+          if (stopped.has(id)) throw new Error('Arrêtée.')
           const t = todo[next++]
           await makeTile(id, t.dir, t.view, s)
           s.ai!.done += 1
@@ -296,8 +387,13 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
       s.stage = 'done'
       s.step = 'Finition IA terminée.'
     } catch (err) {
-      s.stage = 'error'
-      s.error = err instanceof Error ? err.message : String(err)
+      if (stopped.delete(id)) {
+        s.stage = 'interrupted'
+        s.step = 'Arrêtée. Les images déjà faites sont gardées.'
+      } else {
+        s.stage = 'error'
+        s.error = err instanceof Error ? err.message : String(err)
+      }
     }
     await save(id, s)
   })()

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
-import { editTourPoint, readTour, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
@@ -38,12 +38,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     review?: { index?: unknown; approve?: unknown; reason?: unknown }
     point?: { index?: unknown; hidden?: unknown; startYaw?: unknown }
     newVersion?: unknown
+    stop?: unknown
     update?: unknown
     mirrors?: unknown
     complete?: unknown
     bake?: unknown
   } | null
   try {
+    if (body?.stop === true) return Response.json({ status: await stopTourBuild(id) })
     if (body?.point) {
       const { index, hidden, startYaw } = body.point
       await editTourPoint(id, Number(index), {

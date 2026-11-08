@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
-import { getLookState, quoteAi, startLookAi, startLookRender } from '@/lib/look-pipeline'
+import { getLookState, quoteAi, startLookAi, startLookRender, stopLook } from '@/lib/look-pipeline'
 import { readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
@@ -18,6 +18,7 @@ const ints = (v: unknown) => (Array.isArray(v) ? v.map(Number).filter(n => Numbe
 
 /**
  * POST — { action: 'render' }  free: the golden-hour 360 tour of every point (Blender only).
+ *        { action: 'stop' }  stops the job now (Blender killed; the AI tiles already made are kept).
  *        { action: 'quote', points, ring }  nothing is sent: the images and the cost.
  *        { action: 'ai', points, ring, maxCost }  paid: the AI finishing of those points; refused unless maxCost covers the cost.
  */
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = (await req.json().catch(() => null)) as { action?: unknown; points?: unknown; ring?: unknown; maxCost?: unknown } | null
   try {
     if (body?.action === 'render') return Response.json(await startLookRender(id))
+    if (body?.action === 'stop') return Response.json(await stopLook(id))
     const points = ints(body?.points)
     const ring = ints(body?.ring).filter(p => points.includes(p))
     if (body?.action === 'quote') return Response.json(quoteAi(points, ring))

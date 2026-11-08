@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { appendFile, copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { BLENDER, guardMemory, SCENE_SETUP_SCRIPT, viewFromSceneCamera, withBlenderSlot, type ViewSpec } from './blender-render'
@@ -3661,9 +3661,24 @@ for path in sys.argv[1:]:
 print(json.dumps(res))
 `
 
+/** Blender processes of the tour builds running now, and the scenes whose build the person stopped ("Arrêter"). */
+const liveBlender = new Set<ChildProcess>()
+const stopRequested = new Set<string>()
+
+/** Kills a process and what it started (taskkill /T on Windows, where Blender is the only child anyway). */
+export function killTree(child: ChildProcess) {
+  if (!child.pid) return
+  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).unref()
+  else child.kill('SIGKILL')
+}
+
 function run(command: string, args: string[], onLine?: (line: string) => void, timeoutMs = BLENDER_TIMEOUT_MS): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    if (command === BLENDER) {
+      liveBlender.add(child)
+      child.on('close', () => liveBlender.delete(child))
+    }
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
     let stderr = ''
     const unguard = command === BLENDER ? guardMemory(child, reason => (stderr += `\nArrêté : ${reason}`)) : () => undefined
@@ -3689,6 +3704,19 @@ function run(command: string, args: string[], onLine?: (line: string) => void, t
       resolve({ code: 1, stderr: err.message })
     })
   })
+}
+
+/**
+ * "Arrêter": stops the tour build of a scene now (Blender is killed; a build still waiting for the graphics card never starts).
+ * It does not start again by itself, unlike a build cut by closing Roomia (lib/desktop-resume.ts).
+ */
+export async function stopTourBuild(sceneId: string): Promise<TourStatus> {
+  const status = await readTourStatus(sceneId)
+  if (status.state !== 'building') return status
+  stopRequested.add(sceneId)
+  for (const child of liveBlender) killTree(child)
+  await writeStatus(sceneId, { state: 'idle', step: 'Arrêtée.' })
+  return { state: 'idle', step: 'Arrêtée.' }
 }
 
 /** Runs fn on every item, at most limit at a time, and keeps the results in order. */
@@ -3841,6 +3869,7 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   // cleared afterwards, and a build stopped for memory left nothing to read (31 Oct).
   const log: string[] = []
   const blender = () => withBlenderSlot(async () => {
+    if (stopRequested.has(sceneId)) throw new Error('Arrêtée.')
     mark('blender')
     await progress('Ouverture du fichier complet…')
     log.push(`${new Date().toISOString()} blender ${JSON.parse(await readFile(specPath, 'utf8')).panoEngine}`)
@@ -4173,6 +4202,7 @@ export async function startTourBuild(
       if (stops.length) await startTourAi(sceneId, stops, options.photoQuality)
     })
     .catch(async err => {
+      if (stopRequested.delete(sceneId)) return writeStatus(sceneId, { state: 'idle', step: 'Arrêtée.' })
       console.error('tour build failed', err)
       await writeStatus(sceneId, { state: 'failed', error: err instanceof Error ? err.message : String(err) })
     })

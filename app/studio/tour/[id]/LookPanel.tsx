@@ -21,7 +21,7 @@ async function post(sceneId: string, body: Record<string, unknown>): Promise<{ o
  * deserve it. The AI step is paid, so the person chooses the points, sees the exact number of images and the cost, and
  * confirms that amount before anything is sent (lib/look-pipeline.ts refuses a job above the amount confirmed).
  */
-export default function LookPanel({ sceneId }: { sceneId: string }) {
+export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tourReady: boolean }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<LookState | null>(null)
   const [error, setError] = useState('')
@@ -66,7 +66,7 @@ export default function LookPanel({ sceneId }: { sceneId: string }) {
       </button>
       {open && (
         <div className="tour-publish-panel look-panel-body" role="dialog" aria-label="Présentation golden hour">
-          {(stage === 'idle' || stage === 'interrupted' || (stage === 'error' && state?.job === 'render')) && (
+          {(stage === 'idle' || (stage === 'interrupted' && state?.job !== 'ai') || (stage === 'error' && state?.job === 'render')) && (
             <>
               <strong>Présentation golden hour</strong>
               <span>
@@ -75,7 +75,9 @@ export default function LookPanel({ sceneId }: { sceneId: string }) {
               </span>
               {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
               {state?.error && <span className="tour-error">{state.error}</span>}
-              <button type="button" onClick={() => void start({ action: 'render' })}>
+              {state?.step && state.stage === 'idle' && <span>{state.step}</span>}
+              {!tourReady && <span className="tour-error">Préparez d’abord la visite 360° (bouton « Préparer la visite ») : la présentation s’appuie sur ses points et son plan.</span>}
+              <button type="button" disabled={!tourReady} onClick={() => void start({ action: 'render' })}>
                 Générer la présentation (gratuit)
               </button>
             </>
@@ -89,11 +91,26 @@ export default function LookPanel({ sceneId }: { sceneId: string }) {
                 {minutes} min écoulée{minutes > 1 ? 's' : ''}. Vous pouvez continuer à travailler, mais ne fermez pas Roomia. Si le PC s’arrête, relancez : les images IA
                 déjà faites ne sont pas payées deux fois.
               </span>
+              {state?.detail && <span>{state.detail}</span>}
               {state?.ai && (
                 <span>
                   {state.ai.done} / {state.ai.images} images · {state.ai.paid} payées · {state.ai.cached} reprises du cache
                 </span>
               )}
+              <button type="button" className="tour-stop" onClick={() => void start({ action: 'stop' })}>
+                Arrêter
+              </button>
+              <span>Arrêter coupe Blender tout de suite (le PC refroidit). Les images IA déjà faites sont gardées.</span>
+            </>
+          )}
+
+          {stage === 'interrupted' && state?.job === 'ai' && state.ai && (
+            <>
+              <strong>Finition IA arrêtée</strong>
+              <span>{state.step || 'Interrompue.'} Les images déjà faites sont gardées : les reprendre ne les repaie pas.</span>
+              <button type="button" onClick={() => void start({ action: 'ai', points: state.ai!.points, ring: state.ai!.ring, maxCost: state.ai!.cost })}>
+                Reprendre ({state.ai.cost} DA au plus)
+              </button>
             </>
           )}
 

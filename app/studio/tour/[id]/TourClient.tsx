@@ -106,6 +106,11 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   const [film, setFilm] = useState<VideoData | null>(null)
 
   const load = useCallback(() => fetchTour(sceneId, editing).then(setData), [sceneId, editing])
+  // "Arrêter": kills Blender for this scene's build now. It does not restart by itself (only a build cut by closing Roomia does).
+  const stopBuild = useCallback(async () => {
+    await fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => undefined)
+    await load()
+  }, [sceneId, load])
   const loadFilm = useCallback(() => fetchVideo(sceneId).then(setFilm), [sceneId])
 
   useEffect(() => {
@@ -366,6 +371,10 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             <strong>Préparation de la visite 360°…</strong>
             <span>{status.step}</span>
             <progress max={status.total ?? 1} value={status.done ?? 0} />
+            <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
+              Arrêter la préparation
+            </button>
+            <span>Si vous fermez Roomia, la préparation reprendra toute seule à la prochaine ouverture.</span>
           </>
         ) : data.builtAt ? (
           <span>Aucun point de vue trouvé : Roomia n’a reconnu aucune pièce couverte dans ce fichier.</span>
@@ -435,7 +444,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             {current.name} · {step + 1} / {order.length}
           </span>
         </div>
-        {!published && <LookPanel sceneId={sceneId} />}
+        {!published && <LookPanel sceneId={sceneId} tourReady={!building && views.some(v => v.pano)} />}
         {!published && <DesktopPublish sceneId={sceneId} />}
         <div className="tour-modes" role="group" aria-label="Mode de visite">
           <button type="button" aria-pressed={shown === 'photo'} disabled={!current.photo} onClick={() => setMode('photo')}>
@@ -575,6 +584,9 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               <strong>{data.status.kind === 'ai' ? '360° en qualité photo…' : 'Préparation de la visite 360°…'}</strong>
               <span>{data.status.step}</span>
               <progress max={data.status.total ?? 1} value={data.status.done ?? 0} />
+              <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
+                Arrêter
+              </button>
             </>
           ) : (
             <>
