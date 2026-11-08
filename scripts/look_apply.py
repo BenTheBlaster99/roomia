@@ -425,6 +425,10 @@ for rule in R.get("materials", []):
         if not m.use_nodes:
             continue
         for n in m.node_tree.nodes:
+            if n.type in ("BSDF_GLASS", "BSDF_REFRACTION") and "minTint" in rule and not n.inputs["Color"].is_linked:
+                # a window must not be black glass: a dark tint with full transmission shows a black pane (8 Nov, Sarah's suite)
+                c_ = list(n.inputs["Color"].default_value)
+                n.inputs["Color"].default_value = (max(c_[0], float(rule["minTint"])), max(c_[1], float(rule["minTint"])), max(c_[2], float(rule["minTint"])), 1.0)
             if n.type in ("BSDF_GLASS", "BSDF_REFRACTION", "BSDF_GLOSSY") and "roughness" in rule:
                 n.inputs["Roughness"].default_value = float(rule["roughness"])
                 continue
@@ -432,6 +436,9 @@ for rule in R.get("materials", []):
                 continue
             if "transmission" in rule:
                 n.inputs["Transmission Weight"].default_value = float(rule["transmission"])
+            if "minTint" in rule and not n.inputs["Base Color"].is_linked:
+                c_ = list(n.inputs["Base Color"].default_value)
+                n.inputs["Base Color"].default_value = (max(c_[0], float(rule["minTint"])), max(c_[1], float(rule["minTint"])), max(c_[2], float(rule["minTint"])), 1.0)
             for key, sock in (("roughness", "Roughness"), ("metallic", "Metallic"), ("specular", "Specular IOR Level"),
                               ("coat", "Coat Weight"), ("coatRoughness", "Coat Roughness"), ("sheen", "Sheen Weight"),
                               ("sheenRoughness", "Sheen Roughness"), ("ior", "IOR"), ("alpha", "Alpha")):
@@ -591,6 +598,12 @@ for rule_ in R.get("details", []):
         _detailed.append(m.name)
 print("LOOK_INFO details on %d materials: %s" % (len(_detailed), ", ".join(_detailed[:10])), flush=True)
 
+
+# the Enscape light proxies (lib/blender-render.ts makes each a small glowing mesh): they light the room but are not drawn in the picture
+# (8 Nov: soft white discs showed on the walls of Sarah's suite)
+for _ob in scene.objects:
+    if _ob.type == "MESH" and any(s_.material and s_.material.name == "roomia_enscape_light" for s_ in _ob.material_slots):
+        _ob.visible_camera = False
 
 # --- polished floors (8 Nov): what the AI edit added to every floor was gloss, a physical property. Any material that is
 # the up-facing surface at floor height (>= minM2 square metres, found from the geometry, not from names) gets a polished

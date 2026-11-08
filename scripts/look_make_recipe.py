@@ -45,7 +45,7 @@ R = {
     "interior": {"kelvin": 3200, "scale": 1.0},
     "practicals": {"rules": [{"match": esc([n]), "kelvin": 2700, "strength": side_rule(an, n, 12)[n]} for n in glow]},
     "materials": [
-        {"match": "glass", "transmission": 1.0, "roughness": 0.0, "alpha": 1.0, "ior": 1.02},
+        {"match": "glass", "transmission": 1.0, "roughness": 0.0, "alpha": 1.0, "ior": 1.02, "minTint": 0.88},
     ],
     "grade": {"exposure": -0.2, "whiteBalance": [0.88, 1.0, 1.12], "contrast": 1.35, "saturation": 0.92},
     "fit": {
