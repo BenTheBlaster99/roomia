@@ -370,6 +370,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <>
             <strong>Préparation de la visite 360°…</strong>
             <span>{status.step}</span>
+            {status.thermal?.paused && <span className="tour-error">Pause : la carte graphique refroidit ({status.thermal.temp} °C). Le travail reprend tout seul.</span>}
             <progress max={status.total ?? 1} value={status.done ?? 0} />
             <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
               Arrêter la préparation
@@ -583,6 +584,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             <>
               <strong>{data.status.kind === 'ai' ? '360° en qualité photo…' : 'Préparation de la visite 360°…'}</strong>
               <span>{data.status.step}</span>
+              {data.status.thermal?.paused && <span className="tour-error">Pause : la carte graphique refroidit ({data.status.thermal.temp} °C). Le travail reprend tout seul.</span>}
               <progress max={data.status.total ?? 1} value={data.status.done ?? 0} />
               <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
                 Arrêter

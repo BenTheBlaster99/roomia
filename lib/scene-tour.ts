@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { appendFile, copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { killAllRoomiaBlenders, thermalState } from './blender-guard'
 import { BLENDER, guardMemory, SCENE_SETUP_SCRIPT, viewFromSceneCamera, withBlenderSlot, type ViewSpec } from './blender-render'
 import { SHEETS_APART_PY } from './blender-sheets'
 import { FINISH_ROUGHNESS } from './material-roles'
@@ -134,6 +135,8 @@ const MASK_MIN_PIXELS = 4
 
 export interface TourStatus {
   state: 'idle' | 'building' | 'done' | 'failed'
+  /** Blender is paused while the graphics card cools (lib/blender-guard.ts). */
+  thermal?: { paused: boolean; temp: number }
   step?: string
   done?: number
   total?: number
@@ -3715,6 +3718,7 @@ export async function stopTourBuild(sceneId: string): Promise<TourStatus> {
   if (status.state !== 'building') return status
   stopRequested.add(sceneId)
   for (const child of liveBlender) killTree(child)
+  await killAllRoomiaBlenders() // also one a cut job left behind: nobody tracks it, its path tells
   await writeStatus(sceneId, { state: 'idle', step: 'Arrêtée.' })
   return { state: 'idle', step: 'Arrêtée.' }
 }
@@ -3779,6 +3783,7 @@ export async function readTourStatus(sceneId: string): Promise<TourStatus> {
   const status = JSON.parse(await readFile(statusPath(sceneId), 'utf8').catch(() => '{"state":"idle"}')) as TourStatus
   // A build left half-way by a restart of the Studio is not running any more.
   if (status.state === 'building' && !alive(status.pid)) return { ...status, state: 'failed', error: 'La préparation a été interrompue. Relancez-la.' }
+  if (status.state === 'building' && thermalState().paused) return { ...status, thermal: thermalState() }
   return status
 }
 

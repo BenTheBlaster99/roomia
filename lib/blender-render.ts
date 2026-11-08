@@ -1,3 +1,4 @@
+import { watchTemperature } from './blender-guard'
 import { createHash } from 'node:crypto'
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -71,9 +72,12 @@ export function guardMemory(child: ChildProcess, onStop: (reason: string) => voi
 /** Runs a Blender job in the same one-at-a-time slot as the captures (a tour waits for a capture, and the other way round). */
 export async function withBlenderSlot<T>(job: () => Promise<T>): Promise<T> {
   await acquireSlot()
+  // while the job runs the graphics card's temperature is watched: Blender is paused above ~83 °C (lib/blender-guard.ts)
+  const unwatch = watchTemperature()
   try {
     return await job()
   } finally {
+    unwatch()
     releaseSlot()
   }
 }

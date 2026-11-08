@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { access, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { killAllRoomiaBlenders, thermalState } from './blender-guard'
 import { BLENDER, withBlenderSlot } from './blender-render'
 import { panoFacePrompt } from './pano-ai'
 import { generatePhotoreal, isGatewayDown } from './photoreal'
@@ -225,7 +226,7 @@ function watchRender(id: string, s: LookState, total: () => number): () => void 
       if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 3 minutes chacune)`
       const tail = (await readFile(path.join(autoDir(id), 'render.log'), 'utf8').catch(() => '')).split('\n').slice(-40).reverse().find(l => /Sample \d+\/\d+/.test(l))
       const m = tail && /Sample (\d+\/\d+)/.exec(tail)
-      s.detail = m ? `Échantillon ${m[1]}` : undefined
+      s.detail = thermalState().paused ? `Pause : la carte graphique refroidit (${thermalState().temp} °C)` : m ? `Échantillon ${m[1]}` : undefined
       await save(id, s)
     } catch {
       // the next tick tries again

@@ -1,5 +1,6 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { killAllRoomiaBlenders } from './blender-guard'
 import { startLookRender } from './look-pipeline'
 import { enqueueScene } from './scene-jobs'
 import { startTourBuild, tourDir, type TourStatus } from './scene-tour'
@@ -14,6 +15,8 @@ import { isSceneId, originalPath, readMeta, sceneDir, SCENES_DIR } from './scene
  * One build at a time (the Blender slot queues the others), oldest first.
  */
 export async function resumeInterruptedWork(): Promise<void> {
+  // a Blender left by a job of an older server (cut by an update or a crash) would still heat the card, unseen: end it first
+  await killAllRoomiaBlenders().catch(() => 0)
   const ids = (await readdir(SCENES_DIR).catch(() => [] as string[])).filter(isSceneId)
   const tours: { id: string; at: number }[] = []
   const looks: string[] = []
