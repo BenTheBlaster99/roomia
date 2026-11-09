@@ -104,7 +104,9 @@ def ensure_prepared():
 
 def job(extra, views, out_dir, masks):
     j = {"recipe": os.path.join(AUTO, "recipe-auto.json"), "cameras": os.path.join(S, "cameras.json") if os.path.exists(os.path.join(S, "cameras.json")) else os.path.join(AUTO, "no-cameras.json"),
-         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": "golden", "samples": 128, "targetMedian": 0.45}
+         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": "golden",
+         # 48 samples at noise 0.03 (9 Nov benchmark, Suite): half the time of 128 / 0.01, the same image to the eye (floor, wall, fabric crops)
+         "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", 48)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", 0.03)), "targetMedian": 0.45}
     if not os.path.exists(j["cameras"]):
         json.dump([], open(j["cameras"], "w"))
     if not masks:

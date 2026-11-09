@@ -20,3 +20,7 @@ for pair in sys.argv[3:]:
         im = cv2.resize(im, (width, width // 2), interpolation=cv2.INTER_AREA if w > width else cv2.INTER_LANCZOS4)
     cv2.imwrite(dst, im, [cv2.IMWRITE_JPEG_QUALITY, 92])
     print("INSTALLED", idx, src, "->", dst, im.shape[1], "x", im.shape[0])
+# the tour was a quick preview until these final 360s came (lib/scene-tour.ts TOUR_PREVIEW): it is not any more
+marker = os.path.join(tour, "preview.json")
+if len(sys.argv) > 3 and os.path.exists(marker):
+    os.remove(marker)

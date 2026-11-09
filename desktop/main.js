@@ -491,6 +491,9 @@ function serverEnv(port) {
     ROOMIA_CLOUD_TOKEN_FILE: ACCOUNT_FILE,
     ROOMIA_INBOX_DIR: DIRS.inbox,
     ROOMIA_INBOX_TOKEN: INBOX_TOKEN,
+    // 9 Nov: the tour build makes a quick preview (the golden-hour Présentation renders the final 360°); the card's temperature log lives with the app's logs
+    ROOMIA_TOUR_PREVIEW: '1',
+    ROOMIA_LOG_DIR: DIRS.logs,
     TMP: DIRS.tmp,
     TEMP: DIRS.tmp,
     TMPDIR: DIRS.tmp,

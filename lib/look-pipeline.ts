@@ -223,10 +223,19 @@ function watchRender(id: string, s: LookState, total: () => number): () => void 
       let fresh = 0
       for (const f of files) if ((await stat(path.join(autoDir(id), f))).mtimeMs >= s.startedAt) fresh += 1
       const n = total()
-      if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 3 minutes chacune)`
+      if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 1 à 2 minutes chacune)`
       const tail = (await readFile(path.join(autoDir(id), 'render.log'), 'utf8').catch(() => '')).split('\n').slice(-40).reverse().find(l => /Sample \d+\/\d+/.test(l))
       const m = tail && /Sample (\d+\/\d+)/.exec(tail)
-      s.detail = thermalState().paused ? `Pause : la carte graphique refroidit (${thermalState().temp} °C)` : m ? `Échantillon ${m[1]}` : undefined
+      const th = thermalState()
+      s.detail = th.userPaused
+        ? 'En pause : le travail reprend quand vous le décidez'
+        : th.paused
+          ? `Pause : la carte graphique refroidit (${th.temp} °C)`
+          : th.waiting
+            ? `La carte graphique refroidit entre deux vues (${th.temp} °C) : la vue suivante démarre dans un instant`
+            : m
+              ? `Échantillon ${m[1]}`
+              : undefined
       await save(id, s)
     } catch {
       // the next tick tries again

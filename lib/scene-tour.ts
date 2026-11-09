@@ -30,6 +30,13 @@ const PYTHON = process.env.ROOMIA_PYTHON ?? 'python3'
 /** Pixels per cube face of the Blender 360° (ROOMIA_TOUR_FACE_SIZE for test runs only). */
 const FACE_SIZE = Number(process.env.ROOMIA_TOUR_FACE_SIZE ?? 1024)
 const PANO_WIDTH = 4096
+/**
+ * Quick preview tour (ROOMIA_TOUR_PREVIEW=1, set by the desktop app, 9 Nov): the golden-hour "Présentation" renders the final
+ * 360° of every point and replaces these, so the tour build only has to make cameras, plan, arrows and a light preview:
+ * 2048 px, 32 samples (16 for the lit rooms). On Sarah's laptop the 4096 px, 128-sample renders were 14 of the build's 16 minutes.
+ */
+const TOUR_PREVIEW = process.env.ROOMIA_TOUR_PREVIEW === '1'
+const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
 const PLAN_SIZE = 1800
 /** The panoramas are not touched by the AI, so they carry their own light: late afternoon sun and the room's lights on. */
 const TOUR_LIGHTING: Lighting = { time: 'apres-midi', sun: true, interior: true }
@@ -136,7 +143,7 @@ const MASK_MIN_PIXELS = 4
 export interface TourStatus {
   state: 'idle' | 'building' | 'done' | 'failed'
   /** Blender is paused while the graphics card cools (lib/blender-guard.ts). */
-  thermal?: { paused: boolean; temp: number }
+  thermal?: { paused: boolean; waiting?: boolean; userPaused?: boolean; temp: number }
   step?: string
   done?: number
   total?: number
@@ -1846,7 +1853,18 @@ if CYCLES_PANO:
     # 64 samples with OIDN smeared the plaster of the Ecolodge's +8 EV room.
     FAST_EV = float(spec.get("cyclesFastEv", 4.5))
     gpu_oidn = scene.cycles.device == "GPU"
+    def wait_between_points(label):
+        # the card cools, or the person paused, between two points (never in the middle of one): scripts/roomia_flags.py
+        d_ = os.environ.get("ROOMIA_FLAG_DIR")
+        if not d_:
+            return
+        live = lambda f_: os.path.exists(os.path.join(d_, f_)) and time.time() - os.path.getmtime(os.path.join(d_, f_)) < 25
+        if live("cool.flag") or live("pause.flag"):
+            print("ROOMIA_WAIT %s" % label, flush=True)
+            while live("cool.flag") or live("pause.flag"):
+                time.sleep(2)
     for i in frames:
+        wait_between_points(str(i))
         place(i)
         scene.view_settings.exposure = evs[i]
         scene.cycles.use_fast_gi = fills[i] > 0
@@ -3783,7 +3801,7 @@ export async function readTourStatus(sceneId: string): Promise<TourStatus> {
   const status = JSON.parse(await readFile(statusPath(sceneId), 'utf8').catch(() => '{"state":"idle"}')) as TourStatus
   // A build left half-way by a restart of the Studio is not running any more.
   if (status.state === 'building' && !alive(status.pid)) return { ...status, state: 'failed', error: 'La préparation a été interrompue. Relancez-la.' }
-  if (status.state === 'building' && thermalState().paused) return { ...status, thermal: thermalState() }
+  if (status.state === 'building' && (thermalState().paused || thermalState().waiting || thermalState().userPaused)) return { ...status, thermal: thermalState() }
   return status
 }
 
@@ -3858,7 +3876,8 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       autoViews: true,
       autoMax: AUTO_MAX,
       panoEngine: PANO_ENGINE,
-      cyclesSamples: CYCLES_SAMPLES,
+      cyclesSamples: TOUR_PREVIEW ? 32 : CYCLES_SAMPLES,
+      ...(TOUR_PREVIEW ? { panoWidth: 2048, cyclesFastSamples: 16 } : {}),
       // 0.02 (31 Oct): a +8 EV room in 67 s instead of 90 at 128 samples, the same plaster and ceilings as 0.01
       cyclesNoise: 0.02,
     }),
@@ -4113,6 +4132,9 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     ...(update ? { update } : {}),
   }
   await writeFile(tourPath(sceneId), JSON.stringify(tour))
+  // a preview tour is marked until the golden-hour Présentation installs the final 360° (scripts/look_install_tour.py removes it)
+  if (TOUR_PREVIEW) await writeFile(previewMarker(sceneId), JSON.stringify({ at: new Date().toISOString(), width: 2048 })).catch(() => undefined)
+  else await rm(previewMarker(sceneId), { force: true }).catch(() => undefined)
   await clearDir(work)
   // The walk's baked light, when asked: its own Blender run once the tour is saved. Inside the tour's run (2 Nov) a
   // bake stopped for memory failed the whole Cycles run, and the EEVEE fallback replaced the Cycles 360°.
@@ -5163,5 +5185,9 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => true,
     () => false,
   )
-  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, views, update, ai360: AI_360 }
+  const preview = await stat(previewMarker(sceneId)).then(
+    () => true,
+    () => false,
+  )
+  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, views, update, ai360: AI_360 }
 }

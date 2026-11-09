@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { getLookState, quoteAi, startLookAi, startLookRender, stopLook } from '@/lib/look-pipeline'
+import { setUserPause, thermalState } from '@/lib/blender-guard'
 import { readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
@@ -11,13 +12,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const denied = await accessDenied(req, id)
   if (denied) return denied
   if ((await readMeta(id))?.status !== 'ready') return Response.json({ detail: 'Scène introuvable ou pas encore prête.' }, { status: 404 })
-  return Response.json(await getLookState(id))
+  return Response.json({ ...(await getLookState(id)), thermal: thermalState() })
 }
 
 const ints = (v: unknown) => (Array.isArray(v) ? v.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < 200) : [])
 
 /**
  * POST — { action: 'render' }  free: the golden-hour 360 tour of every point (Blender only).
+ *        { action: 'pause' | 'resume' }  "pause after this point": the point in progress finishes, the next one waits (any render of this PC).
  *        { action: 'stop' }  stops the job now (Blender killed; the AI tiles already made are kept).
  *        { action: 'quote', points, ring }  nothing is sent: the images and the cost.
  *        { action: 'ai', points, ring, maxCost }  paid: the AI finishing of those points; refused unless maxCost covers the cost.
@@ -31,6 +33,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     if (body?.action === 'render') return Response.json(await startLookRender(id))
     if (body?.action === 'stop') return Response.json(await stopLook(id))
+    if (body?.action === 'pause' || body?.action === 'resume') {
+      setUserPause(body.action === 'pause')
+      return Response.json(thermalState())
+    }
     const points = ints(body?.points)
     const ring = ints(body?.ring).filter(p => points.includes(p))
     if (body?.action === 'quote') return Response.json(quoteAi(points, ring))

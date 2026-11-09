@@ -19,6 +19,8 @@ interface TourData {
   /** A site with several levels: one plan each, bottom up. */
   levels: TourLevel[] | null
   builtAt: string | null
+  /** A quick preview tour (desktop app): the golden-hour Présentation makes the final 360°. */
+  preview?: boolean
   /** The build wrote a walkable map: the free walk can open. */
   walk?: boolean
   views: TourView[]
@@ -86,6 +88,15 @@ function direction(from: TourView, to: TourView) {
 }
 
 /** published: a tour sent from Roomia Desktop for the architect's clients — viewing only, no Studio tools. */
+/** The card's rest and the person's pause, as the screens say them (lib/blender-guard.ts). */
+function ThermalNote({ t }: { t?: { paused: boolean; waiting?: boolean; userPaused?: boolean; temp: number } }) {
+  if (!t) return null
+  if (t.userPaused) return <span className="tour-error">En pause : le point en cours se termine, puis le PC se repose. Appuyez sur « Reprendre » pour continuer.</span>
+  if (t.paused) return <span className="tour-error">Pause : la carte graphique refroidit ({t.temp} °C). Le travail reprend tout seul.</span>
+  if (t.waiting) return <span className="tour-error">La carte graphique refroidit entre deux points ({t.temp} °C). Le point suivant démarre dans un instant.</span>
+  return null
+}
+
 export default function TourClient({ sceneId, title, published = false }: { sceneId: string; title: string; published?: boolean }) {
   const [data, setData] = useState<TourData | null>(null)
   const [error, setError] = useState('')
@@ -111,6 +122,14 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     await fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => undefined)
     await load()
   }, [sceneId, load])
+  // "Pause after this point": the point in progress finishes, the next waits (the same flag the Présentation uses)
+  const pauseBuild = useCallback(
+    async (on: boolean) => {
+      await fetch(`/api/scenes/${sceneId}/look`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: on ? 'pause' : 'resume' }) }).catch(() => undefined)
+      await load()
+    },
+    [sceneId, load],
+  )
   const loadFilm = useCallback(() => fetchVideo(sceneId).then(setFilm), [sceneId])
 
   useEffect(() => {
@@ -370,8 +389,11 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <>
             <strong>Préparation de la visite 360°…</strong>
             <span>{status.step}</span>
-            {status.thermal?.paused && <span className="tour-error">Pause : la carte graphique refroidit ({status.thermal.temp} °C). Le travail reprend tout seul.</span>}
+            <ThermalNote t={status.thermal} />
             <progress max={status.total ?? 1} value={status.done ?? 0} />
+            <button type="button" className="tour-secondary" onClick={() => void pauseBuild(!status.thermal?.userPaused)}>
+              {status.thermal?.userPaused ? 'Reprendre' : 'Pause après ce point'}
+            </button>
             <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
               Arrêter la préparation
             </button>
@@ -443,6 +465,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <strong>{title}</strong>
           <span>
             {current.name} · {step + 1} / {order.length}
+            {data.preview && !published ? ' · aperçu rapide (la présentation golden hour donne la qualité finale)' : ''}
           </span>
         </div>
         {!published && <LookPanel sceneId={sceneId} tourReady={!building && views.some(v => v.pano)} />}
@@ -584,7 +607,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             <>
               <strong>{data.status.kind === 'ai' ? '360° en qualité photo…' : 'Préparation de la visite 360°…'}</strong>
               <span>{data.status.step}</span>
-              {data.status.thermal?.paused && <span className="tour-error">Pause : la carte graphique refroidit ({data.status.thermal.temp} °C). Le travail reprend tout seul.</span>}
+              <ThermalNote t={data.status.thermal} />
               <progress max={data.status.total ?? 1} value={data.status.done ?? 0} />
               <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
                 Arrêter

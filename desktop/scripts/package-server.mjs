@@ -106,7 +106,7 @@ fs.copyFileSync(path.join(ROOT, 'scripts/compact-glb.py'), path.join(bin, 'compa
 step('look pipeline scripts and skies')
 const LOOK_SCRIPTS = [
   'look_pipeline.py', 'look_analyze.py', 'look_make_recipe.py', 'look_apply.py', 'look_render.py', 'look_prep.py', 'look_grade.py',
-  'look_finalize_panos.py', 'look_install_tour.py', 'pano_tiles.py', 'pano_finish.py',
+  'look_finalize_panos.py', 'look_install_tour.py', 'roomia_flags.py', 'pano_tiles.py', 'pano_finish.py',
 ]
 fs.mkdirSync(path.join(OUT, 'scripts'), { recursive: true })
 for (const f of LOOK_SCRIPTS) fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(OUT, 'scripts', f))

@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { LookState } from '@/lib/look-pipeline'
+import type { LookState as LookJob } from '@/lib/look-pipeline'
+
+/** The job's state, and the PC's thermal / pause state the route adds (lib/blender-guard.ts). */
+type LookState = LookJob & { thermal?: { paused: boolean; waiting: boolean; userPaused: boolean; temp: number } }
 
 const DA_PER_IMAGE = 14
 
@@ -30,6 +33,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
 
   const load = useCallback(() => read(sceneId).then(s => s && setState(s)), [sceneId])
   const running = state?.stage === 'running'
+  const paused = Boolean(state?.thermal?.userPaused)
 
   useEffect(() => {
     void load()
@@ -71,7 +75,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               <strong>Présentation golden hour</strong>
               <span>
                 Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° avec une lumière de fin de journée. Gratuit : aucun crédit,
-                environ 3 minutes par vue sur votre PC.
+                environ 1 à 2 minutes par vue sur votre PC.
               </span>
               {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
               {state?.error && <span className="tour-error">{state.error}</span>}
@@ -97,6 +101,14 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                 <span>
                   {state.ai.done} / {state.ai.images} images · {state.ai.paid} payées · {state.ai.cached} reprises du cache
                 </span>
+              )}
+              {state?.job === 'render' && (
+                <>
+                  <button type="button" className="tour-secondary" onClick={() => void start({ action: paused ? 'resume' : 'pause' })}>
+                    {paused ? 'Reprendre' : 'Pause après cette vue'}
+                  </button>
+                  <span>{paused ? 'En pause : la vue en cours se termine, puis le PC se repose (utile pour travailler dans SketchUp).' : 'La vue en cours se termine, puis Roomia attend que vous repreniez.'}</span>
+                </>
               )}
               <button type="button" className="tour-stop" onClick={() => void start({ action: 'stop' })}>
                 Arrêter

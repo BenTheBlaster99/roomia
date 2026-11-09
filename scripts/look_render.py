@@ -15,6 +15,7 @@ from mathutils import Vector
 JOB = json.load(open(sys.argv[sys.argv.index("--") + 1]))
 sys.path.insert(0, JOB["scriptsDir"])
 from look_grade import grade, kelvin_rgb  # noqa: E402
+from roomia_flags import wait_between_points  # noqa: E402
 import OpenImageIO as oiio  # noqa: E402
 
 R = json.load(open(JOB["recipe"])) if JOB.get("recipe") else {}
@@ -45,6 +46,12 @@ scene.render.use_persistent_data = True
 scene.cycles.use_light_tree = True
 scene.cycles.max_bounces, scene.cycles.diffuse_bounces, scene.cycles.glossy_bounces = 10, 4, 4
 scene.cycles.transmission_bounces, scene.cycles.transparent_max_bounces = 8, 8
+if JOB.get("bounces"):  # [total, diffuse, glossy, transmission, transparent]: the speed benchmark (8 Nov)
+    b_ = JOB["bounces"]
+    scene.cycles.max_bounces, scene.cycles.diffuse_bounces, scene.cycles.glossy_bounces = b_[0], b_[1], b_[2]
+    scene.cycles.transmission_bounces, scene.cycles.transparent_max_bounces = b_[3], b_[4]
+if JOB.get("noCaustics"):
+    scene.cycles.caustics_reflective = scene.cycles.caustics_refractive = False
 scene.view_settings.view_transform = "Standard"
 scene.view_settings.look = "None"
 scene.view_settings.exposure = 0.0
@@ -291,6 +298,7 @@ elif JOB["mode"] == "pano":
 
     for v in JOB["views"]:
         v = dict(v, pano=True)
+        wait_between_points(v["name"])  # the card cools, or the person paused, between two points (never in the middle of one)
         place(v)
         name = v["name"]
         scene.render.filepath = os.path.join(OUT, name + "-tmp.exr")
