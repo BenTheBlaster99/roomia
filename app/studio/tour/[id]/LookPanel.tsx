@@ -38,6 +38,12 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   useEffect(() => {
     void load()
   }, [load])
+  // the build that just ended starts the Présentation by itself (lib/scene-tour.ts): look again a few times for the new job
+  useEffect(() => {
+    if (!tourReady) return
+    const timers = [1500, 5000, 12000].map(ms => setTimeout(() => void load(), ms))
+    return () => timers.forEach(clearTimeout)
+  }, [tourReady, load])
   useEffect(() => {
     if (!running) return
     const timer = setInterval(() => void load(), 3000)

@@ -36,6 +36,12 @@ const PANO_WIDTH = 4096
  * 2048 px, 32 samples (16 for the lit rooms). On Sarah's laptop the 4096 px, 128-sample renders were 14 of the build's 16 minutes.
  */
 const TOUR_PREVIEW = process.env.ROOMIA_TOUR_PREVIEW === '1'
+/**
+ * The golden-hour Présentation starts by itself when a build ends (desktop app, 9 Nov: Sarah's 4 min build waited for a click,
+ * and the build's 360° are only a draft). ROOMIA_AUTO_LOOK=0 keeps the click. The draft is then smaller still (1536 px, 16
+ * samples): it only has to hold the place until the final 360° replace it.
+ */
+const AUTO_LOOK = TOUR_PREVIEW && process.env.ROOMIA_AUTO_LOOK !== '0'
 const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
 const PLAN_SIZE = 1800
 /** The panoramas are not touched by the AI, so they carry their own light: late afternoon sun and the room's lights on. */
@@ -3876,8 +3882,8 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       autoViews: true,
       autoMax: AUTO_MAX,
       panoEngine: PANO_ENGINE,
-      cyclesSamples: TOUR_PREVIEW ? 32 : CYCLES_SAMPLES,
-      ...(TOUR_PREVIEW ? { panoWidth: 2048, cyclesFastSamples: 16 } : {}),
+      cyclesSamples: TOUR_PREVIEW ? (AUTO_LOOK ? 16 : 32) : CYCLES_SAMPLES,
+      ...(TOUR_PREVIEW ? { panoWidth: AUTO_LOOK ? 1536 : 2048, cyclesFastSamples: 16 } : {}),
       // 0.02 (31 Oct): a +8 EV room in 67 s instead of 90 at 128 samples, the same plaster and ceilings as 0.01
       cyclesNoise: 0.02,
     }),
@@ -4143,6 +4149,12 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     await bakeExplorerLight(sceneId).catch(err => console.error('tour bake failed', sceneId, err))
   }
   await writeStatus(sceneId, { state: 'done', done: total, total })
+  // the final 360° of every point: the golden-hour Présentation, started now (it waits for the graphics slot if another job holds it)
+  if (AUTO_LOOK && views.some(v => v.pano)) {
+    void import('./look-pipeline')
+      .then(m => m.startLookRender(sceneId))
+      .catch(err => console.error('automatic golden hour did not start', sceneId, err))
+  }
 }
 
 /**
@@ -5189,5 +5201,5 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => true,
     () => false,
   )
-  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, views, update, ai360: AI_360 }
+  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360 }
 }

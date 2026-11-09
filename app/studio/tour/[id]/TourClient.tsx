@@ -21,6 +21,8 @@ interface TourData {
   builtAt: string | null
   /** A quick preview tour (desktop app): the golden-hour Présentation makes the final 360°. */
   preview?: boolean
+  /** The golden-hour Présentation starts by itself when the build ends (desktop app). */
+  autoLook?: boolean
   /** The build wrote a walkable map: the free walk can open. */
   walk?: boolean
   views: TourView[]
@@ -389,6 +391,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <>
             <strong>Préparation de la visite 360°…</strong>
             <span>{status.step}</span>
+            {data.autoLook && <span>La présentation golden hour démarre toute seule à la fin de la préparation.</span>}
             <ThermalNote t={status.thermal} />
             <progress max={status.total ?? 1} value={status.done ?? 0} />
             <button type="button" className="tour-secondary" onClick={() => void pauseBuild(!status.thermal?.userPaused)}>
@@ -465,7 +468,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <strong>{title}</strong>
           <span>
             {current.name} · {step + 1} / {order.length}
-            {data.preview && !published ? ' · aperçu rapide (la présentation golden hour donne la qualité finale)' : ''}
+            {data.preview && !published ? ' · aperçu rapide : la présentation golden hour donne la qualité finale' : ''}
           </span>
         </div>
         {!published && <LookPanel sceneId={sceneId} tourReady={!building && views.some(v => v.pano)} />}

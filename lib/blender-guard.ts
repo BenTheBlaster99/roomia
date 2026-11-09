@@ -4,26 +4,26 @@ import os from 'node:os'
 import path from 'node:path'
 
 /**
- * Keeps Roomia's Blender from cooking a laptop, and from outliving its job (8 Nov: a render on Sarah's RTX laptop ran for
- * half an hour, the Stop button did not reach it, and the PC shut itself down).
+ * Keeps Roomia's Blender from outliving its job, and from running a card to a dangerous temperature.
  *
  * - findRoomiaBlenders / killAllRoomiaBlenders: every Blender process whose executable is the one this server uses, whoever
  *   started it (a job of an older server that was cut leaves its Blender behind: nobody tracks it, only its path tells).
- * - the thermal guard, in two steps (9 Nov, ChatGPT: do not freeze a render halfway, let the card cool between two points):
- *     WAIT_C  (80): a "cool" flag file appears; the render scripts look at it before each point and wait until it is gone.
- *     HOT_C   (84): emergency, Blender is suspended (it stops asking the card for work) and resumed at RESUME_C (76).
- *     COOL_C  (72): the flag is lifted.
- *   The job only takes longer. Without nvidia-smi (no NVIDIA card) the guard does nothing.
- * - "Pause after this point": the person asks for it; a "pause" flag file is looked at the same way, between two points.
+ * - the thermal guard is an EMERGENCY stop only (9 Nov): at HOT_C (90) Blender is suspended (it stops asking the card for
+ *   work) and resumed at RESUME_C (80). Most PCs never get near it; Sarah's laptop reached 86 °C and its own card slows
+ *   itself down around 87. 9 Nov 02:00 test on her laptop: the first design (a rest between points from 80 down to 72 °C) took
+ *   52% of a 12 minute golden hour in idle waits and did not even prevent the 84 °C stops, so the soft rest is off by default
+ *   (ROOMIA_GPU_WAIT_C=80 turns it on again: the "cool" flag below).
+ * - "Pause after this point": the person asks for it; a "pause" flag file is looked at between two points.
  * - the flags are files in ROOMIA_FLAG_DIR (set here, inherited by Blender's Python). A flag counts only while its modification
- *   time is recent (the guard touches it every 5 s), so a server that died can never leave a render waiting for ever.
- * - every 5 s the card's temperature, power, clock and load are logged to gpu-log.csv (ROOMIA_LOG_DIR), and last-run.json
+ *   time is recent (the guard touches it every 2 s), so a server that died can never leave a render waiting for ever.
+ * - every 2 s the card's temperature, power, clock and load are logged to gpu-log.csv (ROOMIA_LOG_DIR), and last-run.json
  *   keeps the summary of the last job: what the minutes were (rendering, cooling or paused).
  */
-const HOT_C = Number(process.env.ROOMIA_GPU_HOT_C ?? 84)
-const RESUME_C = Number(process.env.ROOMIA_GPU_RESUME_C ?? 76)
-const WAIT_C = Number(process.env.ROOMIA_GPU_WAIT_C ?? 80)
+const HOT_C = Number(process.env.ROOMIA_GPU_HOT_C ?? 90)
+const RESUME_C = Number(process.env.ROOMIA_GPU_RESUME_C ?? 80)
+const WAIT_C = Number(process.env.ROOMIA_GPU_WAIT_C ?? 0) // 0: no rest between points
 const COOL_C = Number(process.env.ROOMIA_GPU_COOL_C ?? 72)
+const TICK_MS = 2000
 const BLENDER_PATH = () => (process.env.ROOMIA_BLENDER ?? 'blender').toLowerCase()
 
 export const FLAG_DIR = process.env.ROOMIA_FLAG_DIR || path.join(os.tmpdir(), 'roomia-flags')
@@ -212,11 +212,11 @@ async function tick() {
       // not worth failing for
     }
     // step 1: a rest between two points
-    if (!state.waiting && temp >= WAIT_C) {
+    if (WAIT_C > 0 && !state.waiting && temp >= WAIT_C) {
       state.waiting = true
       flag(COOL_FLAG, true)
       console.warn(`blender-guard: ${temp} °C, the next point waits until ${COOL_C} °C`)
-    } else if (state.waiting && temp <= COOL_C) {
+    } else if (state.waiting && (WAIT_C <= 0 || temp <= COOL_C)) {
       state.waiting = false
       flag(COOL_FLAG, false)
       console.log(`blender-guard: ${temp} °C, points go on`)
@@ -243,7 +243,7 @@ async function tick() {
 export function watchTemperature(): () => void {
   users += 1
   if (!runInfo) runInfo = newRun()
-  if (!timer) timer = setInterval(() => void tick(), 5000)
+  if (!timer) timer = setInterval(() => void tick(), TICK_MS)
   let done = false
   return () => {
     if (done) return
