@@ -72,9 +72,14 @@ R = {
         # 10 Nov: the default 360 look. Broad daylight, neutral white balance, the fixtures ON (a room with no window is lit by its own
         # lamps), exposure levelled room by room; the sun is a bonus. Golden hour stays a choice ("soirée").
         "daylight": {
-            "gains": {"SUN_DAY": 1.2, "WORLD_DAY": 110, "INTERIOR": 2.0, "PRACTICALS": 0.5, "COVES": 0.15, "COVE_LINES": 1.0, "PENDANTS": 1, "PENDANT_GLOW": 3, "SLOT": 10},
-            "tints": {"INTERIOR": [0.95, 1.0, 1.15], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
-            "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.3, "saturation": 1.2},
+            # 11 Nov bench (F5: bathroom, bedroom, living, dining; variants A-E): neutral 4000 K fixtures, tighter brighter spots
+            # (visible pools on walls and wardrobes), a little more daylight and contrast. 3200 K had pushed every room beige:
+            # the white balance hit its 15 % limit and the picture went hazy. 6000 K-ish sky at 320 turned rooms green (E).
+            "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": 0.5, "COVES": 0.15, "COVE_LINES": 1.0, "PENDANTS": 1, "PENDANT_GLOW": 3, "SLOT": 10},
+            "tints": {"INTERIOR": [1.0, 1.0, 1.0], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
+            "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.4, "saturation": 1.2},
+            "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 110)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
+            "lift": 0.04,
             "walkExposure": -0.3,
         },
         "day": {

@@ -1713,3 +1713,35 @@ button.rm-style-photo-open:focus-visible::after {
     color: #1a2f26;
   }
 }
+
+/* Studio · Graphite (11 Nov makeover). Same token names as the site, so every Studio screen follows; the site keeps :root. */
+.studio-theme {
+  --rm-text: #ece9e3;
+  --rm-bg: #111314;
+  --rm-primary: #d9a65c;
+  --rm-secondary: #23272b;
+  --rm-accent: #d9a65c;
+  --rm-ink: #0b0d0e;
+  --rm-surface: #1a1d1f;
+  --rm-muted: #a3aaaf;
+  --background: var(--rm-bg);
+  --foreground: var(--rm-text);
+  min-height: 100vh;
+  background: var(--rm-bg);
+  color: var(--rm-text);
+  color-scheme: dark;
+}
+/* the few alert colours written for a light page, made readable on graphite */
+.studio-theme :is(.bg-amber-50) { background-color: rgba(217, 166, 92, 0.13); }
+.studio-theme :is(.text-amber-800, .text-amber-900) { color: #ecc893; }
+.studio-theme :is(.border-amber-300, .border-amber-400) { border-color: rgba(217, 166, 92, 0.45); }
+.studio-theme :is(.bg-red-50) { background-color: rgba(241, 140, 120, 0.13); }
+.studio-theme :is(.text-red-700, .text-red-800) { color: #f3a493; }
+.studio-theme :is(.border-red-200, .border-red-300) { border-color: rgba(241, 140, 120, 0.45); }
+.studio-theme .text-emerald-700 { color: #8fd3aa; }
+.studio-theme :is(.bg-white, .bg-white\/95) { background-color: var(--rm-surface); }
+.studio-theme .hover\:bg-red-50:hover { background-color: rgba(241, 140, 120, 0.13); }
+.studio-theme .hover\:text-red-700:hover { color: #f3a493; }
+.studio-theme input, .studio-theme select, .studio-theme textarea { color: var(--rm-text); background-color: var(--rm-bg); }
+.studio-theme .rm-btn-primary { color: #1a1406; }
+.studio-theme .rm-btn-primary:hover { background: #e4b674; }

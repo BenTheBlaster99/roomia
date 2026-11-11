@@ -52,7 +52,7 @@ const statusPath = (sceneId: string) => path.join(tourDir(sceneId), 'status.json
 const tourPath = (sceneId: string) => path.join(tourDir(sceneId), 'tour.json')
 
 /** Files the tour route may serve. */
-export const TOUR_FILE = /^(pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json|tex-[a-z0-9-]{1,40}\.jpg|plan(-n\d{1,2})?-3d(-ai)?\.jpg|splat(-[a-z0-9]{1,8})?(\.(spz|ply|json)|-model\.glb|-probe-\d{1,3}(-ggx)?\.hdr|-(materials|rooms)\.json))$/
+export const TOUR_FILE = /^(pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json|tex-[a-z0-9-]{1,40}\.jpg|plan(-n\d{1,2})?-3d(-ai)?\.jpg|plan-archi(-rendu|-technique)?\.(png|pdf|json)|splat(-[a-z0-9]{1,8})?(\.(spz|ply|json)|-model\.glb|-probe-\d{1,3}(-ggx)?\.hdr|-(materials|rooms)\.json))$/
 
 export interface TourViewPoint {
   index: number
@@ -116,7 +116,11 @@ export interface TourBuild {
   /** Images bought from the image service for AI panoramas, all builds together. */
   aiImages?: number
   /** hd: the same plan twice as large, for download. The main level's (the designer's views, else the most points). */
-  plan: { file: string; hd?: string; lines?: string; width: number; height: number } | null
+  plan: {
+    file: string; hd?: string; lines?: string; width: number; height: number
+    /** The architect's plan (scripts/plan_build.py, 11 Nov): rooms named, m², doors, windows, dimensions; PNGs and an A3 PDF. */
+    archi?: { rendu: string; technique: string; pdf: string; total?: number; rooms?: { name: string; area: number }[] }
+  } | null
   /** Every level with points, bottom up, when there are several (the main one is also in plan). */
   levels?: TourLevel[]
   views: TourViewPoint[]
@@ -2923,7 +2927,8 @@ const planSourceDir = (dir: string) => path.join(dir, 'plan-src')
 async function keepPlanSources(work: string, dir: string, suffixes: string[]) {
   const keep = planSourceDir(dir)
   await mkdir(keep, { recursive: true })
-  const files = ['tour-blender.json', ...suffixes.flatMap(s => [`plan-hd${s}.png`, `plan-lines${s}.npy`, `plan-rooms${s}.npy`])]
+  // plan-apt: the 3D plan and the architect's plan are cut to it (11 Nov)
+  const files = ['tour-blender.json', ...suffixes.flatMap(s => [`plan-hd${s}.png`, `plan-lines${s}.npy`, `plan-rooms${s}.npy`, `plan-apt${s}.png`])]
   for (const f of files) await copyFile(path.join(work, f), path.join(keep, f)).catch(() => undefined)
 }
 
@@ -4142,6 +4147,12 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   if (TOUR_PREVIEW) await writeFile(previewMarker(sceneId), JSON.stringify({ at: new Date().toISOString(), width: 2048 })).catch(() => undefined)
   else await rm(previewMarker(sceneId), { force: true }).catch(() => undefined)
   await clearDir(work)
+  // The architect's plan (11 Nov): rooms named by the AI, m², doors, windows, dimensions, A3 PDF. Its own short Blender run on
+  // the kept plan sources, once tour.json exists (it adds plan.archi to it). A failure leaves the photographic plan as it was.
+  await progress('Plan 2D coté…')
+  await run(PYTHON, [path.join(process.cwd(), 'scripts', 'plan_build.py'), sceneId], undefined, 15 * 60_000)
+    .then(r => { if (r.code !== 0) console.error('tour plan archi failed', sceneId, r.stderr.slice(-800)) })
+    .catch(err => console.error('tour plan archi failed', sceneId, err))
   // The walk's baked light, when asked: its own Blender run once the tour is saved. Inside the tour's run (2 Nov) a
   // bake stopped for memory failed the whole Cycles run, and the EEVEE fallback replaced the Cycles 360°.
   if (bakeExplorer) {
@@ -5201,5 +5212,10 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => true,
     () => false,
   )
-  return { status, plan: built?.plan ?? null, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360 }
+  // the 3D plan (a cutaway made at the end of the build): shown in its own tab when it exists
+  const plan3d = await stat(path.join(tourDir(sceneId), 'plan-3d.jpg')).then(
+    () => 'plan-3d.jpg',
+    () => null,
+  )
+  return { status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360 }
 }

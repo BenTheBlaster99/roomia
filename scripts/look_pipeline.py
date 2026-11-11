@@ -76,6 +76,12 @@ def points():
         pos = v.get("position") or cams.get(v["name"]) or (probes[v["index"]]["eye"] if probes and v["index"] < len(probes) else None)
         if pos:
             out.append({"index": v["index"], "name": v["name"], "position": pos})
+    # a camera against a wall or inside a cupboard takes its 360 from the better spot the analysis found nearby (11 Nov)
+    an_p = os.path.join(AUTO, "analysis.json")
+    moved = {c["index"]: c["moved"] for c in json.load(open(an_p)).get("cameras", []) if c.get("moved")} if os.path.exists(an_p) else {}
+    for p in out:
+        if p["index"] in moved:
+            p["position"], p["moved"] = moved[p["index"]], True
     return out
 
 
@@ -121,7 +127,8 @@ def job(extra, views, out_dir, masks):
 
 
 def finalize(names):
-    e = dict(os.environ, LIFT=os.environ.get("LIFT", "0.1"), LOOK=args.look)
+    lk = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
+    e = dict(os.environ, LIFT=os.environ.get("LIFT", str(lk.get("lift", 0.1))), LOOK=args.look)
     subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), "0.5" if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
 
 
@@ -133,6 +140,22 @@ def install(width, pairs):
         for v in t["views"]:
             if v["index"] == i and not v.get("pano"):
                 v["pano"] = "pano-%d.jpg" % i
+    # moved cameras: the tour's arrows and the plan's dot follow the 360 to its new spot (plan pixels from the views that have both)
+    mv = {p["index"]: p["position"] for p in points() if p.get("moved")}
+    known = [v for v in t["views"] if v.get("position") and v.get("plan") and v["index"] not in mv]
+    fit = None
+    if len(known) >= 2:
+        a, b = known[0], max(known[1:], key=lambda v: abs(v["position"][0] - known[0]["position"][0]))
+        dx = b["position"][0] - a["position"][0]
+        if abs(dx) > 1e-3:
+            s = (b["plan"]["x"] - a["plan"]["x"]) / dx
+            fit = (s, a["plan"]["x"] - s * a["position"][0], a["plan"]["y"] - s * a["position"][2])
+    for v in t["views"]:
+        if v["index"] in mv and v["index"] in {i for i, _ in pairs}:
+            v["position"] = mv[v["index"]]
+            v.pop("facesWall", None)
+            if fit and v.get("plan"):
+                v["plan"] = dict(v["plan"], x=fit[0] * mv[v["index"]][0] + fit[1], y=fit[0] * mv[v["index"]][2] + fit[2])
     if all(v.get("pano") or v.get("hidden") for v in t["views"]):
         # a build that failed long ago (out of memory, 30 Oct) no longer shows its red notice on a tour that is complete
         st = os.path.join(TOUR, "status.json")
@@ -171,6 +194,9 @@ if args.stage == "render":
     finalize(names)
     install(4096, [(int(n[1:]), os.path.join(AUTO, n + "-pano.png")) for n in names])
     json.dump({"rendered": names, "skipped": bad}, open(os.path.join(AUTO, "render-report.json"), "w"), indent=1)
+    # a project prepared before the architect's plan existed gets it now (11 Nov): short Blender run, then drawing + AI names
+    if not os.path.exists(os.path.join(TOUR, "plan-archi.json")) and os.environ.get("ROOMIA_PLAN_ARCHI", "1") == "1":
+        subprocess.run([os.environ.get("ROOMIA_PYTHON") or "python3", os.path.join(SCRIPTS, "plan_build.py"), args.scene], check=False)
     print("RENDER_DONE", len(names), "installed; skipped", bad)
 
 elif args.stage == "suggest":

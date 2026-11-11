@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { applySceneView } from '@/lib/studio-import/heavy-view-camera'
 import { captureHeavyCamera } from '@/lib/studio-import/heavy-view-camera'
 import { UNIT_LABELS, type ImportLengthUnit } from '@/lib/studio-import/fit-imported-room'
-import { TIME_LABELS, TIMES_OF_DAY, type TimeOfDay } from '@/lib/render-lighting'
+import { type TimeOfDay } from '@/lib/render-lighting'
 import { DEFAULT_LENS, LENSES, lensHfov, type LensId, type SceneCamera } from '@/lib/scene-cameras'
 import { useStudioStore } from '@/store/useStudioStore'
 import MaterialRolesPanel from './MaterialRolesPanel'
@@ -22,13 +22,13 @@ interface Timings {
   total: number
 }
 
-/** Sky colour dot for each moment of the day. */
-const TIME_DOT: Record<TimeOfDay, string> = {
-  matin: 'linear-gradient(135deg,#fde68a,#fdba74)',
-  midi: 'linear-gradient(135deg,#fff7d6,#bae6fd)',
-  'apres-midi': 'linear-gradient(135deg,#fb923c,#f472b6)',
-  soiree: 'linear-gradient(135deg,#4338ca,#1e1b4b)',
-}
+/** The photo's ambiance (11 Nov): what a client asks for, as the photo route's lighting. */
+const AMBIANCES: { key: 'jour' | 'soiree' | 'nuit'; label: string; time: TimeOfDay; sun: boolean; dot: string; hint: string }[] = [
+  { key: 'jour', label: 'Jour', time: 'apres-midi', sun: true, dot: 'linear-gradient(135deg,#fff7d6,#bae6fd)', hint: 'Plein jour, lumières allumées.' },
+  { key: 'soiree', label: 'Soirée', time: 'soiree', sun: true, dot: 'linear-gradient(135deg,#fb923c,#f472b6)', hint: 'Fin de journée, lumière chaude.' },
+  { key: 'nuit', label: 'Nuit', time: 'soiree', sun: false, dot: 'linear-gradient(135deg,#4338ca,#1e1b4b)', hint: 'Nuit, seulement les lumières de la maison.' },
+]
+const ambianceOf = (time: TimeOfDay, sun: boolean) => (time === 'soiree' ? (sun ? 'soiree' : 'nuit') : 'jour')
 
 const formatClock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
@@ -551,54 +551,37 @@ export default function SceneSidebar() {
         </section>
 
         <section>
-          <SectionTitle>2 · Régler la lumière</SectionTitle>
-          <div className="grid grid-cols-2 gap-2">
-            {TIMES_OF_DAY.map(t => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTime(t)}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-all ${
-                  time === t
-                    ? 'border-[var(--rm-primary)] bg-[var(--rm-primary)]/8 text-[var(--rm-text)] ring-1 ring-[var(--rm-primary)]'
-                    : 'border-[var(--rm-text)]/12 bg-[var(--rm-bg)] text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50'
-                }`}
-              >
-                <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ background: TIME_DOT[t] }} />
-                <span className="truncate">{TIME_LABELS[t]}</span>
-              </button>
-            ))}
+          <SectionTitle>2 · Choisir l’ambiance</SectionTitle>
+          {/* 11 Nov: three ambiances instead of four times of day and two switches. The 360° tour stays in broad daylight. */}
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ambiance de la photo">
+            {AMBIANCES.map(a => {
+              const on = ambianceOf(time, sun) === a.key
+              return (
+                <button
+                  key={a.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    setTime(a.time)
+                    setSun(a.sun)
+                    setInterior(true)
+                  }}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-sm transition-all ${
+                    on
+                      ? 'border-[var(--rm-primary)] bg-[var(--rm-primary)]/8 text-[var(--rm-text)] ring-1 ring-[var(--rm-primary)]'
+                      : 'border-[var(--rm-text)]/12 bg-[var(--rm-bg)] text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50'
+                  }`}
+                >
+                  <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: a.dot }} />
+                  <span className="font-medium">{a.label}</span>
+                </button>
+              )
+            })}
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sun}
-            onClick={() => setSun(v => !v)}
-            className="mt-3 flex w-full items-center justify-between rounded-xl border text-left border-[var(--rm-text)]/12 bg-[var(--rm-bg)] px-3 py-2.5 text-sm text-[var(--rm-text)]"
-          >
-            <span>
-              Soleil direct
-              <span className="block text-xs text-[var(--rm-muted)]">{sun ? 'Rayons de soleil dans la pièce' : 'Lumière douce, sans rayons'}</span>
-            </span>
-            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${sun ? 'bg-[var(--rm-primary)]' : 'bg-[var(--rm-text)]/20'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${sun ? 'left-[22px]' : 'left-0.5'}`} />
-            </span>
-          </button>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={interior}
-            onClick={() => setInterior(v => !v)}
-            className="mt-3 flex w-full items-center justify-between rounded-xl border text-left border-[var(--rm-text)]/12 bg-[var(--rm-bg)] px-3 py-2.5 text-sm text-[var(--rm-text)]"
-          >
-            <span>
-              Lumières intérieures
-              <span className="block text-xs text-[var(--rm-muted)]">{interior ? 'Spots, suspensions et LED allumés' : 'Seulement la lumière du jour'}</span>
-            </span>
-            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${interior ? 'bg-[var(--rm-primary)]' : 'bg-[var(--rm-text)]/20'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${interior ? 'left-[22px]' : 'left-0.5'}`} />
-            </span>
-          </button>
+          <p className="mt-2 text-xs text-[var(--rm-muted)]">
+            {AMBIANCES.find(a => a.key === ambianceOf(time, sun))?.hint} La visite 360° reste en plein jour.
+          </p>
         </section>
 
         <section>
@@ -838,14 +821,12 @@ export default function SceneSidebar() {
         {/* Saved views are optional: the tour places its own points in every room. The Studio opens it in review
             mode, where the photo-quality 360° show before they are approved. */}
         <a
-          href={`/studio/tour/${sceneId}?edit=1`}
-          target="_blank"
-          rel="noreferrer"
-          className="block rounded-xl border border-[var(--rm-text)]/15 px-3 py-2.5 text-sm font-medium text-[var(--rm-text)] hover:border-[var(--rm-text)]/40"
+          href={`/studio/tour/${sceneId}`}
+          className="block rounded-xl border border-[var(--rm-primary)]/50 bg-[var(--rm-primary)]/10 px-3 py-2.5 text-sm font-semibold text-[var(--rm-text)] hover:border-[var(--rm-primary)]"
         >
-          Visite virtuelle de tout l’appartement →
+          Page du projet : visite 360°, plans, vidéo, photos →
           <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">
-            360° de chaque pièce (rendu Cycles) et plan, points de vue placés automatiquement
+            Tout l’appartement en plein jour (Blender), plan 2D coté et plan 3D, points de vue placés automatiquement
             {cameras.length ? ` (+ ${cameras.length} vue${cameras.length > 1 ? 's' : ''} du fichier)` : ''}.
           </span>
         </a>

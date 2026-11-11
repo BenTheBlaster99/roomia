@@ -154,3 +154,45 @@
 .tour-stop { border: 1px solid var(--line); background: none; color: var(--fg); padding: 7px 14px; border-radius: 10px; font-size: 14px; cursor: pointer; justify-self: start; }
 .tour-stop:hover { background: rgba(217, 80, 80, 0.85); color: #fff; border-color: transparent; }
 .look-log { margin: 0; max-height: 160px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--glass); color: var(--muted); font-size: 11px; line-height: 1.35; white-space: pre-wrap; word-break: break-all; user-select: text; }
+
+/* The deliverables' tabs (11 Nov makeover): the picture on the left, what to do with it on the right */
+.tour-sheet { position: absolute; inset: 0; display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 16px 16px; overflow: auto; user-select: text; }
+.tour-sheet-view { flex: 999 1 520px; min-width: 0; min-height: 60%; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: #f4f2ee; overflow: hidden; }
+.tour-sheet-view.scroll { background: none; align-items: flex-start; overflow: auto; }
+.tour-sheet-view > img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.tour-sheet-view > .tour-video { width: 100%; height: 100%; background: #000; }
+.tour-sheet-view > .tour-message { color: #5c574f; }
+.tour-sheet-side { flex: 1 1 280px; max-width: 360px; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 14px; background: rgba(236, 230, 218, 0.05); border: 1px solid var(--line); align-self: flex-start; }
+.tour-sheet-side h2 { margin: 0; font-size: 18px; }
+.tour-sheet-side progress { width: 100%; }
+.tour-btn { display: block; text-align: center; padding: 11px 14px; border-radius: 10px; border: 0; background: var(--brass); color: #1a1406; font-weight: 600; text-decoration: none; cursor: pointer; }
+.tour-btn.secondary { background: none; color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
+.tour-btn:disabled { opacity: 0.45; cursor: default; }
+.tour-note { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.tour-big { margin: 0; font-size: 40px; font-weight: 700; line-height: 1; color: var(--brass); }
+.tour-big span { font-size: 16px; color: var(--muted); font-weight: 400; }
+.tour-rooms { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tour-rooms td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.tour-rooms td:last-child { text-align: right; white-space: nowrap; }
+.tour-rooms tfoot td { font-weight: 700; border-bottom: 0; }
+.tour-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 3px; border-radius: 10px; background: rgba(236, 230, 218, 0.08); }
+.tour-seg button { padding: 8px 6px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-weight: 600; cursor: pointer; }
+.tour-seg button[aria-pressed='true'] { background: var(--brass); color: #1a1406; }
+.tour-seg.small button { padding: 6px 4px; font-size: 13px; }
+.tour-pick-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.tour-pick { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: rgba(236, 230, 218, 0.04); }
+.tour-pick.on { border-color: var(--brass); }
+.tour-pick-img { position: relative; display: block; height: 130px; padding: 0; border: 0; background: #222; cursor: pointer; }
+.tour-pick-img img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.55; }
+.tour-pick.on .tour-pick-img img { opacity: 1; }
+.tour-pick-none { display: flex; height: 100%; align-items: center; justify-content: center; color: var(--muted); }
+.tour-pick-box { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.35); color: #1a1406; }
+.tour-pick.on .tour-pick-box { background: var(--brass); border-color: var(--brass); }
+.tour-pick-tag { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 999px; font-size: 12px; background: rgba(11, 16, 14, 0.75); color: var(--fg); }
+.tour-pick-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.tour-pick-body strong { font-size: 14px; }
+.tour-modes button, .tour-modes a { white-space: nowrap; }
+@media (max-width: 700px) { .tour-modes { overflow-x: auto; max-width: 100%; } .tour-sheet-side { max-width: none; } }
+.tour .tour-btn { color: #1a1406; }
+.tour .tour-btn.secondary { color: var(--fg); }
+.tour .tour-seg button[aria-pressed='true'] { color: #1a1406; }

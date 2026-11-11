@@ -22,7 +22,7 @@ const COPY = {
   create: 'Pièce vide',
   createHint: 'Partez d’une pièce vide prête à meubler',
   importSketch: 'Importer une pièce SketchUp',
-  importOutputs: ['Plan 2D et 3D', 'Photos IA', 'Visite 360°', 'Présentation golden hour'],
+  importOutputs: ['Visite 360° plein jour', 'Plan 2D coté et plan 3D', 'Photos IA jour, soirée ou nuit', 'Vidéo'],
   importHint:
     'Format conseillé : GLB, exporté depuis SketchUp (un seul fichier, textures incluses, bien plus léger). Un export COLLADA (.dae) fonctionne aussi, mais seulement s’il fait moins de 450 Mo ; ajoutez le .skp dans un zip pour récupérer les textures.',
   resume: 'Reprendre',

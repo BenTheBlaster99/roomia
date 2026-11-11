@@ -9,7 +9,7 @@ import { readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 
-const TYPES: Record<string, string> = { '.png': 'image/png', '.json': 'application/json', '.jpg': 'image/jpeg', '.glb': 'model/gltf-binary', '.spz': 'application/octet-stream', '.ply': 'application/octet-stream', '.hdr': 'application/octet-stream' }
+const TYPES: Record<string, string> = { '.png': 'image/png', '.pdf': 'application/pdf', '.json': 'application/json', '.jpg': 'image/jpeg', '.glb': 'model/gltf-binary', '.spz': 'application/octet-stream', '.ply': 'application/octet-stream', '.hdr': 'application/octet-stream' }
 
 /** GET — a panorama (pano-N.jpg), a plan (plan.png), the walkable map (nav.json) or the free walk's baked model of the scene's tour. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; file: string }> }) {

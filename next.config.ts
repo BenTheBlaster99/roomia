@@ -14,6 +14,17 @@ const nextConfig: NextConfig = {
   // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
   allowedDevOrigins: ['*.trycloudflare.com', '*.coconutstudio.io'],
   serverExternalPackages: ['sharp'],
+  // ROOMIA_SPARK_DIR: where @sparkjsdev/spark is read from when the project's own copy is unreadable (DATA disk, 11 Nov)
+  ...(process.env.ROOMIA_SPARK_DIR
+    ? {
+        // types are checked on their own then (tsc -p tsconfig.spark.json): the alias is webpack's only
+        typescript: { ignoreBuildErrors: true },
+        webpack: (config: { resolve: { alias: Record<string, string> } }) => {
+          config.resolve.alias = { ...config.resolve.alias, '@sparkjsdev/spark': process.env.ROOMIA_SPARK_DIR as string }
+          return config
+        },
+      }
+    : {}),
   // Scene routes build a path from the project root, and the file tracer follows it.
   // That packs the scene folder and the compiler binaries into every server function.
   // The upload then dies at "Deploying outputs" once a function passes 250 MB.

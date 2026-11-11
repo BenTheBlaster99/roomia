@@ -14,10 +14,10 @@ const button = 'rounded-lg border border-[var(--rm-text)]/15 px-3 py-1.5 text-sm
 const primary = 'rounded-lg bg-[var(--rm-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--rm-surface)] hover:brightness-110'
 
 const TOUR_LABEL: Record<DesktopProject['tour'], string> = {
-  none: 'Pas encore de visite',
-  building: 'Visite en préparation…',
-  done: 'Visite prête',
-  failed: 'Visite interrompue',
+  none: 'À préparer : visite 360°, plans, vidéo',
+  building: 'Préparation Blender en cours…',
+  done: 'Prêt : visite 360°, plan 2D et 3D',
+  failed: 'Préparation interrompue',
 }
 
 async function readProjects(): Promise<{ projects: DesktopProject[]; freeBytes: number | null } | null> {
@@ -194,11 +194,12 @@ export default function ProjectsClient() {
                 <div className="flex flex-wrap gap-2">
                   {p.status === 'ready' && (
                     <>
-                      <a className={primary} href={`/studio?scene=${p.id}`}>
-                        Ouvrir
+                      {/* 11 Nov makeover: the project page (360°, plans, video, photos) is the main door; the 3D view is for the views */}
+                      <a className={primary} href={`/studio/tour/${p.id}`}>
+                        {p.tour === 'done' ? 'Ouvrir le projet' : p.tour === 'building' ? 'Voir la préparation' : 'Préparer le projet'}
                       </a>
-                      <a className={button} href={`/studio/tour/${p.id}`}>
-                        {p.tour === 'done' ? 'Visite 360°' : 'Créer la visite'}
+                      <a className={button} href={`/studio?scene=${p.id}`}>
+                        Vue 3D
                       </a>
                       {p.walk && (
                         <a className={button} href={`/studio/explore/${p.id}`}>

@@ -66,7 +66,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   }
 
   const stage = state?.stage ?? 'idle'
-  const label = running ? 'Présentation en cours…' : stage === 'done' ? 'Présentation ✓' : stage === 'ready' ? 'Présentation prête' : 'Présentation golden hour'
+  const label = running ? 'Qualité finale en cours…' : stage === 'done' ? 'Qualité finale ✓' : stage === 'ready' ? 'Qualité finale prête' : 'Qualité finale (plein jour)'
   const minutes = state?.startedAt ? Math.max(0, Math.round((Date.now() - state.startedAt) / 60000)) : 0
 
   return (
@@ -75,10 +75,10 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
         {label}
       </button>
       {open && (
-        <div className="tour-publish-panel look-panel-body" role="dialog" aria-label="Présentation golden hour">
+        <div className="tour-publish-panel look-panel-body" role="dialog" aria-label="Qualité finale plein jour">
           {(stage === 'idle' || (stage === 'interrupted' && state?.job !== 'ai') || (stage === 'error' && state?.job === 'render')) && (
             <>
-              <strong>Présentation golden hour</strong>
+              <strong>Qualité finale · plein jour</strong>
               <span>
                 Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° avec une lumière de fin de journée. Gratuit : aucun crédit,
                 environ 1 à 2 minutes par vue sur votre PC.

@@ -327,7 +327,7 @@ async function makeTile(id: string, dir: string, view: string, s: LookState): Pr
     try {
       if (cloud) {
         const r = await cloudPhoto(
-          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view, lighting: { time: 'soiree', sun: true, interior: true }, capture: input, ask: true, kind: 'tile' },
+          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: true, kind: 'tile' },
           () => {},
         )
         buf = Buffer.from(r.base64, 'base64')

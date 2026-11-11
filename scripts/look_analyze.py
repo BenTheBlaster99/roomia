@@ -121,6 +121,46 @@ for k, v in emissive.items():
 # --- the cameras: inside furniture, or a spot too tight to look at
 dirs = [Vector((x, y, z)).normalized() for x in (-1, 0, 1) for y in (-1, 0, 1) for z in (-1, 0, 1) if (x, y, z) != (0, 0, 0)]
 cams = []
+HDIRS = [Vector((math.cos(a), math.sin(a), 0.0)) for a in (k * math.pi / 8 for k in range(16))]
+
+
+def clearance(c):
+    """the shortest free distance around a spot, at eye height and at furniture height (90 cm lower), capped at 3 m"""
+    return min(cast(c + Vector((0, 0, dz)), d, 3.0)[2] for d in HDIRS for dz in (0.0, -0.9))
+
+
+def better_spot(c):
+    """A camera pressed against a wall or inside a cupboard (a 360 that is half a white wall): the spot within 1.6 m, on the same
+    floor, under a ceiling and seen from the original eye, that has the most room around it (nearer spots preferred).
+    Returns (spot, distance, old clearance, new clearance) or None when the camera is fine or nothing better is near."""
+    old = clearance(c)
+    if old >= float(JOB.get("minClearance", 0.75)):
+        return None
+    down = cast(c, Vector((0, 0, -1)), 3.0)
+    floor0 = c.z - down[2] if down[0] is not None else None
+    best = None
+    # first the spots the original eye sees; a camera shut inside a cupboard sees none, so then any spot within 2 m (11 Nov, Scene 2)
+    tries = [(r, True) for r in (0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6)] + [(r, False) for r in (0.4, 0.8, 1.2, 1.6, 2.0)]
+    for r, must_see in tries:
+        if not must_see and best is not None:
+            break
+        for d in HDIRS:
+            q = c + d * r
+            ob, glass, dist = cast(c, d, r)
+            if must_see and (glass or (ob is not None and dist < r)):
+                continue  # not seen from the original eye (a wall or the cupboard's door between them)
+            dn = cast(q, Vector((0, 0, -1)), 3.0)
+            if dn[0] is None or (floor0 is not None and abs((q.z - dn[2]) - floor0) > 0.15):
+                continue  # no floor under it, or another level (a step, the bed's top)
+            if cast(q, Vector((0, 0, 1)), 6.0)[0] is None:
+                continue  # no ceiling: outside
+            cl = clearance(q)
+            score = min(cl, 1.2) - 0.15 * r
+            if cl >= max(old + 0.2, 0.6) and (best is None or score > best[0]):
+                best = (score, q, r, cl)
+    return None if best is None else (best[1], best[2], old, best[3])
+
+
 for p in points:
     c = gl2b(p["position"])
     ds = sorted(cast(c, d, 60.0)[2] for d in dirs)
@@ -132,7 +172,14 @@ for p in points:
         verdict = "inside furniture or too tight"
     if open_share > 0.5:
         verdict = "outside the building"
-    cams.append({"index": p["index"], "name": p.get("name"), "median": round(med, 2), "min": round(mn, 2), "nearShare": round(near, 2), "openShare": round(open_share, 2), "verdict": verdict})
+    entry = {"index": p["index"], "name": p.get("name"), "median": round(med, 2), "min": round(mn, 2), "nearShare": round(near, 2), "openShare": round(open_share, 2), "verdict": verdict}
+    if verdict != "outside the building":
+        mv = better_spot(c)
+        if mv is not None:
+            entry["moved"], entry["movedBy"], entry["clearance"] = [mv[0].x, mv[0].z, -mv[0].y], round(mv[1], 2), [round(mv[2], 2), round(mv[3], 2)]
+            entry["verdict"] = "ok"  # a 360 from the better spot nearby instead of none (11 Nov: Scene 2 stood inside a wardrobe)
+            print("LOOK_CAMERA %s moved %.2f m: clearance %.2f -> %.2f" % (p.get("name"), mv[1], mv[2], mv[3]), flush=True)
+    cams.append(entry)
 json.dump({"sun": {"azimuth": best, "elevation": 6, "scores": scores}, "emissive": em_out, "cameras": cams}, open(os.path.join(OUT, "analysis.json"), "w"), indent=1)
 print("LOOK_ANALYSIS_OK", flush=True)
 os._exit(0)

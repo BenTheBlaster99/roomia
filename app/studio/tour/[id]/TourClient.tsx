@@ -9,13 +9,16 @@ import { sendSceneFile } from '@/lib/studio-import/server-prep'
 import DesktopPublish from './DesktopPublish'
 import LookPanel from './LookPanel'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
+import { PhotosSheet, Plan3dSheet, PlanSheet, VideoSheet, type PlanData } from './TourSheets'
 import DesktopRenderNotice, { isCpuOnly, loadDesktopEngine, renderEstimate } from '../../components/DesktopRenderNotice'
 
 interface TourData {
   /** AI 360°s offered at all (ROOMIA_AI_360=1); off since 2 Nov: the Cycles 360° is the product. */
   ai360?: boolean
   status: TourStatus
-  plan: { file: string; hd?: string; lines?: string; width: number; height: number } | null
+  plan: PlanData | null
+  /** The 3D plan's file, when the build made one. */
+  plan3d?: string | null
   /** A site with several levels: one plan each, bottom up. */
   levels: TourLevel[] | null
   builtAt: string | null
@@ -42,7 +45,7 @@ interface VideoData {
   video: VideoBuild | null
 }
 
-type Mode = 'photo' | 'pano' | 'video'
+type Mode = 'photo' | 'pano' | 'video' | 'plan2d' | 'plan3d' | 'photos'
 
 /** Views within this distance (metres) of the current one get an arrow towards them. */
 const NEAR = 9
@@ -363,22 +366,6 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     }
   }
 
-  async function renderMissingPhotos() {
-    const missing = views.filter(v => !v.photo && !v.noPhoto)
-    for (const [k, v] of missing.entries()) {
-      setBusy(`Photo ${k + 1} / ${missing.length} : ${v.name}…`)
-      const res = await fetch('/api/render/scene-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sceneId, cameraIndex: v.index, lens: '24', time: 'apres-midi', sun: true, interior: true }),
-      }).catch(() => null)
-      // The photo step streams its progress; the tour only needs it to finish.
-      await res?.text().catch(() => '')
-      await load().catch(() => undefined)
-    }
-    setBusy('')
-  }
-
   if (error && !data) return <div className="tour tour-message">{error}</div>
   if (!data) return <div className="tour tour-message">Chargement de la visite…</div>
   // No view yet (a file without saved views, before the first build): Blender places the points itself.
@@ -391,7 +378,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <>
             <strong>Préparation de la visite 360°…</strong>
             <span>{status.step}</span>
-            {data.autoLook && <span>La présentation golden hour démarre toute seule à la fin de la préparation.</span>}
+            {data.autoLook && <span>La qualité finale (plein jour) démarre toute seule à la fin de la préparation.</span>}
             <ThermalNote t={status.thermal} />
             <progress max={status.total ?? 1} value={status.done ?? 0} />
             <button type="button" className="tour-secondary" onClick={() => void pauseBuild(!status.thermal?.userPaused)}>
@@ -468,7 +455,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <strong>{title}</strong>
           <span>
             {current.name} · {step + 1} / {order.length}
-            {data.preview && !published ? ' · aperçu rapide : la présentation golden hour donne la qualité finale' : ''}
+            {data.preview && !published ? ' · aperçu rapide : la qualité finale arrive avec la préparation plein jour' : ''}
           </span>
         </div>
         {!published && <LookPanel sceneId={sceneId} tourReady={!building && views.some(v => v.pano)} />}
@@ -480,9 +467,24 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <button type="button" aria-pressed={shown === 'pano'} disabled={!current.pano} onClick={() => setMode('pano')}>
             360°
           </button>
-          {film?.video && (
+          {data.plan && (
+            <button type="button" aria-pressed={shown === 'plan2d'} onClick={() => setMode('plan2d')}>
+              Plan 2D
+            </button>
+          )}
+          {(data.plan3d || !published) && (
+            <button type="button" aria-pressed={shown === 'plan3d'} onClick={() => setMode('plan3d')}>
+              Plan 3D
+            </button>
+          )}
+          {(film?.video || !published) && (
             <button type="button" aria-pressed={shown === 'video'} onClick={() => setMode('video')}>
               Vidéo
+            </button>
+          )}
+          {!published && (
+            <button type="button" aria-pressed={shown === 'photos'} onClick={() => setMode('photos')}>
+              Photos IA
             </button>
           )}
           {/* the free walk starts where the visitor stands in the tour */}
@@ -509,16 +511,14 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - s.y)) go(step + (dx < 0 ? 1 : -1))
         }}
       >
-        {shown === 'video' && film?.video ? (
-          <video
-            key={film.video.file}
-            className="tour-video"
-            src={`/api/scenes/${sceneId}/video/${film.video.file}`}
-            poster={`/api/scenes/${sceneId}/video/${film.video.poster}`}
-            controls
-            autoPlay
-            playsInline
-          />
+        {shown === 'plan2d' && data.plan ? (
+          <PlanSheet sceneId={sceneId} plan={plan ?? data.plan} version={version} title={title} />
+        ) : shown === 'plan3d' ? (
+          <Plan3dSheet sceneId={sceneId} file={data.plan3d ?? null} version={version} title={title} />
+        ) : shown === 'photos' ? (
+          <PhotosSheet sceneId={sceneId} views={views} version={version} onDone={() => void load().catch(() => undefined)} />
+        ) : shown === 'video' ? (
+          <VideoSheet sceneId={sceneId} film={film} canMake={!published && !missingPanos} busy={!!busy} onMake={makeVideo} />
         ) : shown === 'pano' && current.pano ? (
           <>
             <PanoViewer
@@ -560,7 +560,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <div className="tour-message">Pas encore de photo pour {current.name}.</div>
         )}
 
-        {shown !== 'video' && (
+        {(shown === 'photo' || shown === 'pano') && (
           <>
             <button type="button" className="tour-arrow left" aria-label="Vue précédente" onClick={() => go(step - 1)}>
               ‹
@@ -571,7 +571,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           </>
         )}
 
-        {plan && shown !== 'video' && (
+        {plan && (shown === 'photo' || shown === 'pano') && (
           <nav className="tour-plan" aria-label={levels ? 'Plan du site' : 'Plan de l’appartement'}>
             {levels && (
               <div className="tour-levels" role="group" aria-label="Niveau">
@@ -604,7 +604,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
         )}
       </main>
 
-      {!published && (missingPanos > 0 || missingPhotos > 0 || building || busy || data.status.state === 'failed' || editing) && (
+      {!published && (shown === 'photo' || shown === 'pano') && (missingPanos > 0 || missingPhotos > 0 || building || busy || data.status.state === 'failed' || editing) && (
         <aside className="tour-prep">
           {building ? (
             <>
@@ -648,8 +648,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                 </>
               )}
               {missingPhotos > 0 && (
-                <button type="button" onClick={renderMissingPhotos} disabled={!!busy}>
-                  Générer les {missingPhotos} photos manquantes
+                <button type="button" onClick={() => setMode('photos')} disabled={!!busy}>
+                  Choisir les photos IA ({missingPhotos} vues sans photo)
                 </button>
               )}
               {editing && data.ai360 && current.pano && !current.panoAi && (
@@ -686,18 +686,6 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                   </button>
                 </form>
               )}
-              {editing && plan?.hd && (
-                <>
-                  <a href={`/api/scenes/${sceneId}/tour/${plan.hd}?v=${version}`} download={`plan-${sceneId}${levels ? `-${levelShown}` : ''}.png`}>
-                    Télécharger le plan{levels ? ` (${levels.find(l => l.index === levelShown)?.name})` : ''} (murs pleins)
-                  </a>
-                  {plan.lines && (
-                    <a href={`/api/scenes/${sceneId}/tour/${plan.lines}?v=${version}`} download={`plan-traits-${sceneId}${levels ? `-${levelShown}` : ''}.png`}>
-                      Télécharger le plan{levels ? ` (${levels.find(l => l.index === levelShown)?.name})` : ''} (traits)
-                    </a>
-                  )}
-                </>
-              )}
               {editing && data.ai360 && blenderStops.length > 1 && (
                 <>
                   <span>Toute la visite en qualité photo ({blenderStops.length} points, {blenderStops.length * 6} images) :</span>
@@ -705,31 +693,6 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                     Passer toute la visite en qualité photo
                   </button>
                 </>
-              )}
-              {editing && film?.status.state === 'building' ? (
-                <>
-                  <span>Vidéo de la visite : {film.status.step}</span>
-                  <progress max={film.status.total ?? 1} value={film.status.done ?? 0} />
-                </>
-              ) : (
-                editing &&
-                !missingPanos && (
-                  <>
-                    {film?.status.state === 'failed' && <span className="tour-error">{film.status.error}</span>}
-                    <span>
-                      Vidéo de la visite (gratuite, Blender) : un plan lent dans chaque pièce, en Full HD, environ 30 à 45 min.
-                      {film?.video && ` Dernière vidéo : ${Math.round(film.video.duration)} s, ${film.video.shots.length} pièces.`}
-                    </span>
-                    <button type="button" onClick={makeVideo} disabled={!!busy}>
-                      {film?.video ? 'Refaire la vidéo' : 'Créer la vidéo'}
-                    </button>
-                    {film?.video && (
-                      <a href={`/api/scenes/${sceneId}/video/${film.video.file}`} download={`visite-${sceneId}.mp4`}>
-                        Télécharger la vidéo
-                      </a>
-                    )}
-                  </>
-                )
               )}
               {editing && shown === 'pano' && (
                 <button type="button" onClick={() => editPoint(current.index, { startYaw: lookYaw })} disabled={!!busy}>

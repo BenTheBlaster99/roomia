@@ -44,7 +44,7 @@ scene.render.use_simplify = True
 scene.cycles.texture_limit_render = str(JOB.get("textureLimit", "2048"))
 scene.render.use_persistent_data = True
 scene.cycles.use_light_tree = True
-scene.cycles.max_bounces, scene.cycles.diffuse_bounces, scene.cycles.glossy_bounces = 10, 4, 4
+scene.cycles.max_bounces, scene.cycles.diffuse_bounces, scene.cycles.glossy_bounces = 12, 8, 6  # 11 Nov: brighter corners, no slower on the bench
 scene.cycles.transmission_bounces, scene.cycles.transparent_max_bounces = 8, 8
 if JOB.get("bounces"):  # [total, diffuse, glossy, transmission, transparent]: the speed benchmark (8 Nov)
     b_ = JOB["bounces"]
@@ -57,6 +57,15 @@ scene.view_settings.look = "None"
 scene.view_settings.exposure = 0.0
 scene.view_settings.gamma = 1.0
 
+# a look may carry its own fixture colour and spots (11 Nov: daylight = neutral 4000 K, tighter brighter downlights)
+_lk = (R.get("looks") or {}).get(JOB.get("preset", ""), {}).get("interior") if JOB.get("mode") == "pano" else None
+if _lk:
+    R.setdefault("interior", {})
+    for _k, _v in _lk.items():
+        if _k == "downlights" and isinstance(R["interior"].get("downlights"), dict):
+            R["interior"]["downlights"] = dict(R["interior"]["downlights"], **_v)
+        else:
+            R["interior"][_k] = _v
 exec(open(os.path.join(JOB["scriptsDir"], "look_apply.py")).read(), globals())
 print("LOOK_TIME recipe %.1f" % (time.time() - t0), flush=True)
 
