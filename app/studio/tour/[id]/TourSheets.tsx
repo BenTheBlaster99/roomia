@@ -2,7 +2,7 @@
 
 // The tour's other deliverables, each in its own tab (11 Nov makeover): the architect's 2D plan, the 3D plan, the video and
 // the AI photos (the views picked one by one, each with its own ambiance). Before, plans and video sat behind ?edit=1.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 
@@ -232,7 +232,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
                     onClick={() => setPicked(p => ({ ...p, [v.index]: p[v.index] ? undefined : 'jour' }))}
                     disabled={!!running}
                   >
-                    {thumb ? <img src={thumb} alt="" /> : <span className="tour-pick-none">{v.name}</span>}
+                    {thumb ? <img src={thumb} alt="" className={v.photo ? undefined : 'pano-mid'} /> : <span className="tour-pick-none">{v.name}</span>}
                     <span className="tour-pick-box" aria-hidden="true">
                       {mood ? '✓' : ''}
                     </span>
@@ -263,7 +263,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
         )}
       </div>
       <aside className="tour-sheet-side">
-        <h2>Photos IA</h2>
+        <h2>Nouvelles photos</h2>
         <p className="tour-big">
           {chosen.length}
           <span> / {PACKAGE_PHOTOS} photos</span>
@@ -301,6 +301,86 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
         {failed.length > 0 && <p className="tour-error">Pas faites : {failed.join(', ')}. Vous pouvez les relancer.</p>}
         <p className="tour-note">Rien n’est débité avant le lancement.</p>
       </aside>
+    </div>
+  )
+}
+
+interface GalleryPhoto {
+  file: string
+  at: string
+  view?: string
+  time?: string
+  lens?: string
+}
+
+const AMBIANCE_OF: Record<string, string> = { matin: 'Jour', midi: 'Jour', 'apres-midi': 'Jour', soiree: 'Soirée' }
+
+/** Every AI photo of the project (11 Nov): the SketchUp views' photos and the frames picked in the 360°, newest first. */
+export function GallerySheet({ sceneId, title, onCreate }: { sceneId: string; title: string; onCreate: () => void }) {
+  const [photos, setPhotos] = useState<GalleryPhoto[] | null>(null)
+  const [open, setOpen] = useState<GalleryPhoto | null>(null)
+  useEffect(() => {
+    let live = true
+    fetch(`/api/scenes/${sceneId}/photos`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { photos: [] }))
+      .then((b: { photos: GalleryPhoto[] }) => live && setPhotos(b.photos))
+      .catch(() => live && setPhotos([]))
+    return () => {
+      live = false
+    }
+  }, [sceneId])
+  const url = (f: string) => `/api/scenes/${sceneId}/photos/${encodeURIComponent(f)}`
+  const slug = title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').toLowerCase() || sceneId
+  const label = (p: GalleryPhoto) => `${p.view ?? 'Photo'}${p.lens === '360' ? ' · cadrage 360°' : ''} · ${AMBIANCE_OF[p.time ?? ''] ?? 'Jour'}`
+  if (!photos) return <div className="tour-message">Chargement des photos…</div>
+  return (
+    <div className="tour-sheet">
+      <div className="tour-sheet-view scroll">
+        {photos.length === 0 ? (
+          <div className="tour-message">Pas encore de photo IA pour ce projet.</div>
+        ) : (
+          <div className="tour-gallery">
+            {photos.map(p => (
+              <figure key={p.file} className="tour-shot">
+                <button type="button" onClick={() => setOpen(p)} aria-label={`Ouvrir ${p.view ?? 'la photo'} en grand`}>
+                  <img src={url(p.file)} alt={p.view ?? 'Photo IA'} loading="lazy" />
+                </button>
+                <figcaption>
+                  <span>{label(p)}</span>
+                  <a href={url(p.file)} download={`${slug}-${(p.view ?? 'photo').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase()}.jpg`}>
+                    Télécharger
+                  </a>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+      </div>
+      <aside className="tour-sheet-side">
+        <h2>Galerie</h2>
+        <p className="tour-big">
+          {photos.length}
+          <span> photo{photos.length > 1 ? 's' : ''} IA</span>
+        </p>
+        <p className="tour-note">Toutes les photos réalistes du projet, les plus récentes d’abord. Cliquez sur une photo pour l’ouvrir en grand.</p>
+        <button type="button" className="tour-btn" onClick={onCreate}>
+          Créer de nouvelles photos
+        </button>
+      </aside>
+      {open && (
+        <div className="tour-lightbox" role="dialog" aria-label={open.view ?? 'Photo'} onClick={() => setOpen(null)}>
+          <img src={url(open.file)} alt={open.view ?? 'Photo IA'} />
+          <div className="tour-lightbox-bar" onClick={e => e.stopPropagation()}>
+            <span>{label(open)}</span>
+            <a className="tour-btn" href={url(open.file)} download>
+              Télécharger
+            </a>
+            <button type="button" className="tour-btn secondary" onClick={() => setOpen(null)}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

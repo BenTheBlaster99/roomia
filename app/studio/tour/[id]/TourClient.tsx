@@ -9,7 +9,7 @@ import { sendSceneFile } from '@/lib/studio-import/server-prep'
 import DesktopPublish from './DesktopPublish'
 import LookPanel from './LookPanel'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
-import { PhotosSheet, Plan3dSheet, PlanSheet, VideoSheet, type PlanData } from './TourSheets'
+import { GallerySheet, PhotosSheet, Plan3dSheet, PlanSheet, VideoSheet, type PlanData } from './TourSheets'
 import DesktopRenderNotice, { isCpuOnly, loadDesktopEngine, renderEstimate } from '../../components/DesktopRenderNotice'
 
 interface TourData {
@@ -45,7 +45,7 @@ interface VideoData {
   video: VideoBuild | null
 }
 
-type Mode = 'photo' | 'pano' | 'video' | 'plan2d' | 'plan3d' | 'photos'
+type Mode = 'photo' | 'pano' | 'video' | 'plan2d' | 'plan3d' | 'photos' | 'gallery'
 
 /** Views within this distance (metres) of the current one get an arrow towards them. */
 const NEAR = 9
@@ -482,9 +482,12 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               Vidéo
             </button>
           )}
+          <button type="button" aria-pressed={shown === 'gallery'} onClick={() => setMode('gallery')}>
+            Galerie
+          </button>
           {!published && (
             <button type="button" aria-pressed={shown === 'photos'} onClick={() => setMode('photos')}>
-              Photos IA
+              Nouvelles photos
             </button>
           )}
           {/* the free walk starts where the visitor stands in the tour */}
@@ -515,6 +518,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           <PlanSheet sceneId={sceneId} plan={plan ?? data.plan} version={version} title={title} />
         ) : shown === 'plan3d' ? (
           <Plan3dSheet sceneId={sceneId} file={data.plan3d ?? null} version={version} title={title} />
+        ) : shown === 'gallery' ? (
+          <GallerySheet sceneId={sceneId} title={title} onCreate={() => setMode('photos')} />
         ) : shown === 'photos' ? (
           <PhotosSheet sceneId={sceneId} views={views} version={version} onDone={() => void load().catch(() => undefined)} />
         ) : shown === 'video' ? (
@@ -649,7 +654,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               )}
               {missingPhotos > 0 && (
                 <button type="button" onClick={() => setMode('photos')} disabled={!!busy}>
-                  Choisir les photos IA ({missingPhotos} vues sans photo)
+                  Nouvelles photos ({missingPhotos} vues sans photo)
                 </button>
               )}
               {editing && data.ai360 && current.pano && !current.panoAi && (

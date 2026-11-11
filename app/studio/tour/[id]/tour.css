@@ -182,7 +182,7 @@
 .tour-pick-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .tour-pick { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 2px solid var(--line); background: rgba(236, 230, 218, 0.04); }
 .tour-pick.on { border-color: var(--brass); }
-.tour-pick-img { position: relative; display: block; height: 130px; padding: 0; border: 0; background: #222; cursor: pointer; }
+.tour-pick-img { position: relative; display: block; height: 130px; padding: 0; border: 0; background: #222; cursor: pointer; overflow: hidden; }
 .tour-pick-img img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.55; }
 .tour-pick.on .tour-pick-img img { opacity: 1; }
 .tour-pick-none { display: flex; height: 100%; align-items: center; justify-content: center; color: var(--muted); }
@@ -196,3 +196,15 @@
 .tour .tour-btn { color: #1a1406; }
 .tour .tour-btn.secondary { color: var(--fg); }
 .tour .tour-seg button[aria-pressed='true'] { color: #1a1406; }
+/* Galerie (11 Nov): the project's AI photos */
+.tour-gallery { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.tour-shot { margin: 0; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: rgba(236, 230, 218, 0.04); }
+.tour-shot > button { display: block; padding: 0; border: 0; background: #000; cursor: zoom-in; }
+.tour-shot img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+.tour-shot figcaption { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; font-size: 14px; }
+.tour-shot figcaption a { color: var(--brass); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.tour-lightbox { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; background: rgba(5, 7, 8, 0.92); cursor: zoom-out; }
+.tour-lightbox img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; border-radius: 8px; }
+.tour-lightbox-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: default; color: var(--fg); }
+/* a SketchUp view's 360 is centred on its camera: the middle of it, enlarged, is what the camera sees */
+.tour-pick-img img.pano-mid { transform: scale(3); transform-origin: 50% 50%; }
