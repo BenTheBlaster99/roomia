@@ -21,7 +21,8 @@ ${list}
 Answer with JSON only: {"<id>": "<name>", ...} for every id.`
 const genAI = new GoogleGenerativeAI(key)
 let names: Record<string, string> | null = null
-for (const model of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+// 11 Nov: 2.5-flash answers 503 when busy and 2.0-flash is retired: a few tries, then the current model
+for (const model of ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.8-flash']) {
   try {
     const res = await genAI.getGenerativeModel({ model, generationConfig: { responseMimeType: 'application/json', temperature: 0 } }).generateContent([
       { inlineData: { data: image.toString('base64'), mimeType: 'image/jpeg' } },
@@ -31,7 +32,8 @@ for (const model of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
     console.log('PLAN_AI_NAMES', model, JSON.stringify(names))
     break
   } catch (err) {
-    console.error('plan ai names', model, (err as Error).message)
+    console.error('plan ai names', model, (err as Error).message.slice(0, 160))
+    await new Promise(r => setTimeout(r, 4000))
   }
 }
 if (!names) process.exit(1)

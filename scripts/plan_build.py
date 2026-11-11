@@ -109,6 +109,18 @@ if not args.no_ai and env("GEMINI_API_KEY"):
 for a, b in (("-rendu.png", "plan-archi-rendu.png"), ("-technique.png", "plan-archi-technique.png"), (".pdf", "plan-archi.pdf"), ("-rooms.json", "plan-archi.json")):
     shutil.copyfile(out + a, os.path.join(TOUR, b))
 rep = json.load(open(out + "-rooms.json"))
+# a tour built before 2 Nov kept no plan sources: the 3D plan needs the frame and the apartment's outline, which this run has
+src_dir = os.path.join(TOUR, "plan-src")
+if not os.path.exists(os.path.join(src_dir, "tour-blender.json")):
+    os.makedirs(src_dir, exist_ok=True)
+    lvl = {"index": 0, "suffix": "", "main": True, "floor": floor, "ceil": floor + 2.7, "cut": floor + 1.6, "width": width // 2, "height": height // 2,
+           "mpp": (frame[2] - frame[0]) / (width // 2), "frame": frame, "outdoor": False}
+    json.dump({"plan": lvl, "levels": [lvl]}, open(os.path.join(src_dir, "tour-blender.json"), "w"))
+    shutil.copyfile(out + "-apt.png", os.path.join(src_dir, "plan-apt.png"))
+    print("PLAN_STEP sources du plan 3D écrites", flush=True)
+if not os.path.exists(os.path.join(TOUR, "plan-3d.jpg")) and os.environ.get("ROOMIA_PLAN3D", "1") == "1":
+    print("PLAN_STEP plan 3D", flush=True)
+    subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/plan3d-run.mts", args.scene], cwd=ROOT, check=False)
 t = json.load(open(os.path.join(TOUR, "tour.json")))
 t.setdefault("plan", {})["archi"] = {"rendu": "plan-archi-rendu.png", "technique": "plan-archi-technique.png", "pdf": "plan-archi.pdf",
                                      "total": rep.get("total"), "rooms": [{"name": r["name"], "area": r["area"]} for r in rep["rooms"] if r["area"] >= 0.8]}

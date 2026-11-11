@@ -170,6 +170,8 @@ labels = [i for i in np.unique(rooms) if i > 0]
 # what is drawn as the apartment: the rooms, and the walls that bound them
 inside = rooms > 0
 wall &= dil(inside, m(0.45))
+# the small enclosed spaces no room took (a cupboard, a duct, a strip behind a wardrobe): drawn, never left white (11 Nov)
+holes = ndi.binary_fill_holes(inside | wall) & ~inside & ~wall
 
 # ---------------------------------------------------------------- room names from what stands in them
 VOTES = [
@@ -296,12 +298,13 @@ def draw_plan(style):
         g = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
         rgb = rgb * 0.82 + g[..., None] * 0.18  # a little less saturated, a little lighter: the drawing reads on top
         rgb = 255 - (255 - rgb) * 0.85
-        a = (inside[..., None]).astype(np.float32)
+        a = ((inside | holes)[..., None]).astype(np.float32)
         img = (rgb * a + 255 * (1 - a)).clip(0, 255).astype(np.uint8)
         canvas.paste(Image.fromarray(img[by0:by1 + 1, bx0:bx1 + 1]), (MARGIN, MARGIN))
     else:
         fl = np.full((H, W, 3), 255, np.uint8)
         fl[inside] = (250, 249, 246)
+        fl[holes] = (232, 230, 225)
         fl[ndi.binary_dilation(furn_lines) & inside] = (150, 150, 150)
         canvas.paste(Image.fromarray(fl[by0:by1 + 1, bx0:bx1 + 1]), (MARGIN, MARGIN))
     arr = np.asarray(canvas).copy()
@@ -434,6 +437,8 @@ for style in (["rendu", "technique"] if OPT.get("style", "both") == "both" else 
     im = draw_plan(style)
     im.save("%s-%s.png" % (OUTP, style), optimize=True)
     outs.append(im)
+# the apartment as drawn (rooms, walls, enclosed pockets): the 3D plan is cut to it (plan_build.py writes plan-src/plan-apt.png)
+Image.fromarray(((inside | wall | holes) * 255).astype(np.uint8)).save(OUTP + "-apt.png", optimize=True)
 # the furnished top view with a number on each room: what the AI is shown to name the rooms (plan-ai-names.mts)
 ids_img = top.convert("RGB").copy()
 dd = ImageDraw.Draw(ids_img)

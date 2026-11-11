@@ -195,6 +195,162 @@ if DL:
         n_dl += 1
     print("LOOK_INFO %d downlights" % n_dl, flush=True)
 
+# 11 Nov (F5 feedback): two things a SketchUp file leaves the render to guess.
+_FZ = (R.get("floors") or {}).get("z")
+
+
+def _box(o):
+    bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    return (Vector((min(p.x for p in bb), min(p.y for p in bb), min(p.z for p in bb))), Vector((max(p.x for p in bb), max(p.y for p in bb), max(p.z for p in bb))))
+
+
+def _see_through(m):
+    if m is None or re.search(r"mirror|miroir", m.name, re.I):
+        return False
+    if re.search(r"glass|verre|vitre|vidro|cristal", m.name, re.I):
+        return True
+    if m.use_nodes:
+        for n in m.node_tree.nodes:
+            if n.type == "BSDF_GLASS":
+                return True
+            if n.type == "BSDF_PRINCIPLED":
+                a, t = n.inputs.get("Alpha"), n.inputs.get("Transmission Weight")
+                if (a is not None and not a.is_linked and a.default_value < 0.9) or (t is not None and not t.is_linked and t.default_value > 0.3):
+                    return True
+    return False
+
+
+if _FZ is not None and R.get("hideFloatingGlass", True):
+    # small thin see-through things hanging high (a decorative glass disc, Sarah's wall discs): in a render they read as a
+    # floating balloon (F5 Point 8, "Glass 01_ Pyramids", 80 cm at 45 %). Windows are large or low; mirrors are kept.
+    n_hid = 0
+    for o in scene.objects:
+        if o.type != "MESH" or o.hide_render or not o.material_slots or not all(_see_through(s.material) for s in o.material_slots if s.material):
+            continue
+        lo, hi = _box(o)
+        dims = sorted([hi.x - lo.x, hi.y - lo.y, hi.z - lo.z])
+        if dims[0] <= 0.06 and dims[2] <= 1.2 and lo.z - _FZ >= 1.0:
+            o.hide_render = True
+            n_hid += 1
+            print("LOOK_INFO hidden floating glass %s (%.2f m)" % (o.name, dims[2]), flush=True)
+    print("LOOK_INFO %d floating glass pieces hidden" % n_hid, flush=True)
+
+if _FZ is not None and R.get("pendantBulbs", True):
+    # a pendant shade hanging from a thin rod gets its bulb: a warm spot down from the shade's mouth and a small glow inside
+    # (F5 dining: three cone shades with no light in them). Rods: thin vertical pieces; shades: small, hanging, under a rod.
+    _dg = bpy.context.evaluated_depsgraph_get()
+
+    def _ray(o_, origin, direction, maxd):
+        """distance to the first surface that is not o_ itself (None: nothing within maxd)"""
+        p_, left = origin.copy(), maxd
+        for _ in range(6):
+            hit, loc, _n, _i, ob_, _m = scene.ray_cast(_dg, p_, direction, distance=left)
+            if not hit:
+                return None
+            left -= (loc - p_).length
+            if ob_ is None or ob_.original is not o_.original:
+                _ray.last = (ob_, loc)
+                return maxd - left
+            p_ = loc + direction * 0.005
+        return None
+
+    n_pd, n_c = 0, 0
+    for o in list(scene.objects):
+        if o.type != "MESH" or o.hide_render or o.name.startswith(("look_", "roomia_")):
+            continue
+        lo, hi = _box(o)
+        w, d_, h = hi.x - lo.x, hi.y - lo.y, hi.z - lo.z
+        if not (0.08 <= max(w, d_) <= 0.6 and 0.06 <= h <= 0.6 and 1.4 <= lo.z - _FZ <= 2.4):
+            continue
+        n_c += 1
+        c = (lo + hi) / 2
+        up = _ray(o, Vector((c.x, c.y, hi.z + 0.002)), Vector((0, 0, 1)), 0.9)
+        down = _ray(o, Vector((c.x, c.y, lo.z - 0.002)), Vector((0, 0, -1)), 0.5)
+        if up is None or down is not None:
+            continue  # not hanging from anything, or standing on a shelf
+        # what holds it: a thin rod or bar, or the ceiling itself (a leaf of a tall plant hangs from other leaves)
+        hold, hold_at = getattr(_ray, "last", (None, None))
+        if hold is not None and hold_at is not None and hold_at.z - _FZ < 2.35:
+            hlo, hhi = _box(hold.original if hasattr(hold, "original") else hold)
+            if min(hhi.x - hlo.x, hhi.y - hlo.y) > 0.05:
+                continue
+        if any(re.search(r"leaf|leaves|daun|feuille|plant|foliage|branch|tree|flower|fleur", s_.material.name, re.I) for s_ in o.material_slots if s_.material):
+            continue
+        side = [_ray(o, Vector((c.x, c.y, c.z)), Vector(v_), max(w, d_) / 2 + 0.2) for v_ in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0))]
+        if any(x is not None and x > max(w, d_) / 2 + 0.02 for x in side):
+            continue  # against a wall or inside a cabinet
+        ob = add_light("look_pd_%s" % o.name, "SPOT", "PENDANTS")
+        ob.data.energy = float((R.get("pendants") or {}).get("energy", 40))
+        ob.data.spot_size, ob.data.spot_blend, ob.data.shadow_soft_size = math.radians(80), 0.6, 0.03
+        ob.data.color = tuple(kelvin_rgb(float((R.get("pendants") or {}).get("kelvin", 2900))))
+        ob.location = Vector((c.x, c.y, lo.z + 0.02))
+        ob.rotation_euler = (0, 0, 0)
+        ob.visible_glossy = False
+        gl = add_light("look_pg_%s" % o.name, "POINT", "PENDANT_GLOW")
+        gl.data.energy, gl.data.shadow_soft_size = 3.0, 0.02
+        gl.data.color = ob.data.color
+        gl.location = Vector((c.x, c.y, lo.z + 0.25 * h))
+        gl.visible_glossy = gl.visible_camera = False
+        n_pd += 1
+        print("LOOK_INFO pendant bulb in %s (%.2f m wide, %.2f m up)" % (o.name, max(w, d_), lo.z - _FZ), flush=True)
+    print("LOOK_INFO %d pendant bulbs (%d candidates)" % (n_pd, n_c), flush=True)
+
+
+def _dark(m):
+    if m is None or not m.use_nodes:
+        return False
+    for n in m.node_tree.nodes:
+        if n.type == "BSDF_PRINCIPLED" and not n.inputs["Base Color"].is_linked:
+            c = n.inputs["Base Color"].default_value
+            return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] < 0.2
+    return False
+
+
+if _FZ is not None and R.get("slotLights", True):
+    # a dark linear profile set in the ceiling (F5 kitchen and living: 1.5-2.8 m black lines) is a linear LED with no light in it:
+    # a glowing strip along its mouth and a soft light down from it. Wardrobe rails and curtain rods are left alone.
+    n_sl = 0
+    for o in list(scene.objects):
+        if o.type != "MESH" or o.hide_render or o.name.startswith(("look_", "roomia_")):
+            continue
+        if re.search(r"penderie|rail|barre|tringle|curtain|rideau|rod", o.name + " " + (o.parent.name if o.parent else ""), re.I):
+            continue
+        lo, hi = _box(o)
+        w, d_, h = hi.x - lo.x, hi.y - lo.y, hi.z - lo.z
+        L_, T_ = max(w, d_), min(w, d_)
+        if not (L_ >= 0.8 and T_ <= 0.045 and h <= 0.12 and hi.z - _FZ >= 2.4):
+            continue
+        if not any(_dark(s_.material) for s_ in o.material_slots if s_.material):
+            continue
+        c = (lo + hi) / 2
+        along_x = w >= d_
+        name = "look_slot_%s" % o.name
+        me_ = bpy.data.meshes.get(name) or bpy.data.meshes.new(name)
+        if not me_.vertices:
+            me_.from_pydata([(-0.5, -0.5, 0), (0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, 0.5, 0)], [], [(0, 1, 2, 3)])
+        st = bpy.data.objects.get(name) or bpy.data.objects.new(name, me_)
+        if st.name not in scene.collection.objects:
+            scene.collection.objects.link(st)
+        st.data.materials.clear()
+        st.data.materials.append(glow_material("look_slot_mat", float((R.get("slots") or {}).get("strength", 3)), float((R.get("slots") or {}).get("kelvin", 4000))))
+        st.location = Vector((c.x, c.y, lo.z - 0.003))
+        st.scale = (L_ * 0.97, T_ * 0.6, 1) if along_x else (T_ * 0.6, L_ * 0.97, 1)
+        st.lightgroup = "SLOT"
+        st.visible_shadow = False
+        ar = add_light("look_slotl_%s" % o.name, "AREA", "SLOT")
+        ar.data.shape = "RECTANGLE"
+        ar.data.size, ar.data.size_y = (L_, 0.03) if along_x else (0.03, L_)
+        ar.data.energy = float((R.get("slots") or {}).get("wattsPerMetre", 9.0)) * L_
+        ar.data.color = tuple(kelvin_rgb(float((R.get("slots") or {}).get("kelvin", 4000))))
+        if hasattr(ar.data, "spread"):
+            ar.data.spread = math.radians(120)
+        ar.location = Vector((c.x, c.y, lo.z - 0.01))
+        ar.rotation_euler = (0, 0, 0)
+        ar.visible_glossy = ar.visible_camera = False
+        n_sl += 1
+        print("LOOK_INFO slot light %s (%.2f m)" % (o.name, L_), flush=True)
+    print("LOOK_INFO %d ceiling slot lights" % n_sl, flush=True)
+
 # objects that glow as a whole (a pendant's diffuser disc)
 for k, rule in enumerate(PR.get("glowObjects", [])):
     m = glow_material("look_glow_%d" % k, rule.get("strength", 5), rule.get("kelvin", 2700))
