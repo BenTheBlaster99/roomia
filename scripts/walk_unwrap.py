@@ -58,7 +58,12 @@ def opaque_plain(m):
     b = principled(m)
     if b is None:
         return False
-    if b.inputs["Alpha"].is_linked or b.inputs["Alpha"].default_value < 0.98:
+    if b.inputs["Alpha"].is_linked:
+        # SketchUp's importer drives Alpha through Math nodes even on opaque materials ([Stone Vein Gray], the floor): only an
+        # image upstream makes a real cutout
+        if image_upstream(b.inputs["Alpha"]):
+            return False
+    elif b.inputs["Alpha"].default_value < 0.98:
         return False
     if b.inputs["Transmission Weight"].default_value > 0.05 or b.inputs["Transmission Weight"].is_linked:
         return False
@@ -68,6 +73,40 @@ def opaque_plain(m):
     except KeyError:
         pass
     return True
+
+
+_alpha_cache = {}
+
+
+def image_has_cutout(img):
+    """True when the image really has transparent pixels (SketchUp exports many opaque textures with an alpha channel)"""
+    if img is None:
+        return False
+    if img.name in _alpha_cache:
+        return _alpha_cache[img.name]
+    cut = False
+    try:
+        if img.channels == 4 and img.size[0] > 0:
+            px = np.empty(img.size[0] * img.size[1] * 4, np.float32)
+            img.pixels.foreach_get(px)
+            cut = bool((px[3::4] < 0.9).mean() > 0.002)
+    except Exception:
+        cut = True
+    _alpha_cache[img.name] = cut
+    return cut
+
+
+def image_upstream(sock, depth=0):
+    """an image with real transparency feeds this socket (a cutout: leaves, lattices)"""
+    for l in sock.links:
+        n = l.from_node
+        if n.type == "TEX_IMAGE":
+            if image_has_cutout(n.image):
+                return True
+            continue
+        if depth < 6 and any(image_upstream(i, depth + 1) for i in n.inputs if i.is_linked):
+            return True
+    return False
 
 
 def world_scale(o):
@@ -115,10 +154,44 @@ for o in list(scene.objects):
     cands.append((o, inside))
 
 print("WALK_INFO %d candidate objects (%.0f s)" % (len(cands), time.time() - t0), flush=True)
+def bisect_to_box(o):
+    """cut every face of o at the four vertical planes eye +-R (x and y): a floor slab or wall that spans the apartment keeps only
+    the room's part, so its texels go to the room (11 Nov: the F5 floor gave a 1260 m2 atlas at 0.79 px/cm)"""
+    me = o.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    mwi = o.matrix_world.inverted()
+    m3t = o.matrix_world.to_3x3().transposed()
+    for axis in (0, 1):
+        for sgn in (-1, 1):
+            co_w = EYE.copy()
+            co_w[axis] += sgn * R
+            n_w = Vector((0, 0, 0))
+            n_w[axis] = 1.0
+            n_l = (m3t @ n_w).normalized()
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=mwi @ co_w, plane_no=n_l, dist=1e-6, clear_inner=False, clear_outer=False)
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+    n = len(me.polygons)
+    cen = np.empty(n * 3, np.float32)
+    me.polygons.foreach_get("center", cen)
+    mw = np.array(o.matrix_world, np.float32)
+    wc = cen.reshape(n, 3) @ mw[:3, :3].T + mw[:3, 3]
+    return np.linalg.norm(wc - np.array(EYE, np.float32), axis=1) <= R
+
+
 room = []
 for o, inside in cands:
     me = o.data
     if not inside.all():
+        inside = bisect_to_box(o)
+        if inside.all():
+            room.append(o)
+            continue
+        if not inside.any():
+            report["skipped"]["far"] += 1
+            continue
         activate(o)
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_mode(type="FACE")
@@ -168,10 +241,12 @@ tiny = [o for a, o in room if a < MIN_AREA]
 report["skipped"]["tiny"] = len(tiny)
 room = [(a, o) for a, o in room if a >= MIN_AREA]
 # dense, curved meshes (fabrics, chairs, plants: a tiny island per triangle with smart project) keep the textures they have
-DENSE_FACE_M2 = float(JOB.get("denseFaceM2", 0.02))
+DENSE_FACE_M2 = float(JOB.get("denseFaceM2", 0.004))  # 6 x 6 cm per face on average: fabrics and chairs, not tiled floors
 dense = [o for a, o in room if a / max(len(o.data.polygons), 1) < DENSE_FACE_M2 or len(o.data.polygons) > int(JOB.get("maxUnwrapPolys", 20000))]
 report["skipped"]["dense"] = len(dense)
 report["denseKeptArea"] = round(sum(a for a, o in room if o in dense), 1)
+report["denseBiggest"] = [(o.name, round(a, 2), len(o.data.polygons), [s.material.name for s in o.material_slots if s.material][:2]) for a, o in sorted(room, key=lambda r: -r[0]) if o in dense][:12]
+print("WALK_INFO dense kept (biggest):", report["denseBiggest"][:6], flush=True)
 room = sorted([(a, o) for a, o in room if o not in dense], key=lambda r: -r[0])
 total_area = sum(a for a, _ in room)
 print("WALK_INFO room surfaces: %d objects, %.1f m2" % (len(room), total_area), flush=True)
@@ -332,6 +407,9 @@ for ob in room_objs:
 bpy.context.view_layer.objects.active = room_objs[0]
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, "walk-room.glb"), export_format="GLB", use_selection=True, export_yup=True,
                           export_image_format="AUTO", export_materials="EXPORT", export_apply=False)
+if JOB.get("saveBlend"):
+    bpy.ops.wm.save_as_mainfile(filepath=JOB["saveBlend"], compress=False)
+    print("WALK_INFO scene saved", JOB["saveBlend"], flush=True)
 report["roomArea"] = round(total_area, 1)
 report["seconds"] = round(time.time() - t0, 1)
 json.dump(report, open(os.path.join(OUT, "walk-unwrap.json"), "w"), indent=1)

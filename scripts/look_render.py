@@ -303,7 +303,7 @@ elif JOB["mode"] == "pano":
         return res_
 
     for v in JOB["views"]:
-        v = dict(v, pano=True)
+        v = dict(v, pano=not v.get("persp"))  # persp: an ordinary camera view with the same look (comparisons, 11 Nov)
         wait_between_points(v["name"])  # the card cools, or the person paused, between two points (never in the middle of one)
         place(v)
         name = v["name"]

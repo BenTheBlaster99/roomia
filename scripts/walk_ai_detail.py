@@ -21,8 +21,9 @@ out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else os.path.
 os.makedirs(out, exist_ok=True)
 rep = json.load(open(os.path.join(wdir, "walk-unwrap.json")))
 gl2b = lambda p: np.array([p[0], -p[2], p[1]], np.float32)
-SIGMA_HP = 8.0        # px at 6144: what counts as "colour/light" (kept from the render) against "texture" (taken from the AI)
-R_CLIP = (0.6, 1.6)
+SIGMA_HP = 3.0        # px at 6144 (11 Nov: 8 px let soft contact shadows, i.e. light, through): what counts as "colour/light" (kept from the render) against "texture" (taken from the AI)
+R_CLIP = (0.8, 1.25)
+EDGE_PX = 7            # px at 6144: no transfer this close to a strong edge in the render or a depth step (shadow lines live there)
 MIN_FACING = 0.12     # two-sided: SketchUp's reversed faces make the baked normal's sign unreliable (45% of the seen texels pointed away)
 MIN_PX_PER_TEXEL = 0.5
 SEAM_FRAC = 0.06
@@ -44,7 +45,18 @@ def load_src(s):
             m = cv2.resize(z[k].astype(np.float32), (W, H), interpolation=cv2.INTER_NEAREST) > 0.5
             m = cv2.dilate(m.astype(np.uint8), np.ones((25, 25), np.uint8)) > 0   # a margin around the fenced areas
             fence[m] = np.minimum(fence[m], w)
-    return {"eye": gl2b(s["eye"]), "r": r, "depth": depth, "fence": fence, "W": W, "H": H, "name": s["name"]}
+    # the edges: strong luminance edges of the render and depth steps; the AI moves its contact shadows there, which is light
+    # measured on a blurred render: geometric edges (corners, frames, contact lines) are edges at 4 px; wood grain and veins are not
+    lum = cv2.GaussianBlur(cv2.cvtColor((b * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32), (0, 0), 4.0 * W / 6144)
+    g = np.hypot(cv2.Scharr(lum, cv2.CV_32F, 1, 0), cv2.Scharr(lum, cv2.CV_32F, 0, 1))
+    edges = g > np.percentile(g, 93)
+    ld = np.log(np.maximum(cv2.resize(depth, (W, H), interpolation=cv2.INTER_NEAREST), 0.05))
+    dg = np.hypot(cv2.Sobel(ld, cv2.CV_32F, 1, 0), cv2.Sobel(ld, cv2.CV_32F, 0, 1))
+    edges |= dg > 0.08
+    k = int(EDGE_PX * W / 6144) * 2 + 1
+    edges = cv2.dilate(edges.astype(np.uint8), np.ones((k, k), np.uint8)) > 0
+    fence[edges] = 0.0
+    return {"eye": gl2b(s["eye"]), "r": r, "depth": depth, "fence": fence, "W": W, "H": H, "name": s["name"], "edgeShare": float(edges.mean())}
 
 
 def dir_to_uv(d):
