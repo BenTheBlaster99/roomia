@@ -225,11 +225,17 @@ elif JOB["mode"] == "pano":
         vl.lightgroups.remove(lg_)
     for i_, f_ in enumerate(JOB.get("fills", [])):  # a soft fill for a room with no fixtures of its own (a closet renders black)
         ld_ = bpy.data.lights.new("look_fill%d" % i_, "POINT")
-        ld_.energy, ld_.shadow_soft_size = float(f_.get("power", 300)), float(f_.get("radius", 0.35))
+        # the fixtures are the light of a room (10 Nov): the fill shrinks with the number of ceiling spots within 4 m, so only a room
+        # with no fixtures of its own (closet, corridor) gets the full fill
+        px_, py_ = gl2b(f_["position"])[0], gl2b(f_["position"])[1]
+        n_dl_ = sum(1 for o_ in scene.objects if o_.name.startswith("look_dl_") and (o_.location.x - px_) ** 2 + (o_.location.y - py_) ** 2 < 16)
+        ld_.energy, ld_.shadow_soft_size = float(f_.get("power", 300)) * max(0.12, 1.0 - n_dl_ / 3.0), float(f_.get("radius", 0.6))
+        print("LOOK_INFO fill %d: %d spots near, %.1f W" % (i_, n_dl_, ld_.energy), flush=True)
         ld_.color = tuple(f_.get("color", [1.0, 0.85, 0.65]))
         ob_ = bpy.data.objects.new("look_fill%d" % i_, ld_)
         ob_.location = gl2b(f_["position"])
         ob_.lightgroup = "INTERIOR"
+        ob_.visible_glossy = ob_.visible_camera = False  # lights the room, never shows in a polished floor (10 Nov)
         scene.collection.objects.link(ob_)
     scene.use_nodes = True
     tree = scene.node_tree

@@ -77,7 +77,7 @@ def neutral_gains(n, x, e):
         return np.ones(3, np.float32)
     m = np.median(shown[ok], axis=0)
     cur = np.array([m[0] / m[1], 1.0, m[2] / m[1]], np.float32)
-    tgt = np.array([1.03, 1.0, 0.95], np.float32)  # a touch of warmth
+    tgt = np.array([1.03, 1.0, 0.95] if LOOKNAME != "daylight" else [1.01, 1.0, 0.98], np.float32)  # golden: a touch of warmth; daylight: nearly neutral
     return np.clip(tgt / cur, 0.85, 1.15).astype(np.float32)
 
 

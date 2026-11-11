@@ -30,13 +30,15 @@ ap.add_argument("--ring")
 ap.add_argument("--n", type=int, default=4)
 ap.add_argument("--yes", action="store_true")
 ap.add_argument("--dry", action="store_true")
+ap.add_argument("--look", default=os.environ.get("ROOMIA_LOOK_PRESET", "daylight"), choices=["daylight", "golden"])
+ap.add_argument("--auto-dir", default="auto")
 args = ap.parse_args()
 
 # where the app keeps its projects: SCENES_DIR (Roomia Desktop: %LOCALAPPDATA%\\Roomia\\projects), else .scenes beside the code
 SCENES = os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")
 S = os.path.join(os.path.abspath(SCENES), args.scene)
 LOOK = os.path.join(S, "look")
-AUTO = os.path.join(LOOK, "auto")
+AUTO = os.path.join(LOOK, args.auto_dir)
 TOUR = os.path.join(S, "tour")
 os.makedirs(AUTO, exist_ok=True)
 
@@ -104,7 +106,7 @@ def ensure_prepared():
 
 def job(extra, views, out_dir, masks):
     j = {"recipe": os.path.join(AUTO, "recipe-auto.json"), "cameras": os.path.join(S, "cameras.json") if os.path.exists(os.path.join(S, "cameras.json")) else os.path.join(AUTO, "no-cameras.json"),
-         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": "golden",
+         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": args.look,
          # 48 samples at noise 0.03 (9 Nov benchmark, Suite): half the time of 128 / 0.01, the same image to the eye (floor, wall, fabric crops)
          "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", 48)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", 0.03)), "targetMedian": 0.45}
     if not os.path.exists(j["cameras"]):
@@ -113,14 +115,14 @@ def job(extra, views, out_dir, masks):
         j["noMasks"] = True
     j["views"] = [{"name": "t%d" % p["index"], "position": p["position"], "yaw": 0, "width": 3072, "height": 1536} for p in views]
     # an invisible, very soft fill above each point: a room with no fixtures of its own stays readable (5 W is nothing next to real lights)
-    j["fills"] = [{"position": [p["position"][0], p["position"][1] + 0.9, p["position"][2]], "power": 5, "color": [1.0, 0.85, 0.65]} for p in views]
+    j["fills"] = [{"position": [p["position"][0], p["position"][1] + 0.9, p["position"][2]], "power": float(os.environ.get("ROOMIA_LOOK_FILL", 25)), "color": [1.0, 0.9, 0.78]} for p in views]
     j.update(extra)
     return j
 
 
 def finalize(names):
-    e = dict(os.environ, LIFT="0.08")
-    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), "0.45", "2.5"], env=e, check=True)
+    e = dict(os.environ, LIFT=os.environ.get("LIFT", "0.1"), LOOK=args.look)
+    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), "0.5" if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
 
 
 def install(width, pairs):

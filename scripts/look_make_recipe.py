@@ -16,7 +16,8 @@ an = json.load(open(sys.argv[1]))
 out = sys.argv[2]
 floor_z = float(sys.argv[3]) if len(sys.argv) > 3 else None
 az = float(an["sun"]["azimuth"])
-LAMP = re.compile(r"led|light|lamp|lum|bulb|spot|downl|neon|glow|strip|ampoule", re.I)
+# "lum" alone matched "Aluminum" (10 Nov: F5 got downlights under every aluminium trim): luminaire/luminaria/lumi... but never alumin...
+LAMP = re.compile(r"led|light|lamp|(?<!a)lum(?!inum|inium)|bulb|spot|downl|neon|glow|strip|ampoule", re.I)
 
 small, glow = [], []
 for name, e in an.get("emissive", {}).items():
@@ -26,7 +27,9 @@ for name, e in an.get("emissive", {}).items():
     if not named and (e.get("strength") or 0) < 3:
         continue  # a metal with a faint emission value is not a lamp
     glow.append(name)
-    if e["medianSide"] <= 0.25:
+    # a downlight spot goes under a small glowing material only when it is named like a lamp (10 Nov: F5's aluminium trims, glow
+    # strength 12 in the file, got spots of their own)
+    if e["medianSide"] <= 0.25 and named:
         small.append(name)
 def side_rule(an, name, base):
     """the visible glow of a fixture: 12 for a 4 cm LED, less for a bigger disc (the same value over 14 cm clips to a flat white
@@ -57,6 +60,7 @@ R = {
     "presets": {
         "golden": {g: 1 for g in ("SUN_GOLDEN", "PATCH", "WORLD", "INTERIOR", "PRACTICALS", "COVES", "COVE_LINES", "PENDANTS", "PENDANT_GLOW", "SLOT")},
         "day": {"SUN_DAY": 1, "WORLD_DAY": 1, "INTERIOR": 1},
+        "daylight": {g: 1 for g in ("SUN_DAY", "WORLD_DAY", "INTERIOR", "PRACTICALS", "COVES", "COVE_LINES", "PENDANTS", "PENDANT_GLOW", "SLOT")},
     },
     "looks": {
         "golden": {
@@ -64,6 +68,14 @@ R = {
             "tints": {"WORLD": [0.95, 1.0, 1.6], "INTERIOR": [0.85, 1.0, 1.4], "COVES": [0.85, 1.0, 1.4], "PENDANTS": [0.85, 1.0, 1.4], "PATCH": [1.1, 0.97, 0.75], "SUN_GOLDEN": [1.1, 0.97, 0.75]},
             "grade": {"exposure": -0.2, "whiteBalance": [0.88, 1.0, 1.12], "contrast": 1.35, "saturation": 0.92},
             "walkExposure": -0.8,
+        },
+        # 10 Nov: the default 360 look. Broad daylight, neutral white balance, the fixtures ON (a room with no window is lit by its own
+        # lamps), exposure levelled room by room; the sun is a bonus. Golden hour stays a choice ("soirée").
+        "daylight": {
+            "gains": {"SUN_DAY": 1.2, "WORLD_DAY": 110, "INTERIOR": 2.0, "PRACTICALS": 0.5, "COVES": 0.15, "COVE_LINES": 1.0, "PENDANTS": 1, "PENDANT_GLOW": 3, "SLOT": 10},
+            "tints": {"INTERIOR": [0.95, 1.0, 1.15], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
+            "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.3, "saturation": 1.2},
+            "walkExposure": -0.3,
         },
         "day": {
             "gains": {"SUN_DAY": 2.0, "WORLD_DAY": 110, "INTERIOR": 0.4}, "tints": {},
@@ -73,7 +85,7 @@ R = {
     },
 }
 if small:
-    R["interior"]["downlights"] = {"material": esc(small), "energy": 12, "cone": 75, "blend": 0.5, "kelvin": 3200}
+    R["interior"]["downlights"] = {"material": esc(small), "energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT", 45)), "cone": 75, "blend": 0.5, "kelvin": 3200}
 if floor_z is not None:
     R["floors"] = {"z": floor_z, "roughness": 0.1, "coat": 0.3, "minM2": 2.0,
                    "exclude": "rug|carpet|tapis|moquet|fabric|wool|velvet|fur|wood|parquet|bois|oak|walnut|timber|laminate"}

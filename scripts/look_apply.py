@@ -191,6 +191,7 @@ if DL:
         d.color = tuple(kelvin_rgb(float(DL.get("kelvin", 2700))))
         ob.location = c - Vector((0, 0, 0.015))
         ob.rotation_euler = (0, 0, 0)
+        ob.visible_glossy = False  # no bright blobs of the spot itself in polished floors; the glowing disc still reflects
         n_dl += 1
     print("LOOK_INFO %d downlights" % n_dl, flush=True)
 
