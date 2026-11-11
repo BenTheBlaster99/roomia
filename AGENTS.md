@@ -5,3 +5,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 For the scene import / saved views / photo render pipeline, read `docs/HANDOFF-scene-pipeline.md` first.
+For the apartment template (daylight 360, cameras, AI finish, plans, AI photos, logs to check), read `docs/PLAYBOOK-apartment.md`.
