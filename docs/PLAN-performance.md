@@ -19,8 +19,8 @@ Source: chatgpt9.txt (our brief) and feedback2.txt (ChatGPT's answer). This map 
 File: `scripts/look_analyze.py`. Add `time.time()` marks and print `LOOK_TIME sun %.1f`, `LOOK_TIME emissive %.1f`, `LOOK_TIME cameras %.1f`, `LOOK_TIME move %.1f`. Run on DayTestF5 (`auto-dir` of your choice; delete that dir's `analysis.json` first). Read the four numbers before touching anything.
 
 Then, in this order, each one re-timed:
-1. **Cache**: `look_pipeline.analysis()` already skips when `analysis.json` exists. Make the key explicit: store `{"sourceMtime", "sourceSize"}` of `source.glb` (or `prepared.blend`) in `analysis.json`; reuse across auto-dirs by also writing a copy to `look/analysis-cache.json`. A re-render of the same file never re-analyses.
-2. **Sun search coarse-to-fine**: azimuth step 30° with 9 floor samples per point (the 3×3 subset of the 5×5 grid) and 2 elevations (5, 13) → pick the best 2 azimuths → refine at 15° and 7.5° around them with the full grid and 3 elevations. Keep the same scoring. Acceptance: the chosen azimuth is within 15° of today's on DayTestF5 (15°), Suite and F2.
+1. **Cache**: `look_pipeline.analysis()` already skips when `analysis.json` exists. Make the key explicit and reliable: `{"sourceHash": sha256 of source.glb (streamed, ~2 s for 512 MB; cache it beside the file as source.glb.sha256 keyed by mtime+size), "analysisVersion": 2, "params": {elevations, azimuthStep, eyeHeight, minClearance}, "blender": bpy.app.version_string}`. Store it in `analysis.json` and a copy in `look/analysis-cache.json`; reuse across auto-dirs only when every field matches. A re-render of the same file never re-analyses; a replaced file of the same size does.
+2. **Sun search coarse-to-fine**: azimuth step 30° with 9 floor samples per point (the 3×3 subset of the 5×5 grid) and 2 elevations (5, 13) → pick the best 2 azimuths → refine at 15° and 7.5° around them with the full grid and 3 elevations. Keep the same scoring. Keep the exhaustive search behind `--sun-exhaustive` until the new one passes. Acceptance on DayTestF5 (15°), Suite and F2: azimuth within 15°, the score of the chosen direction within 10 % of the exhaustive best, and the sun patches of one rendered point (t4) visually in the same place.
 3. **Clearance casts**: `clearance()` casts 32 rays per candidate. Pre-filter candidates with 8 directions at eye height; only candidates whose 8-ray minimum is ≥ `old + 0.2` get the full 32. Acceptance: the same `moved` positions on DayTestF5 (`analysis.json` cameras[].moved within 5 cm).
 4. The emissive scan iterates every material's nodes and every object's slots: cheap, leave it.
 
@@ -46,13 +46,13 @@ In `VIDEO_SCRIPT` (`lib/scene-video.ts`): print `VIDEO_TIME frame <n> sync <s> r
 
 ### 4b. The video on the daylight recipe (the look must match the 360)
 New path, same file: when `look/prepared.blend` and `look/<auto>/recipe-auto.json` exist, the video opens `prepared.blend`, `exec`s `look_apply.py` with that recipe (exactly as `look_render.py` does), renders **Cycles** with the recipe's groups summed in the compositor (copy the compositor block of `look_render.py` mode `pano`), applies the look's grade (`look_grade.grade`) per frame in the compositor or in a post pass, **24 spp, adaptive 0.05, OptiX denoise per frame first**. The EEVEE path stays as the fallback when no recipe exists (projects without the look).
-- Test: a 10-second clip = 150 frames at 15 fps, 1280×720, on DayTestF5 Scène 5's shot. Record s/frame. Compare the same frame with the 360's crop at that direction: same light, same colour.
+- Test, in two sizes: first **15 frames** (per-frame time and a first look at flicker, ~5 min), then, only if the per-frame time is acceptable, the **10-second approval clip** (150 frames, 30–45 min at 12–18 s/frame). Record s/frame both times. Compare the same frame with the 360's crop at that direction: same light, same colour.
 - Then test `bpy.ops.cycles.denoise_animation` on a 20-frame segment (needs multilayer EXR with denoising data + vector pass) against per-frame OptiX; watch curtains, thin edges, floor highlights frame by frame. Keep whichever has no flicker.
 - Frame rate: keep 15 fps for the user's approval; interpolation (RIFE) is a later, separate decision (it saves nothing unless source fps drops below 15).
 Acceptance: the user approves the 10-second clip before any 4-hour run.
 
 ### 4c. Object count (later, medium risk)
-`scripts/look_prep.py` makes `prepared.blend`. Add a render-only pass: share identical mesh datablocks (same vertex count + same bounds + same material set → `obj.data = first.data`), then join static objects per material within 3 m cells, keeping a `roomia_src` custom property with the original names. Measure sync time per frame before/after (4a's numbers). Do this only after 4a says sync dominates.
+`scripts/look_prep.py` makes `prepared.blend`. Add a render-only pass: share identical mesh datablocks only on a real fingerprint (sha1 of the vertex array rounded to 0.1 mm + the face index array + material slot names; vertex count and bounds alone are not identity: two different chairs can share them → `obj.data = first.data`), then join static objects per material within 3 m cells, keeping a `roomia_src` custom property with the original names. Measure sync time per frame before/after (4a's numbers). Do this only after 4a says sync dominates.
 
 ## 5. Scheduling: the GPU never waits (no second Blender)
 
@@ -65,7 +65,7 @@ Test: 3 consecutive points with and without the worker; Blender per-point time m
 
 ## 6. Plan drawing (33 s) — small, last
 
-`scripts/plan_arch.py`: the geodesic growth loop. Replace by: label the connected components of `free & ~dil(barrier, m(0.05))`; for each component that contains exactly one seed label, assign the label to the component where `distance_transform_edt` from the seed region ≤ 0.75 m (compute the EDT once on `~seeds` per label only for the few labels, at half size). Components with several seeds keep the iterative loop (rare). Acceptance: identical `plan-rooms.json` areas within 0.1 m² on DayTestF5 and F2.
+`scripts/plan_arch.py`: the geodesic growth loop. Replace by: label the connected components of `free & ~dil(barrier, m(0.05))`; for each component that contains exactly one seed label, assign the label to the component where `distance_transform_edt` from the seed region ≤ 0.75 m (compute the EDT once on `~seeds` per label only for the few labels, at half size). Components with several seeds keep the iterative loop (rare). Acceptance: on DayTestF5 and F2, the room masks differ by under 0.5 % of pixels (compare the label images, not only the areas) and `plan-rooms.json` areas within 0.1 m².
 
 ## 7. Budget to aim for (RTX 3060, F5, 14 points)
 
@@ -76,8 +76,8 @@ Test: 3 consecutive points with and without the worker; Blender per-point time m
 | Finalize + install | 70 s after | hidden in render | step 5 |
 | 2D plan | 2–3 min | 2 min (cut dominates: opens prepared.blend) | the cut could run inside the same Blender session as the render: later |
 | 3D plan | fails / unmeasured | measured, memory-safe | step 3 |
-| **360 + both plans** | 22–25 min + 3D | **17–20 min** realistic; 15 min needs step 2 approved and the cut merged into the render session | |
-| Video 70 s | 4 h (EEVEE) | measured by 4b; target ≤ 2.5 h at 720p/15 fps/24 spp | |
+| **360 + both plans** | 22–25 min + 3D | analysis (0–2) + render (10.5–14) + 2D plan (2) = **12.5–18 min before the 3D plan**, whose time is unmeasured; the bundle target is set only after step 3 gives that number. 15 min for everything needs step 2 approved, the cache hitting, the cut merged into the render session and a 3D plan under ~2 min | |
+| Video 70 s | 4 h (EEVEE) | measured by 4b. 2.5 h needs ≤ 8.6 s/frame; the 12–18 s estimate gives 3.5–5.25 h. No production expectation until measured | |
 
 Laptops: publish three measured tiers (entry / mid / high RTX) from real runs; never a blanket promise. CPU-only machines: a separate expected time.
 
@@ -87,4 +87,4 @@ Bounces 12/8/6; light groups and the compositor sum; the per-point exposure and 
 
 ## 9. Order of work and who
 
-1 → 2 → 3 → 4a → 4b (user approves the clip) → 5 → 6 → 4c. Each step is one commit with its measurement in the message. Logs to keep: `analyze.log` (`LOOK_TIME`), `render.log`, `video/status.json` timings, `/usr/bin/time -v` for the 3D plan.
+1 → 2 → 3 → 4a → 4b (user approves the clip) → 5 → 6 → 4c. Step 3 may move ahead of 2 since the 3D plan is a production blocker. Streaming (step 5) must produce byte-identical finalized PNGs to the sequential pipeline on 3 points before it replaces it. Each step is one commit with its measurement in the message; never two optimizations in one commit. Logs to keep: `analyze.log` (`LOOK_TIME`), `render.log`, `video/status.json` timings, `/usr/bin/time -v` for the 3D plan.
