@@ -26,6 +26,8 @@ ap.add_argument("--ai-detail", type=float, default=0.0, help="0..1: how much of 
 ap.add_argument("--gain-min", type=float, default=0.35)
 ap.add_argument("--gain-max", type=float, default=4.0)
 ap.add_argument("--width", type=int, default=0)
+ap.add_argument("--local-colour", action="store_true", help="let the colour follow the AI locally too (can leak an AI object's colour)")
+ap.add_argument("--no-align", action="store_true", help="skip bending the AI picture onto Blender's layout")
 ap.add_argument("--blender-linear", help="Blender's raw linear render of the same view (look/<auto>/t<k>-lin.npy, RGB float): full detail in the darks")
 args = ap.parse_args()
 t0 = time.time()
@@ -83,6 +85,39 @@ def guided(I, p, r, eps):
 
 
 lumB = B @ np.array([0.0722, 0.7152, 0.2126], np.float32)  # BGR
+
+
+def align_ai(A, lumB, passes=3):
+    """The AI sometimes reframes the room (12 Nov, F5 living room: 6 degrees, the plant moved). Its light must be read at the right place,
+    so the AI picture is bent back onto Blender's layout first (smooth optical flow, a few passes). Only the light is taken from it,
+    never its pixels, so a bend in the AI picture never shows."""
+    w2, h2 = 2048, 1024
+    s = W / w2
+
+    def small_log(x):
+        y = cv2.resize(np.log(x + 1e-3).astype(np.float32), (w2, h2), interpolation=cv2.INTER_AREA)
+        y = (y - y.min()) / max(1e-6, y.max() - y.min())
+        return cv2.equalizeHist((y * 255).astype(np.uint8))
+
+    gb = small_log(lumB)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    out = A
+    for k in range(passes):
+        ga = small_log(out @ np.array([0.0722, 0.7152, 0.2126], np.float32))
+        fl = cv2.calcOpticalFlowFarneback(gb, ga, None, 0.5, 6, 41, 5, 7, 1.5, 0)
+        sig = [24, 12, 6][min(k, 2)]
+        fx = cv2.GaussianBlur(fl[..., 0], (0, 0), sig)
+        fy = cv2.GaussianBlur(fl[..., 1], (0, 0), sig)
+        fxu = cv2.resize(fx, (W, H), interpolation=cv2.INTER_LINEAR) * s
+        fyu = cv2.resize(fy, (W, H), interpolation=cv2.INTER_LINEAR) * s
+        out = cv2.remap(out, (xx + fxu) % W, np.clip(yy + fyu, 0, H - 1), cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+        mag = np.hypot(fx, fy)[int(h2 * .2):int(h2 * .8)] * 360.0 / w2
+        print("LOOK_ALIGN pass %d: moved median %.2f deg, 90th %.2f deg" % (k + 1, float(np.median(mag)), float(np.percentile(mag, 90))))
+    return out
+
+
+if not args.no_align:
+    A = align_ai(A, lumB)
 guide = wrap(np.log(lumB + 1e-3)).astype(np.float32)
 guide = (guide - guide.min()) / max(1e-6, guide.max() - guide.min())
 r = args.radius
@@ -95,6 +130,13 @@ for c in range(3):
     # the room's light without any object's detail: very smooth, plain blur on the wrapped picture
     k = 8 * r + 1
     gain_far[..., c] = unwrap(cv2.GaussianBlur(la, (k, k), 0) - cv2.GaussianBlur(lb, (k, k), 0))
+
+# colour only from the room-wide tint (12 Nov, living room: the AI's leaf leaked a green halo onto Blender's wall): locally the
+# brightness follows the AI, the colour balance comes from the smooth gain only
+if not args.local_colour:
+    LW = np.array([0.0722, 0.7152, 0.2126], np.float32)
+    gl, gfl = gain @ LW, gain_far @ LW
+    gain = gl[..., None] + (gain_far - gfl[..., None])
 
 # trust: do Blender and the AI show the same structure here? (local correlation of their luminance gradients)
 def grad(x):
