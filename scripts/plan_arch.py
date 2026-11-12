@@ -466,6 +466,8 @@ for style in (["rendu", "technique"] if OPT.get("style", "both") == "both" else 
     outs.append(im)
 # the apartment as drawn (rooms, walls, enclosed pockets): the 3D plan is cut to it (plan_build.py writes plan-src/plan-apt.png)
 Image.fromarray(((inside | wall | holes) * 255).astype(np.uint8)).save(OUTP + "-apt.png", optimize=True)
+# the floor as drawn (rooms and enclosed pockets, no wall): where the top view shows through, so where a white spot is a missing floor (plan_fill_prepare.py)
+Image.fromarray(((inside | holes) * 255).astype(np.uint8)).save(OUTP + "-floor.png", optimize=True)
 # the furnished top view with a number on each room: what the AI is shown to name the rooms (plan-ai-names.mts)
 ids_img = top.convert("RGB").copy()
 dd = ImageDraw.Draw(ids_img)

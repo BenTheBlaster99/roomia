@@ -3257,7 +3257,7 @@ export async function renderPlan3d(sceneId: string, overrides: Record<string, nu
     const [pStat, gStat] = await Promise.all([stat(prepared).catch(() => null), stat(sourcePath(sceneId)).catch(() => null)])
     const fromPrepared = process.env.ROOMIA_PLAN3D_GLB !== '1' && !!pStat && !!gStat && pStat.mtimeMs >= gStat.mtimeMs
     await writeFile(script, fromPrepared ? PLAN3D_PREPARED_SCRIPT : PLAN3D_SCRIPT)
-    await writeFile(specPath, JSON.stringify({ ...(await tourSceneSpec(sceneId)), planSrc: src, outDir: work, ...(fromPrepared ? { preparedBlend: prepared } : {}), ...overrides }))
+    await writeFile(specPath, JSON.stringify({ ...(await tourSceneSpec(sceneId)), planSrc: src, outDir: work, ...(fromPrepared ? { preparedBlend: prepared } : {}), ...(Number(process.env.ROOMIA_PLAN3D_SAMPLES) > 0 ? { plan3dSamples: Number(process.env.ROOMIA_PLAN3D_SAMPLES) } : {}), ...overrides }))
     console.log('tour plan 3d', sceneId, fromPrepared ? 'from prepared.blend' : 'from the GLB')
     const lines: string[] = []
     // the last lines Blender printed: on Windows a failure can leave stderr empty (5 Nov: "plan 3D:" and nothing else)
