@@ -4,9 +4,11 @@ import { readVideoStatus, startVideoBuild } from '../lib/scene-video'
 
 const [size, fpsArg, samplesArg, ...ids] = process.argv.slice(2)
 const [width, height] = size.split('x').map(Number)
-const options = { width, height, fps: Number(fpsArg), samples: Number(samplesArg) }
+// VIDEO_OPTS='{"maxShots":1,"shotSeconds":1,"keepWork":true,"recipe":false}' adds or overrides options
+const options = { width, height, fps: Number(fpsArg), samples: Number(samplesArg), ...JSON.parse(process.env.VIDEO_OPTS ?? '{}') }
 for (const id of ids) {
   console.log('VIDEO_RUN start', id, JSON.stringify(options))
+  let attempt = 0
   await startVideoBuild(id, options)
   let last = ''
   for (;;) {
@@ -16,7 +18,12 @@ for (const id of ids) {
     if (line !== last && (s.state !== 'building' || Date.now() % 5 === 0)) console.log('VIDEO_RUN', id, line)
     last = line
     if (s.state === 'done') { console.log('VIDEO_RUN done', id); break }
-    if (s.state === 'failed') { console.log('VIDEO_RUN failed', id, s.error); break }
+    if (s.state === 'failed') {
+      console.log('VIDEO_RUN failed', id, s.error)
+      // stopped by the memory guard or a crash: continue after the last finished frame, up to 4 times
+      if (++attempt < 4) { console.log('VIDEO_RUN resume', attempt); await startVideoBuild(id, { ...options, resume: true }); last = ''; continue }
+      break
+    }
     if (s.state === 'idle') { console.log('VIDEO_RUN idle (stopped?)', id); break }
   }
 }

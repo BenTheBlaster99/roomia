@@ -27,6 +27,9 @@ H = W // 2
 S = W / 3840.0                                  # every pixel size below is given at 3840 and scales with the width
 SIGMA = S * float(opt.get("sigma", 5.0))          # px at W: the split between colour/light and texture
 A_DEFAULT, A_FLOOR, A_SOFT, A_GLASS = float(opt.get("walls", 0.35)), float(opt.get("floor", 0.60)), float(opt.get("fabric", 0.60)), 0.15
+# 12 Nov (tuning toward the single AI photos): the ceiling may take the AI too, and walls may take more than the fine texture
+A_CEIL = float(opt.get("ceiling", 0.0))
+SIGMA_W = S * float(opt.get("sigmaWalls", opt.get("sigma", 5.0)))
 
 base = cv2.cvtColor(cv2.imread(base_p), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
 ai = cv2.cvtColor(cv2.imread(ai_p), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
@@ -72,8 +75,10 @@ soft_ids = [int(k) for k, v in ids.items() if SOFTRX.search(v) and not FLOORRX.s
 alpha_small[np.isin(mat, floor_ids)] = A_FLOOR
 alpha_small[np.isin(mat, soft_ids)] = A_SOFT
 alpha_small[glass] = A_GLASS
+if A_CEIL > 0:
+    alpha_small[ceiling & ~emit] = A_CEIL
 alpha = up(alpha_small, cv2.INTER_NEAREST)
-protect = ((ceiling | mirror | sky | emit)).astype(np.uint8)
+protect = ((mirror | sky | emit | (ceiling if A_CEIL <= 0 else np.zeros_like(ceiling)))).astype(np.uint8)
 protect = cv2.dilate(up(protect), np.ones((2 * int(opt.get("margin", 6) * S) + 1,) * 2, np.uint8))
 alpha = alpha * (1 - np.clip(blur(protect, 3 * S), 0, 1))
 # the AI never edits where the edit has moved the structure more than the fit explains: later check; the seam fades out
@@ -115,12 +120,15 @@ def blend(sigma):
 SIGMA_BIG = S * float(opt.get("sigmaBig", 40.0))
 big_small = np.isin(mat, floor_ids + soft_ids).astype(np.float32)
 big = np.clip(blur(up(big_small, cv2.INTER_NEAREST), 6 * S), 0, 1)[..., None]
-final = np.clip(big * blend(SIGMA_BIG) + (1 - big) * blend(SIGMA), 0, 1)
+final = np.clip(big * blend(SIGMA_BIG) + (1 - big) * blend(SIGMA_W), 0, 1)
 b_low = blur(base, SIGMA)
 
 # ---- 4. passport: per material, pull the result's median colour back to the render's (Lab), smooth masks
 lab_b = cv2.cvtColor(base, cv2.COLOR_RGB2LAB)
 lab_f = cv2.cvtColor(final.astype(np.float32), cv2.COLOR_RGB2LAB)
+PHOTO_LOOK = bool(opt.get("photoLook", False))
+PASS_CLIP = float(opt.get("passportClip", 12))
+lab_a = cv2.cvtColor(ai_fit.astype(np.float32), cv2.COLOR_RGB2LAB) if PHOTO_LOOK else lab_b
 mat_full = cv2.resize(mat.astype(np.uint16), (W, H), interpolation=cv2.INTER_NEAREST)
 shift = np.zeros_like(lab_f)
 wsum = np.zeros((H, W), np.float32)
@@ -131,8 +139,11 @@ for mid in np.unique(mat_full):
     mk = (mat_full == mid) & valid
     if mk.sum() < 0.01 * W * H:
         continue
-    d = np.median(lab_b[mk], 0) - np.median(lab_f[mk], 0)
-    d = np.clip(d, -12, 12)
+    # photoLook (12 Nov): the result's colour per material follows the AI's (a global, smooth shift: the photographer's
+    # white point and brightness), instead of being pulled back to the render's. Light direction and detail stay as before.
+    target = np.median(lab_a[mk], 0) if PHOTO_LOOK else np.median(lab_b[mk], 0)
+    d = target - np.median(lab_f[mk], 0)
+    d = np.clip(d, -PASS_CLIP, PASS_CLIP)
     w = blur(mk.astype(np.float32), 8 * S)
     shift += d[None, None, :] * w[..., None]
     wsum += w
@@ -176,7 +187,7 @@ checks = {
     "aiShare": round(float((alpha > 0.05).mean()), 3),
 }
 fails = []
-if checks["structure"] < 0.985: fails.append("structure moved")
+if checks["structure"] < float(opt.get("minStructure", 0.985)): fails.append("structure moved")
 if checks["blobsFinal"] > checks["blobsBase"] + max(2, 0.3 * checks["blobsBase"]): fails.append("new bright blobs (invented lights?)")
 if checks["seamFinal"] > checks["seamBase"] * 1.5 + 0.01: fails.append("seam")
 if checks["protectedChange"] > 0.01: fails.append("protected regions changed")

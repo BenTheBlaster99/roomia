@@ -17,7 +17,7 @@ python look_pipeline.py ai-finish <sceneId> --points 6,10 [--ring 6]     the sec
 Everything lives in .scenes/<id>/look/auto/ ; the installed pano-<index>.jpg keep the old Cycles one as pano-<index>-cycles-old.jpg.
 Needs ROOMIA_BLENDER (.env.local) and the AI venv (python with cv2, torch): run it with that python.
 """
-import argparse, datetime, json, os, subprocess, sys, time
+import argparse, datetime, hashlib, json, os, shutil, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "scripts")
@@ -56,7 +56,7 @@ BLENDER = env("ROOMIA_BLENDER")
 tour = json.load(open(os.path.join(TOUR, "tour.json")))
 
 
-def points():
+def points(raw=False):
     """every tour view that has a panorama and a known eye position: the views' own positions, else the walk capture's probes"""
     probes = None
     for f in ("splat-golden.json", "splat-v4.json", "splat-ai.json"):
@@ -78,6 +78,8 @@ def points():
             out.append({"index": v["index"], "name": v["name"], "position": pos})
     # a camera against a wall or inside a cupboard takes its 360 from the better spot the analysis found nearby (11 Nov)
     an_p = os.path.join(AUTO, "analysis.json")
+    if raw:
+        return out
     moved = {c["index"]: c["moved"] for c in json.load(open(an_p)).get("cameras", []) if c.get("moved")} if os.path.exists(an_p) else {}
     for p in out:
         if p["index"] in moved:
@@ -165,13 +167,75 @@ def install(width, pairs):
     json.dump(t, open(tour_p, "w"), ensure_ascii=False)
 
 
+ANALYSIS_VERSION = 2  # bump when look_analyze.py's method changes
+
+
+def source_hash():
+    """sha256 of the project's source.glb (about 2 s for 512 MB), remembered beside the file as long as its size and time are the same."""
+    for name in ("source.glb", os.path.join("look", "prepared.blend")):
+        f = os.path.join(S, name)
+        if not os.path.exists(f):
+            continue
+        st = os.stat(f)
+        memo = f + ".sha256"
+        try:
+            m = json.load(open(memo))
+            if m.get("size") == st.st_size and m.get("mtime") == int(st.st_mtime):
+                return m["sha256"]
+        except Exception:
+            pass
+        h = hashlib.sha256()
+        with open(f, "rb") as fh:
+            for chunk in iter(lambda: fh.read(8 << 20), b""):
+                h.update(chunk)
+        try:
+            json.dump({"size": st.st_size, "mtime": int(st.st_mtime), "sha256": h.hexdigest()}, open(memo, "w"))
+        except OSError:
+            pass
+        return h.hexdigest()
+    return "no-source"
+
+
+def analysis_key(job):
+    """What the analysis depends on: the scene's content, the camera positions it was given, the method and its parameters, Blender."""
+    pts = sorted((p["index"], [round(x, 3) for x in p["position"]]) for p in points(raw=True))
+    params = {k: job[k] for k in ("elevations", "azimuthStep", "eyeHeight")}
+    blob = json.dumps({"src": source_hash(), "pts": pts, "v": ANALYSIS_VERSION, "params": params, "blender": os.path.basename(os.path.dirname(BLENDER))}, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()
+
+
 def analysis():
     ap_ = os.path.join(AUTO, "analysis.json")
-    if not os.path.exists(ap_):
-        print("analysis (sun from the windows, lights, cameras)...", flush=True)
-        json.dump({"points": points(), "outDir": AUTO, "elevations": [5, 9, 13], "azimuthStep": 15, "eyeHeight": 1.6}, open(os.path.join(AUTO, "analyze-job.json"), "w"))
-        blender(os.path.join(AUTO, "analyze-job.json"), "look_analyze.py", os.path.join(AUTO, "analyze.log"))
-    return json.load(open(ap_))
+    cache_ = os.path.join(LOOK, "analysis-cache.json")
+    job_ = {"points": points(raw=True), "outDir": AUTO, "elevations": [5, 9, 13], "azimuthStep": 15, "eyeHeight": 1.6}
+    key = analysis_key(job_)
+
+    def keyed(path):
+        try:
+            return json.load(open(path)).get("cacheKey")
+        except Exception:
+            return None
+
+    if os.path.exists(ap_) and keyed(ap_) in (key, None):  # no key: made before 12 Nov, kept
+        if keyed(ap_) is None:
+            d = json.load(open(ap_))
+            d["cacheKey"] = key
+            json.dump(d, open(ap_, "w"), indent=1)
+            if not os.path.exists(cache_):
+                shutil.copyfile(ap_, cache_)
+        return json.load(open(ap_))
+    if keyed(cache_) == key:
+        shutil.copyfile(cache_, ap_)
+        print("analysis: same scene, same cameras, reused (cache)", flush=True)
+        return json.load(open(ap_))
+    print("analysis (sun from the windows, lights, cameras)...", flush=True)
+    json.dump(job_, open(os.path.join(AUTO, "analyze-job.json"), "w"))
+    blender(os.path.join(AUTO, "analyze-job.json"), "look_analyze.py", os.path.join(AUTO, "analyze.log"))
+    d = json.load(open(ap_))
+    d["cacheKey"] = key
+    json.dump(d, open(ap_, "w"), indent=1)
+    shutil.copyfile(ap_, cache_)
+    return d
 
 
 if args.stage == "render":

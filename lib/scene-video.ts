@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { BLENDER, guardMemory, SCENE_SETUP_SCRIPT, withBlenderSlot } from './blender-render'
 import { loadSharp } from './load-sharp'
@@ -63,14 +64,18 @@ export interface VideoOptions {
   /** Test runs only: film the first few stops of the walk, and keep the frames. */
   maxShots?: number
   keepWork?: boolean
+  /** Cycles noise threshold in the daylight-recipe video (default 0.05). */
+  noise?: number
+  /** false: the old EEVEE video even when the project has a daylight look. */
+  recipe?: boolean
+  /** Continue a render that was stopped: the frames already made are kept (recipe video only). */
+  resume?: boolean
 }
 
 const DEFAULTS = { width: 1920, height: 1080, fps: 25, shotSeconds: 5, samples: 24 }
 const BLENDER_TIMEOUT_MS = 3 * 60 * 60_000
 
-export const VIDEO_SCRIPT =
-  SCENE_SETUP_SCRIPT +
-  String.raw`
+const VIDEO_BODY = String.raw`
 import os, time
 import numpy as np
 print("VIDEO_TIME scene_ready", flush=True)
@@ -78,7 +83,7 @@ print("VIDEO_TIME scene_ready", flush=True)
 scene = bpy.context.scene
 depsgraph = bpy.context.evaluated_depsgraph_get()
 out_dir = spec["outDir"]
-frames_dir = os.path.join(out_dir, "frames")
+frames_dir = spec.get("framesDir") or os.path.join(out_dir, "frames")
 os.makedirs(frames_dir, exist_ok=True)
 W, H, FPS = int(spec["width"]), int(spec["height"]), int(spec["fps"])
 SHOT = max(2, round(float(spec.get("shotSeconds", 5)) * FPS))
@@ -569,6 +574,35 @@ with open(os.path.join(out_dir, "video-blender.json"), "w") as fh:
 print("VIDEO_OK", flush=True)
 `
 
+/** The classic video (EEVEE, a quick look): the GLB set up for rendering, then the shared body. */
+export const VIDEO_SCRIPT = SCENE_SETUP_SCRIPT + VIDEO_BODY
+
+const RECIPE_HEAD = String.raw`
+import bpy, json, math, sys, os
+from mathutils import Matrix, Quaternion, Vector
+spec = json.loads(open(sys.argv[sys.argv.index("--") + 1], encoding="utf-8").read())
+bpy.ops.wm.open_mainfile(filepath=spec["preparedBlend"], load_ui=False)
+print("SCENE_PREPARED opened", flush=True)
+`
+
+function between(text: string, from: string, to: string, insert: string) {
+  const a = text.indexOf(from)
+  const b = text.indexOf(to, a + 1)
+  if (a < 0 || b < 0) throw new Error('video script: marker not found: ' + (a < 0 ? from : to).slice(0, 60))
+  return text.slice(0, a) + insert + text.slice(b)
+}
+
+/** The recipe video (12 Nov): the same shared body, the 360's light, Cycles, the 360's grade. */
+async function recipeScript(): Promise<string> {
+  const dir = path.join(process.cwd(), 'scripts')
+  const [light, stub, render] = await Promise.all(['video_recipe_light.py', 'video_recipe_stub.py', 'video_recipe_render.py'].map(f => readFile(path.join(dir, f), 'utf8')))
+  let body = between(VIDEO_BODY, '# 4. The light and look of the tour', 'lo3 = Vector((1e12, 1e12, 1e12))', light)
+  // the Cycles settings and the sky dome / probes of the old path
+  body = between(body, 'if spec.get("outdoorSky"):', '# 5. Every shot as part of one animation', stub)
+  body = between(body, 'scene.render.resolution_x, scene.render.resolution_y = W, H', 'print("VIDEO_TIME frames", flush=True)', render)
+  return RECIPE_HEAD + body
+}
+
 function run(command: string, args: string[], onLine: (line: string) => void): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -631,11 +665,44 @@ export async function readVideo(sceneId: string) {
   return { status, video }
 }
 
+/**
+ * The project's daylight look (the 360's recipe), when it has one: look/prepared.blend plus the newest look folder holding both
+ * recipe-auto.json and exposure.json. The video then films with the same light and grade as the 360 (12 Nov).
+ */
+async function lookInputs(sceneId: string) {
+  const look = path.join(sceneDir(sceneId), 'look')
+  const prepared = path.join(look, 'prepared.blend')
+  if (!(await stat(prepared).then(() => true, () => false))) return null
+  let best: { dir: string; mtime: number } | null = null
+  for (const name of await readdir(look).catch(() => [] as string[])) {
+    const d = path.join(look, name)
+    const m = await stat(path.join(d, 'exposure.json')).then(x => x.mtimeMs, () => 0)
+    if (m && (await stat(path.join(d, 'recipe-auto.json')).then(() => true, () => false)) && (!best || m > best.mtime)) best = { dir: d, mtime: m }
+  }
+  if (!best) return null
+  const exposure = JSON.parse(await readFile(path.join(best.dir, 'exposure.json'), 'utf8')) as { groupMedian: number; points: Record<string, { wb: number[] }> }
+  const recipe = JSON.parse(await readFile(path.join(best.dir, 'recipe-auto.json'), 'utf8')) as { looks?: Record<string, { lift?: number }> }
+  const median = (xs: number[]) => [...xs].sort((p, q) => p - q)[Math.floor(xs.length / 2)]
+  const wbs = Object.values(exposure.points).map(p => p.wb)
+  return {
+    prepared,
+    recipe: path.join(best.dir, 'recipe-auto.json'),
+    exposureEV: exposure.groupMedian,
+    wb: [0, 1, 2].map(c => (wbs.length ? median(wbs.map(w => w[c])) : 1)),
+    lift: recipe.looks?.daylight?.lift ?? 0.04,
+  }
+}
+
 async function build(sceneId: string, options: VideoOptions) {
   const started = performance.now()
   const settings = { ...DEFAULTS, ...options }
   const dir = videoDir(sceneId)
   const work = path.join(dir, 'work')
+  // frames on the system disk (ext4 / the user's own drive), never the project's data disk: slow on NTFS-over-FUSE (12 Nov)
+  const fast = path.join(os.homedir(), '.cache', 'roomia-video', sceneId)
+  const framesDir = await mkdir(path.join(fast, 'frames'), { recursive: true }).then(() => path.join(fast, 'frames'), () => path.join(work, 'frames'))
+  const rawDir = framesDir === path.join(work, 'frames') ? path.join(work, 'raw') : path.join(fast, 'raw')
+  for (const d of options.resume ? [rawDir] : [framesDir, rawDir]) await rm(d, { recursive: true, force: true }).catch(() => undefined)
   await rm(work, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 }).catch(() => undefined)
   await mkdir(work, { recursive: true })
   const startedAt = new Date().toISOString()
@@ -653,12 +720,17 @@ async function build(sceneId: string, options: VideoOptions) {
 
   const scriptPath = path.join(work, 'video.py')
   const specPath = path.join(work, 'video.json')
-  await writeFile(scriptPath, VIDEO_SCRIPT)
+  const look = options.recipe === false ? null : await lookInputs(sceneId)
+  await writeFile(scriptPath, look ? await recipeScript() : VIDEO_SCRIPT)
+  if (look) console.log('video', sceneId, 'recipe mode:', look.recipe, 'exposure', look.exposureEV, 'wb', look.wb)
   await writeFile(
     specPath,
     JSON.stringify({
       ...(await tourSceneSpec(sceneId)),
       outDir: work,
+      framesDir,
+      rawDir,
+      ...(look ? { preparedBlend: look.prepared, recipe: look.recipe, scriptsDir: path.join(process.cwd(), 'scripts'), preset: 'daylight', exposureEV: look.exposureEV, wb: look.wb, lift: look.lift, noise: options.noise ?? 0.05, resume: options.resume === true } : {}),
       stops: stops.map(v => ({ index: v.index, name: v.name, position: v.position })),
       links,
       viewTransform: 'AgX',
@@ -700,7 +772,7 @@ async function build(sceneId: string, options: VideoOptions) {
   const poster = `poster-${stamp}.jpg`
   await rename(path.join(work, film), path.join(dir, file))
   const sharp = await loadSharp()
-  await writeFile(path.join(dir, poster), await sharp(await readFile(path.join(work, 'frames', meta.poster))).jpeg({ quality: 88 }).toBuffer())
+  await writeFile(path.join(dir, poster), await sharp(await readFile(path.join(framesDir, meta.poster))).jpeg({ quality: 88 }).toBuffer())
   const before = await readFile(videoPath(sceneId), 'utf8').then(text => JSON.parse(text) as VideoBuild, () => null)
   const video: VideoBuild = {
     builtAt: new Date().toISOString(),
@@ -718,6 +790,7 @@ async function build(sceneId: string, options: VideoOptions) {
   if (before) {
     for (const old of [before.file, before.poster]) await rm(path.join(dir, old), { force: true }).catch(() => undefined)
   }
+  if (!options.keepWork) for (const d of [framesDir, rawDir]) await rm(d, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 }).catch(() => undefined)
   if (!options.keepWork) await rm(work, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 }).catch(err => console.error('video work folder not removed', err.code))
   await writeStatus(sceneId, { state: 'done', done: total, total })
 }

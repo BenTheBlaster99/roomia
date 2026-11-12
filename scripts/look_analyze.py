@@ -9,7 +9,7 @@ Writes <outDir>/analysis.json:
   emissive each glowing material: how many objects, their median longest side (small = downlight, long = strip)
   cameras  per point: the median and the shortest free distance in 26 directions, and a verdict (inside furniture / too tight)
 """
-import json, math, os, re, sys
+import json, math, os, re, sys, time
 import bpy
 from mathutils import Vector
 
@@ -65,6 +65,7 @@ def cast(origin, direction, maxd=300.0):
     return None, glass, travelled
 
 
+T_SUN = time.time()
 points = JOB["points"]
 elevs = [math.radians(float(e)) for e in JOB.get("elevations", [5, 9, 13])]
 step = int(JOB.get("azimuthStep", 15))
@@ -92,6 +93,8 @@ azs = sorted(scores)
 smooth = {az: scores[az] + 0.5 * (scores[(az - step) % 360] + scores[(az + step) % 360]) for az in azs}
 best = max(azs, key=lambda a: smooth[a])
 print("LOOK_SUN best %d  scores %s" % (best, {a: scores[a] for a in azs if scores[a]}), flush=True)
+print("LOOK_TIME sun %.1f" % (time.time() - T_SUN), flush=True)
+T_EMI = time.time()
 
 # --- the glowing materials
 emissive, strength = {}, {}
@@ -118,6 +121,8 @@ for k, v in emissive.items():
         v = sorted(v)
         em_out[k] = {"count": len(v), "medianSide": round(v[len(v) // 2], 3), "strength": strength.get(k)}
 
+print("LOOK_TIME emissive %.1f" % (time.time() - T_EMI), flush=True)
+T_CAM = time.time()
 # --- the cameras: inside furniture, or a spot too tight to look at
 dirs = [Vector((x, y, z)).normalized() for x in (-1, 0, 1) for y in (-1, 0, 1) for z in (-1, 0, 1) if (x, y, z) != (0, 0, 0)]
 cams = []
@@ -180,6 +185,7 @@ for p in points:
             entry["verdict"] = "ok"  # a 360 from the better spot nearby instead of none (11 Nov: Scene 2 stood inside a wardrobe)
             print("LOOK_CAMERA %s moved %.2f m: clearance %.2f -> %.2f" % (p.get("name"), mv[1], mv[2], mv[3]), flush=True)
     cams.append(entry)
+print("LOOK_TIME cameras (incl. moves) %.1f" % (time.time() - T_CAM), flush=True)
 json.dump({"sun": {"azimuth": best, "elevation": 6, "scores": scores}, "emissive": em_out, "cameras": cams}, open(os.path.join(OUT, "analysis.json"), "w"), indent=1)
 print("LOOK_ANALYSIS_OK", flush=True)
 os._exit(0)
