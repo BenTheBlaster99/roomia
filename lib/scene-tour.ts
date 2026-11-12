@@ -2962,9 +2962,7 @@ export async function refinishPlans(sceneId: string) {
  * meshes: walls end in a clean edge) and kept to the apartment (faces outside its cells, grown 40 cm, are dropped: the
  * other flats of a building file and the ground). Run on its own, on the plan sources a build keeps (plan-src/).
  */
-const PLAN3D_SCRIPT =
-  SCENE_SETUP_SCRIPT +
-  String.raw`
+const PLAN3D_BODY = String.raw`
 import os, time, math, json
 import numpy as np
 import bmesh
@@ -3233,6 +3231,18 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
 print("PLAN3D_OK", flush=True)
 `
 
+/** The 3D plan from the GLB (imports the whole file: the memory peak of ~9 GB on a large apartment). */
+const PLAN3D_SCRIPT = SCENE_SETUP_SCRIPT + PLAN3D_BODY
+
+/** The 3D plan from the prepared scene (look/prepared.blend, 12 Nov): no second import of the GLB. The body hides lights and roomia_* helpers itself. */
+const PLAN3D_PREPARED_SCRIPT = String.raw`
+import bpy, json, math, sys, os
+from mathutils import Matrix, Quaternion, Vector
+spec = json.loads(open(sys.argv[sys.argv.index("--") + 1], encoding="utf-8").read())
+bpy.ops.wm.open_mainfile(filepath=spec["preparedBlend"], load_ui=False)
+print("PLAN3D_INFO prepared scene opened", flush=True)
+` + PLAN3D_BODY
+
 /** Renders the 3D plan of every level of a built tour (plan-3d<suffix>.jpg on white); about 30-60 s. */
 export async function renderPlan3d(sceneId: string, overrides: Record<string, number> = {}) {
   const dir = tourDir(sceneId)
@@ -3242,8 +3252,13 @@ export async function renderPlan3d(sceneId: string, overrides: Record<string, nu
   try {
     const script = path.join(work, 'plan3d.py')
     const specPath = path.join(work, 'plan3d.json')
-    await writeFile(script, PLAN3D_SCRIPT)
-    await writeFile(specPath, JSON.stringify({ ...(await tourSceneSpec(sceneId)), planSrc: src, outDir: work, ...overrides }))
+    // the prepared scene when it is newer than the source file (it was made from it): no second import of the GLB
+    const prepared = path.join(sceneDir(sceneId), 'look', 'prepared.blend')
+    const [pStat, gStat] = await Promise.all([stat(prepared).catch(() => null), stat(sourcePath(sceneId)).catch(() => null)])
+    const fromPrepared = process.env.ROOMIA_PLAN3D_GLB !== '1' && !!pStat && !!gStat && pStat.mtimeMs >= gStat.mtimeMs
+    await writeFile(script, fromPrepared ? PLAN3D_PREPARED_SCRIPT : PLAN3D_SCRIPT)
+    await writeFile(specPath, JSON.stringify({ ...(await tourSceneSpec(sceneId)), planSrc: src, outDir: work, ...(fromPrepared ? { preparedBlend: prepared } : {}), ...overrides }))
+    console.log('tour plan 3d', sceneId, fromPrepared ? 'from prepared.blend' : 'from the GLB')
     const lines: string[] = []
     // the last lines Blender printed: on Windows a failure can leave stderr empty (5 Nov: "plan 3D:" and nothing else)
     const tail: string[] = []

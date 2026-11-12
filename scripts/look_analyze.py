@@ -78,20 +78,50 @@ for p in points:
     for dx in (-2.4, -1.2, 0, 1.2, 2.4):
         for dy in (-2.4, -1.2, 0, 1.2, 2.4):
             samples.append(Vector((c.x + dx, c.y + dy, floor_z + 0.8)))
-scores = {}
-for az in range(0, 360, step):
+casts = [0]
+
+
+def score_at(az, elev_list, pts):
     a = math.radians(az)
     n = 0
-    for elev in elevs:
+    for elev in elev_list:
         d = Vector((math.sin(a) * math.cos(elev), math.cos(a) * math.cos(elev), math.sin(elev)))
-        for s in samples:
+        for s in pts:
+            casts[0] += 1
             ob, glass, _ = cast(s, d)
             if ob is None and glass >= 1:
                 n += 1
-    scores[az] = n
-azs = sorted(scores)
-smooth = {az: scores[az] + 0.5 * (scores[(az - step) % 360] + scores[(az + step) % 360]) for az in azs}
-best = max(azs, key=lambda a: smooth[a])
+    return n
+
+
+scores = {}
+if JOB.get("sunFast"):
+    # 12 Nov coarse-to-fine (docs/PLAN-performance.md step 1): every 30 degrees with 9 samples per point and the two outer
+    # elevations, then the two best directions get the full grid (25 samples, every elevation) on the 15-degree grid around them.
+    sub = []
+    for p in points:
+        c = gl2b(p["position"])
+        floor_z = c.z - float(JOB.get("eyeHeight", 1.6))
+        for dx in (-2.4, 0, 2.4):
+            for dy in (-2.4, 0, 2.4):
+                sub.append(Vector((c.x + dx, c.y + dy, floor_z + 0.8)))
+    coarse = {az: score_at(az, [elevs[0], elevs[-1]], sub) for az in range(0, 360, 2 * step)}
+    ks = sorted(coarse)
+    csmooth = {az: coarse[az] + 0.5 * (coarse[(az - 2 * step) % 360] + coarse[(az + 2 * step) % 360]) for az in ks}
+    top = sorted(ks, key=lambda a: -csmooth[a])[:2]
+    need = sorted({(t + k * step) % 360 for t in top for k in range(-2, 3)})
+    for az in need:
+        scores[az] = score_at(az, elevs, samples)
+    azs = sorted(scores)
+    smooth = {az: scores[az] + 0.5 * (scores.get((az - step) % 360, scores[az]) + scores.get((az + step) % 360, scores[az])) for az in azs}
+    best = max(azs, key=lambda a: smooth[a])
+else:
+    for az in range(0, 360, step):
+        scores[az] = score_at(az, elevs, samples)
+    azs = sorted(scores)
+    smooth = {az: scores[az] + 0.5 * (scores[(az - step) % 360] + scores[(az + step) % 360]) for az in azs}
+    best = max(azs, key=lambda a: smooth[a])
+print("LOOK_INFO sun search: %d ray casts (%s)" % (casts[0], "fast" if JOB.get("sunFast") else "exhaustive"), flush=True)
 print("LOOK_SUN best %d  scores %s" % (best, {a: scores[a] for a in azs if scores[a]}), flush=True)
 print("LOOK_TIME sun %.1f" % (time.time() - T_SUN), flush=True)
 T_EMI = time.time()

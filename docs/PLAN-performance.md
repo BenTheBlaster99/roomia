@@ -65,6 +65,9 @@ Test: 3 consecutive points with and without the worker; Blender per-point time m
 
 ## 6. Plan drawing (33 s) — small, last
 
+**Update 12 Nov:** the component idea below is moot on real apartments: the free floor is nearly one connected region (rooms open onto each other), so components with a single seed are rare. What exists instead: `ROOMIA_PLAN_GROW_DS=4` runs the same geodesic growth at quarter size (about 4× less work). Profile first (time the growth loop alone), then compare the room masks at DS=2 and DS=4 on DayTestF5 and F2; adopt DS=4 if they differ by under 0.5 % of pixels.
+
+
 `scripts/plan_arch.py`: the geodesic growth loop. Replace by: label the connected components of `free & ~dil(barrier, m(0.05))`; for each component that contains exactly one seed label, assign the label to the component where `distance_transform_edt` from the seed region ≤ 0.75 m (compute the EDT once on `~seeds` per label only for the few labels, at half size). Components with several seeds keep the iterative loop (rare). Acceptance: on DayTestF5 and F2, the room masks differ by under 0.5 % of pixels (compare the label images, not only the areas) and `plan-rooms.json` areas within 0.1 m².
 
 ## 7. Budget to aim for (RTX 3060, F5, 14 points)
@@ -88,3 +91,18 @@ Bounces 12/8/6; light groups and the compositor sum; the per-point exposure and 
 ## 9. Order of work and who
 
 1 → 2 → 3 → 4a → 4b (user approves the clip) → 5 → 6 → 4c. Step 3 may move ahead of 2 since the 3D plan is a production blocker. Streaming (step 5) must produce byte-identical finalized PNGs to the sequential pipeline on 3 points before it replaces it. Each step is one commit with its measurement in the message; never two optimizations in one commit. Logs to keep: `analyze.log` (`LOOK_TIME`), `render.log`, `video/status.json` timings, `/usr/bin/time -v` for the 3D plan.
+
+## Status (12 Nov, written by Sonnet 5.5 while the F5 video rendered)
+
+| Step | State | What is left |
+|---|---|---|
+| 1 analysis | Content-hash cache DONE and tested without Blender (new output folder reuses the analysis: 0 s). `LOOK_TIME sun/emissive/cameras` marks added. Coarse-to-fine sun search written behind `ROOMIA_SUN_FAST=1`, **untested** | Run `analyze` with the marks on DayTestF5, read the four numbers; then compare fast vs exhaustive (azimuth within 15°, score within 10 %) on F5, Suite, F2; then make it the default |
+| 2 48 vs 32 spp | Not started (needs the GPU and an eye test) | Render t4 and t11 at 48 and 32 (+ `pass_debug_sample_count`), compare crops |
+| 3 3D plan | Written: opens `look/prepared.blend` when it is newer than `source.glb`, else the GLB. **Untested** | Run `plan3d-run.mts` on DayTestF5 with `/usr/bin/time -v` (peak RSS) for both paths (`ROOMIA_PLAN3D_GLB=1` forces the old one); compare the images |
+| 4a video I/O | Frames and raw EXR go to `~/.cache/roomia-video/<id>/`, not the data disk. Per-frame `VIDEO_FRAME n render s grade s` printed in the log. Not yet compared against NTFS | If needed: same 15 frames with frames on the data disk, to see the gain |
+| 4b video on the recipe | DONE and used. 15-frame test on F5: **~8 s/frame** at 1280×720, 24 spp, adaptive 0.05, per-frame OptiX/OIDN denoise in the compositor, the 360's own grade (exposure from `exposure.json` groupMedian, median white balance, lift). The F5 70 s video (1050 frames) = about 2 h 20. Resume after a stop is written (untested) | Temporal denoise test (`cycles.denoise_animation`) vs per-frame; 1920×1080 time; judge flicker in the finished video |
+| 5 streaming | **Not done on purpose**: finalize is ~70 s in total and each point's exposure depends on the group median. The real saving is overlapping the AI gateway waits with Blender, which belongs in the app's job runner | Design it with the job runner, test byte-identical outputs |
+| 6 plan growth | `ROOMIA_PLAN_GROW_DS=4` switch added (default 2). The component idea was dropped (see section 6) | Profile, compare masks, adopt |
+| 4c object count | Not started | Only if the frame profile shows sync dominates (the 15-frame test suggests the fixed cost is not the problem: 8 s/frame is mostly rendering) |
+
+Observation from the video test: the F5 prepared scene plus the shot-planning tree took about 26 s and ~9 GB of RAM; free memory during the render was ~3 GB with the browser open. The memory guard (1.5 GB) is the nearest risk for long renders on a 15 GB machine, hence the resume.

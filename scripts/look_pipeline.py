@@ -200,6 +200,7 @@ def analysis_key(job):
     """What the analysis depends on: the scene's content, the camera positions it was given, the method and its parameters, Blender."""
     pts = sorted((p["index"], [round(x, 3) for x in p["position"]]) for p in points(raw=True))
     params = {k: job[k] for k in ("elevations", "azimuthStep", "eyeHeight")}
+    params["sunFast"] = bool(job.get("sunFast"))
     blob = json.dumps({"src": source_hash(), "pts": pts, "v": ANALYSIS_VERSION, "params": params, "blender": os.path.basename(os.path.dirname(BLENDER))}, sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()
 
@@ -208,6 +209,8 @@ def analysis():
     ap_ = os.path.join(AUTO, "analysis.json")
     cache_ = os.path.join(LOOK, "analysis-cache.json")
     job_ = {"points": points(raw=True), "outDir": AUTO, "elevations": [5, 9, 13], "azimuthStep": 15, "eyeHeight": 1.6}
+    if os.environ.get("ROOMIA_SUN_FAST") == "1":  # coarse-to-fine sun search (tested on F5, Suite, F2 before it becomes the default)
+        job_["sunFast"] = True
     key = analysis_key(job_)
 
     def keyed(path):

@@ -130,14 +130,15 @@ for i, a in enumerate(sareas, 1):
         keep[i] = k
 slab = keep[slab]
 # grow the seeds over the free floor without crossing walls (geodesic: repeated small dilations, at half size)
-rs, fs = slab[::2, ::2].copy(), free[::2, ::2]
-for _ in range(m(0.75) // 2 + 2):  # from the seeds to the wall faces, not through a window's gap to the outside
+DS = int(os.environ.get("ROOMIA_PLAN_GROW_DS", "2"))  # 4: quarter size (about 4x less work), to be compared mask against mask before it becomes the default
+rs, fs = slab[::DS, ::DS].copy(), free[::DS, ::DS]
+for _ in range(m(0.75) // DS + 2):  # from the seeds to the wall faces, not through a window's gap to the outside
     grown = ndi.grey_dilation(rs, size=(3, 3))
     fill = (rs == 0) & fs & (grown > 0)
     if not fill.any():
         break
     rs[fill] = grown[fill]
-rooms = np.repeat(np.repeat(rs, 2, 0), 2, 1)[:H, :W]
+rooms = np.repeat(np.repeat(rs, DS, 0), DS, 1)[:H, :W]
 rooms[~free] = 0
 # what the half-size pass left out (wall faces, a pixel here and there): the nearest room
 _, (iy, ix) = ndi.distance_transform_edt(rooms == 0, return_indices=True)
