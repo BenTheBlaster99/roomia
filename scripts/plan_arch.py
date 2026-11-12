@@ -81,98 +81,123 @@ glass_lines = raster(glass, 2)
 furn_lines = raster(~tall & ~glass)
 door_lines = raster(is_door)
 
-# wall poché: the faces of a wall closed into a solid; any thin pocket (no point more than 25 cm from its edge) is wall
-closed = ero(dil(wall_lines, m(0.13)), m(0.13)) | wall_lines  # the two faces of a wall up to 26 cm thick join into one solid
-lab, n = ndi.label(~closed)
-dt = ndi.distance_transform_edt(~closed)
-mx = ndi.maximum(dt, lab, index=np.arange(1, n + 1))
-area = ndi.sum(np.ones_like(lab), lab, index=np.arange(1, n + 1))
-border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-thin_pocket = np.zeros(n + 1, bool)
-# a wall's cavity is long and thin; a wardrobe's compartment is short and boxy (F5 bedrooms, 11 Nov): only the long ones are poché
-thin_pocket[1:] = (mx <= m(0.22)) & (area * MPP * MPP < 6.0) & (area / np.maximum(2 * mx, 1) ** 2 >= 3.0)
-for b in border:
-    thin_pocket[b] = False
-wall = closed | thin_pocket[lab]
-wall = ndi.binary_opening(wall, np.ones((3, 3), bool))
-
-# the apartment: the given mask, else the top view's alpha, else everything enclosed by walls
-apt = None
-if OPT.get("apt") and os.path.exists(OPT["apt"]):
-    a = np.asarray(Image.open(OPT["apt"]).convert("L").resize((W, H), Image.NEAREST)) > 127
-    apt = a
+# the top view (the drawing's background; its alpha can give the apartment's outline)
 top = Image.open(TOP)
 if top.size != (W, H):
     top = top.resize((W, H), Image.LANCZOS)
-if apt is None and top.mode == "RGBA":
-    apt = np.asarray(top)[..., 3] > 10
-if apt is None:
-    tg = np.asarray(top.convert("L"))
-    apt = tg < 250
-# the inside: the apartment's walkable outline (the tour's survey), a little grown so it meets the walls' faces
-barrier = wall | door_lines | ndi.binary_dilation(glass_lines, iterations=2)
-inside = dil(apt, m(0.15)) & ~wall
+# The geometry (wall poché, rooms, enclosed pockets) is the slow part of a pass (about 20 of 32 s) and does not depend on the room names: plan_build.py
+# draws twice (numbers, then the AI's names), so the first pass saves it and the second one reads it back (12 Nov, docs/PLAN-performance.md).
+import hashlib
+_h = hashlib.sha1(b'plan-geometry-v1|%d' % int(os.environ.get('ROOMIA_PLAN_GROW_DS', '2')))
+for _f in (os.path.join(CAP, 'plan-cut.npy'), os.path.join(CAP, 'plan-objects.json'), TOP, OPT.get('apt') or ''):
+    if _f and os.path.exists(_f):
+        with open(_f, 'rb') as _fh:
+            for _blk in iter(lambda: _fh.read(1 << 22), b''):
+                _h.update(_blk)
+GEOM_CACHE = os.path.join(CAP, 'plan-geometry-cache.npz')
+_hit = False
+if os.path.exists(GEOM_CACHE):
+    try:
+        with np.load(GEOM_CACHE) as _z:
+            if str(_z['key']) == _h.hexdigest():
+                wall, rooms, holes = _z['wall'], _z['rooms'], _z['holes']
+                inside = rooms > 0
+                labels = [i for i in np.unique(rooms) if i > 0]
+                _hit = True
+                print('PLAN_INFO geometry read from the first pass', flush=True)
+    except Exception:
+        _hit = False
+if not _hit:
+    # wall poché: the faces of a wall closed into a solid; any thin pocket (no point more than 25 cm from its edge) is wall
+    closed = ero(dil(wall_lines, m(0.13)), m(0.13)) | wall_lines  # the two faces of a wall up to 26 cm thick join into one solid
+    lab, n = ndi.label(~closed)
+    dt = ndi.distance_transform_edt(~closed)
+    mx = ndi.maximum(dt, lab, index=np.arange(1, n + 1))
+    area = ndi.sum(np.ones_like(lab), lab, index=np.arange(1, n + 1))
+    border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    thin_pocket = np.zeros(n + 1, bool)
+    # a wall's cavity is long and thin; a wardrobe's compartment is short and boxy (F5 bedrooms, 11 Nov): only the long ones are poché
+    thin_pocket[1:] = (mx <= m(0.22)) & (area * MPP * MPP < 6.0) & (area / np.maximum(2 * mx, 1) ** 2 >= 3.0)
+    for b in border:
+        thin_pocket[b] = False
+    wall = closed | thin_pocket[lab]
+    wall = ndi.binary_opening(wall, np.ones((3, 3), bool))
 
-# keep only wall that borders the inside (no fences, terraces or neighbours' walls far away)
-near_in = dil(inside, m(0.3))
-wall &= near_in
+    # the apartment: the given mask, else the top view's alpha, else everything enclosed by walls
+    apt = None
+    if OPT.get("apt") and os.path.exists(OPT["apt"]):
+        a = np.asarray(Image.open(OPT["apt"]).convert("L").resize((W, H), Image.NEAREST)) > 127
+        apt = a
+    if apt is None and top.mode == "RGBA":
+        apt = np.asarray(top)[..., 3] > 10
+    if apt is None:
+        tg = np.asarray(top.convert("L"))
+        apt = tg < 250
+    # the inside: the apartment's walkable outline (the tour's survey), a little grown so it meets the walls' faces
+    barrier = wall | door_lines | ndi.binary_dilation(glass_lines, iterations=2)
+    inside = dil(apt, m(0.15)) & ~wall
 
-# ---------------------------------------------------------------- rooms
-free = inside & ~barrier
-seeds = free & ~dil(barrier, m(0.55))  # closes any opening up to 1.1 m: doors split rooms
-slab, ns = ndi.label(seeds)
-sareas = ndi.sum(np.ones_like(slab), slab, index=np.arange(1, ns + 1)) * MPP * MPP
-keep = np.zeros(ns + 1, np.int32)
-k = 0
-for i, a in enumerate(sareas, 1):
-    if a >= 0.25:
-        k += 1
-        keep[i] = k
-slab = keep[slab]
-# grow the seeds over the free floor without crossing walls (geodesic: repeated small dilations, at half size)
-DS = int(os.environ.get("ROOMIA_PLAN_GROW_DS", "2"))  # 4: quarter size (about 4x less work), to be compared mask against mask before it becomes the default
-rs, fs = slab[::DS, ::DS].copy(), free[::DS, ::DS]
-for _ in range(m(0.75) // DS + 2):  # from the seeds to the wall faces, not through a window's gap to the outside
-    grown = ndi.grey_dilation(rs, size=(3, 3))
-    fill = (rs == 0) & fs & (grown > 0)
-    if not fill.any():
-        break
-    rs[fill] = grown[fill]
-rooms = np.repeat(np.repeat(rs, DS, 0), DS, 1)[:H, :W]
-rooms[~free] = 0
-# what the half-size pass left out (wall faces, a pixel here and there): the nearest room
-_, (iy, ix) = ndi.distance_transform_edt(rooms == 0, return_indices=True)
-near = rooms[iy, ix]
-rooms = np.where(inside & (rooms == 0) & dil(rooms > 0, m(0.12)), near, rooms)
-rooms[~inside] = 0
-# a room too narrow for a seed (a WC 1.1 m wide, a shower room behind the kitchen): its own enclosed floor, if it is one
-rest, nr = ndi.label(free & (rooms == 0) & ~dil(barrier, m(0.2)))
-if nr:
-    rareas = ndi.sum(np.ones_like(rest), rest, index=np.arange(1, nr + 1)) * MPP * MPP
-    for j, a in enumerate(rareas, 1):
-        if a >= 1.0:
+    # keep only wall that borders the inside (no fences, terraces or neighbours' walls far away)
+    near_in = dil(inside, m(0.3))
+    wall &= near_in
+
+    # ---------------------------------------------------------------- rooms
+    free = inside & ~barrier
+    seeds = free & ~dil(barrier, m(0.55))  # closes any opening up to 1.1 m: doors split rooms
+    slab, ns = ndi.label(seeds)
+    sareas = ndi.sum(np.ones_like(slab), slab, index=np.arange(1, ns + 1)) * MPP * MPP
+    keep = np.zeros(ns + 1, np.int32)
+    k = 0
+    for i, a in enumerate(sareas, 1):
+        if a >= 0.25:
             k += 1
-            comp = dil(rest == j, m(0.2)) & free & (rooms == 0)
-            rooms[comp] = k
-ids = [i for i in range(1, k + 1)]
-# a room is never smaller than 1 m²: merged into the neighbour it touches most
-for i in ids:
-    mask = rooms == i
-    if mask.sum() * MPP * MPP >= 1.0:
-        continue
-    ring = ndi.binary_dilation(mask, iterations=2)
-    nb = rooms[ring & ~mask]
-    nb = nb[nb > 0]
-    if len(nb):
-        rooms[mask] = np.bincount(nb).argmax()
-    else:
-        rooms[mask] = 0
-labels = [i for i in np.unique(rooms) if i > 0]
-# what is drawn as the apartment: the rooms, and the walls that bound them
-inside = rooms > 0
-wall &= dil(inside, m(0.45))
-# the small enclosed spaces no room took (a cupboard, a duct, a strip behind a wardrobe): drawn, never left white (11 Nov)
-holes = ndi.binary_fill_holes(inside | wall) & ~inside & ~wall
+            keep[i] = k
+    slab = keep[slab]
+    # grow the seeds over the free floor without crossing walls (geodesic: repeated small dilations, at half size)
+    DS = int(os.environ.get("ROOMIA_PLAN_GROW_DS", "2"))  # 4: quarter size (about 4x less work), to be compared mask against mask before it becomes the default
+    rs, fs = slab[::DS, ::DS].copy(), free[::DS, ::DS]
+    for _ in range(m(0.75) // DS + 2):  # from the seeds to the wall faces, not through a window's gap to the outside
+        grown = ndi.grey_dilation(rs, size=(3, 3))
+        fill = (rs == 0) & fs & (grown > 0)
+        if not fill.any():
+            break
+        rs[fill] = grown[fill]
+    rooms = np.repeat(np.repeat(rs, DS, 0), DS, 1)[:H, :W]
+    rooms[~free] = 0
+    # what the half-size pass left out (wall faces, a pixel here and there): the nearest room
+    _, (iy, ix) = ndi.distance_transform_edt(rooms == 0, return_indices=True)
+    near = rooms[iy, ix]
+    rooms = np.where(inside & (rooms == 0) & dil(rooms > 0, m(0.12)), near, rooms)
+    rooms[~inside] = 0
+    # a room too narrow for a seed (a WC 1.1 m wide, a shower room behind the kitchen): its own enclosed floor, if it is one
+    rest, nr = ndi.label(free & (rooms == 0) & ~dil(barrier, m(0.2)))
+    if nr:
+        rareas = ndi.sum(np.ones_like(rest), rest, index=np.arange(1, nr + 1)) * MPP * MPP
+        for j, a in enumerate(rareas, 1):
+            if a >= 1.0:
+                k += 1
+                comp = dil(rest == j, m(0.2)) & free & (rooms == 0)
+                rooms[comp] = k
+    ids = [i for i in range(1, k + 1)]
+    # a room is never smaller than 1 m²: merged into the neighbour it touches most
+    for i in ids:
+        mask = rooms == i
+        if mask.sum() * MPP * MPP >= 1.0:
+            continue
+        ring = ndi.binary_dilation(mask, iterations=2)
+        nb = rooms[ring & ~mask]
+        nb = nb[nb > 0]
+        if len(nb):
+            rooms[mask] = np.bincount(nb).argmax()
+        else:
+            rooms[mask] = 0
+    labels = [i for i in np.unique(rooms) if i > 0]
+    # what is drawn as the apartment: the rooms, and the walls that bound them
+    inside = rooms > 0
+    wall &= dil(inside, m(0.45))
+    # the small enclosed spaces no room took (a cupboard, a duct, a strip behind a wardrobe): drawn, never left white (11 Nov)
+    holes = ndi.binary_fill_holes(inside | wall) & ~inside & ~wall
+    np.savez(GEOM_CACHE, key=np.array(_h.hexdigest()), wall=wall, rooms=rooms, holes=holes)
 
 # ---------------------------------------------------------------- room names from what stands in them
 VOTES = [

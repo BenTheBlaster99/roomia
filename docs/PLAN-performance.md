@@ -112,3 +112,21 @@ Observation from the video test: the F5 prepared scene plus the shot-planning tr
 
 ### Plan drawing profile (12 Nov, DayTestF5, cProfile)
 31.8 s total: 14.6 s in 26 distance transforms (11 s in the feature transform), 8.4 s in dilations/erosions (59 full-image dilations; 55 of them were the door-gap search dilating the same room once per pair). Fixed the last (each room dilated once): **36 s → 26 s, byte-identical image and rooms.** The quarter-size growth (`ROOMIA_PLAN_GROW_DS=4`) saved only 4 s and moved a room's area by up to 1.3 m²: **not adopted**. Next lever, if wanted: the distance transforms (crop each to the apartment's box, or compute `dil()` with a bounded radius).
+
+## Full measurement, 12 Nov midday (Sonnet 5.5, DayTestF5, nothing else running)
+
+360 render (`look_pipeline.py render`, `ROOMIA_SUN_FAST=1`, 48 spp, 3072x1536, 14 views): **18 min 46 s wall**, peak 10.2 GB.
+analysis 0 s (cache; ~111 s on a new scene) + setup 8 s + 14 views 1011 s (65–78 s each, first 96 s) + finalize/install ~100 s.
+Compared with the previous render (auto-e) on two crops: same texture and detail, mean difference 0.5–1.7 /255 (sampling noise).
+
+Single AI image (`pano_photos.py`, 1 frame, 14 DA): **52.6 s wall**, of which the gateway call 38.9–41.7 s (high quality, no fallback);
+the other ~11 s are the frame cut, exposure, imports and install. Nothing local to speed up except the imports.
+
+2D plan (`plan_build.py`): **97.7 s** before = Blender cut 23 s + drawing pass 1 32 s + Gemini names 10 s + drawing pass 2 32 s.
+New: the geometry (wall poché, rooms, pockets; ~20 s of a pass, independent of the names) is saved in `plan-archi/plan-geometry-cache.npz`
+(key = sha1 of plan-cut.npy, plan-objects.json, the top view, the apartment mask, the growth switch) by pass 1 and read by pass 2:
+**pass 2 32 s -> 20.7 s**, so about 86 s in total. `-rendu.png`, `-technique.png` and `-rooms.json` are byte-identical to the earlier ones;
+the PDF differs by its 8 timestamp bytes only.
+
+3D plan (`plan3d-run.mts`, prepared.blend): **1:52, peak 8.0 GB**, image identical to the previous one (mean difference 0.0). Next lever (not done):
+128 spp -> 96, judged by eye; and the 8 GB render-only copy.
