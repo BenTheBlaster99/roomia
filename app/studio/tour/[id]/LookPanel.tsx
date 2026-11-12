@@ -6,7 +6,7 @@ import type { LookState as LookJob } from '@/lib/look-pipeline'
 /** The job's state, and the PC's thermal / pause state the route adds (lib/blender-guard.ts). */
 type LookState = LookJob & { thermal?: { paused: boolean; waiting: boolean; userPaused: boolean; temp: number } }
 
-const DA_PER_IMAGE = 14
+const DA_PER_IMAGE = 16
 
 const read = async (sceneId: string): Promise<LookState | null> => {
   const res = await fetch(`/api/scenes/${sceneId}/look`, { cache: 'no-store' }).catch(() => null)
@@ -29,7 +29,6 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   const [state, setState] = useState<LookState | null>(null)
   const [error, setError] = useState('')
   const [picked, setPicked] = useState<number[]>([])
-  const [ring, setRing] = useState<number[]>([])
 
   const load = useCallback(() => read(sceneId).then(s => s && setState(s)), [sceneId])
   const running = state?.stage === 'running'
@@ -49,12 +48,12 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
     const timer = setInterval(() => void load(), 3000)
     return () => clearInterval(timer)
   }, [running, load])
-  // the two best suggestions start selected
+  // every view starts selected (the AI light is one image per view)
   useEffect(() => {
-    if (state?.suggestions && picked.length === 0 && state.stage === 'ready') setPicked(state.suggestions.slice(0, 2).map(s => s.index))
+    if (state?.suggestions && picked.length === 0 && state.stage === 'ready') setPicked(state.suggestions.map(s => s.index))
   }, [state, picked.length])
 
-  const images = picked.reduce((n, p) => n + 6 + (ring.includes(p) ? 4 : 0), 0)
+  const images = picked.length
   const cost = images * DA_PER_IMAGE
   const toggle = (list: number[], set: (v: number[]) => void, i: number) => set(list.includes(i) ? list.filter(x => x !== i) : [...list, i])
 
@@ -80,7 +79,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
             <>
               <strong>Qualité finale · plein jour</strong>
               <span>
-                Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° avec une lumière de fin de journée. Gratuit : aucun crédit,
+                Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° en plein jour. Gratuit : aucun crédit,
                 environ 1 à 2 minutes par vue sur votre PC.
               </span>
               {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
@@ -147,7 +146,10 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               {state?.suggestions && state.suggestions.length > 0 && (
                 <>
                   <strong>Finition IA (payante)</strong>
-                  <span>Roomia propose les vues qui gagnent le plus à la finition IA. Choisissez-les : 6 images par vue, 4 de plus pour le haut des murs.</span>
+                  <span>
+                    L’IA donne sa lumière et ses couleurs à chaque vue ; Blender garde chaque objet et chaque texture. Une image IA par vue (1 crédit). Le style vient de
+                    votre photo IA du séjour : faites-la d’abord pour le meilleur résultat.
+                  </span>
                   <div className="look-points">
                     {state.suggestions.map(s => (
                       <div key={s.index} className="look-point">
@@ -161,21 +163,17 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                           />
                           <b>{s.name}</b>
                         </label>
-                        <label className="look-ring">
-                          <input type="checkbox" disabled={!picked.includes(s.index)} checked={ring.includes(s.index)} onChange={() => toggle(ring, setRing, s.index)} />
-                          haut des murs (+4)
-                        </label>
                       </div>
                     ))}
                   </div>
                   <span>
                     <b>
-                      {images} images · {cost} DA
+                      {images} vue{images > 1 ? 's' : ''} · {images} crédit{images > 1 ? 's' : ''}
                     </b>{' '}
-                    ({DA_PER_IMAGE} DA l’image). Rien n’est envoyé avant votre confirmation.
+                    ({cost} DA). Rien n’est envoyé avant votre confirmation.
                   </span>
-                  <button type="button" disabled={picked.length === 0} onClick={() => void start({ action: 'ai', points: picked, ring: ring.filter(r => picked.includes(r)), maxCost: cost })}>
-                    Confirmer et lancer ({cost} DA)
+                  <button type="button" disabled={picked.length === 0} onClick={() => void start({ action: 'ai', points: picked, ring: [], maxCost: cost })}>
+                    Confirmer et lancer ({images} crédit{images > 1 ? 's' : ''})
                   </button>
                 </>
               )}

@@ -7,6 +7,7 @@ import { bearerUser, cloudOff, desktopCloudEnabled, desktopPhotoPath, notSignedI
 import { getOpenAIClient } from '@/lib/openai-client'
 import { checkDeliveredImage } from '@/lib/photo-check'
 import { panoFacePrompt } from '@/lib/pano-ai'
+import { editPanoLight, panoLightInput, panoLightReference } from '@/lib/pano-light'
 import { generatePhotoreal, PhotoChoiceError, renderErrorDetail } from '@/lib/photoreal'
 import { RENDER_LIMIT_MESSAGE, takeRenderSlot } from '@/lib/render-limit'
 import { parseLighting } from '@/lib/scene-capture'
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
   const ask = body?.ask === true
   // a 360 tile (lib/look-pipeline.ts): one square view of a panorama, edited with the face prompt; one credit like a photo
   const tile = body?.kind === 'tile'
+  // "Blender + AI light" (lib/pano-light.ts): a whole 360 at 2:1 with the project's AI photo as house style; one credit
+  const panoLight = body?.kind === 'pano-light'
+  const reference = panoLight && typeof body?.reference_base64 === 'string' ? Buffer.from(body.reference_base64, 'base64') : null
   const quality = body?.quality === 'medium' ? 'medium' : undefined
 
   const job = getDb().prepare('SELECT user_id, status, photo_file FROM jobs WHERE id = ?').get(jobId)
@@ -80,11 +84,20 @@ export async function POST(req: NextRequest) {
       let reserved = false
       const started = performance.now()
       try {
-        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, view)
+        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, panoLight ? `360 lumière · ${view}` : tile ? `360 tuile · ${view}` : view)
         reserved = true
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // The photo is made and kept even if the app left: it is paid for, and a retry with the same id gets it.
-        const photo = tile
+        const photo = panoLight
+          ? {
+              base64: (await editPanoLight(await panoLightInput(capture), reference && reference.length > 1000 ? await panoLightReference(reference) : null)).toString('base64'),
+              quality: 'high',
+              fellBack: false,
+              fidelity: 'high',
+              provider: 'gateway',
+              size: '2560x1280',
+            }
+          : tile
           ? await generatePhotoreal(capture, panoFacePrompt(), { ask, quality, size: '1536x1536', maxInput: 2048 })
           : await generatePhotoreal(capture, buildSceneRenderPrompt(lighting), { ask, quality })
         const image = Buffer.from(photo.base64, 'base64')

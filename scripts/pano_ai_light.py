@@ -4,6 +4,8 @@
 (pano_look_transfer.py: alignment, guided gain, colour from the room tint, dehaze).
 
 python pano_ai_light.py <sceneId> --views 0,2,6 --refs '{"0": "photos/x.jpg", ...}' [--default-ref photos/y.jpg] [--auto auto-f] --yes
+python pano_ai_light.py --scene-dir <dir> --views 0,2,6 --auto auto --finish-only   (the app: the AI images are already in
+       look/sunburst/pano-k-sunburst-2560.jpg, made by lib/look-pipeline.ts; free)
 Without --yes it prints the cost and spends nothing. Per view k, in tour/: pano-k-before-sunburst.jpg (the Blender 360, kept once),
 pano-k-ai-orig.jpg / pano-k-ai-light.jpg (for the comparison page), pano-k.jpg replaced by the result.
 Run with the AI python from the repo root.
@@ -14,32 +16,40 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ap = argparse.ArgumentParser()
-ap.add_argument("scene")
+ap.add_argument("scene", nargs="?")
+ap.add_argument("--scene-dir")
+ap.add_argument("--finish-only", action="store_true", help="no AI call: only the views whose AI image exists")
 ap.add_argument("--views", required=True)
 ap.add_argument("--refs", default="{}")
 ap.add_argument("--default-ref")
 ap.add_argument("--auto", default="auto-f")
 ap.add_argument("--yes", action="store_true")
 args = ap.parse_args()
-S = os.path.join(os.path.abspath(os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")), args.scene)
+S = os.path.abspath(args.scene_dir) if args.scene_dir else os.path.join(os.path.abspath(os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")), args.scene)
 T, D = os.path.join(S, "tour"), os.path.join(S, "look", "sunburst")
 os.makedirs(D, exist_ok=True)
 views = [int(v) for v in args.views.split(",")]
 refs = {int(k): v for k, v in json.loads(args.refs).items()}
-print("AI_LIGHT %d views x 16 DA = %d DA" % (len(views), 16 * len(views)), flush=True)
-if not args.yes:
+print("AI_LIGHT %d views, %s" % (len(views), "free (AI images already made)" if args.finish_only else "x 16 DA = %d DA" % (16 * len(views))), flush=True)
+if not args.yes and not args.finish_only:
     sys.exit(0)
 PY = sys.executable
 done = []
 for k in views:
     t0 = time.time()
     blender = os.path.join(T, "pano-%d-before-sunburst.jpg" % k)
-    if not os.path.exists(blender):
-        shutil.copyfile(os.path.join(T, "pano-%d.jpg" % k), blender)
-    ref = refs.get(k) or args.default_ref
-    ref = ref if os.path.isabs(ref) else os.path.join(S, ref)
+    cur, done_light = os.path.join(T, "pano-%d.jpg" % k), os.path.join(T, "pano-%d-ai-light.jpg" % k)
+    # the Blender 360 kept once; a view rendered again since (pano-k.jpg is not our last result) is taken afresh
+    same = os.path.exists(done_light) and open(cur, "rb").read() == open(done_light, "rb").read()
+    if not os.path.exists(blender) or not same:
+        shutil.copyfile(cur, blender)
     raw = os.path.join(D, "pano-%d-sunburst-2560.jpg" % k)
+    if not os.path.exists(raw) and args.finish_only:
+        print("AI_LIGHT view %d: no AI image, skipped" % k, flush=True)
+        continue
     if not os.path.exists(raw):
+        ref = refs.get(k) or args.default_ref
+        ref = ref if os.path.isabs(ref) else os.path.join(S, ref)
         r = subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/pano-sunburst.mts", blender, ref, raw, "2560x1280", "high"], cwd=ROOT, capture_output=True, text=True)
         line = [l for l in r.stdout.splitlines() if l.startswith("SUNBURST")]
         if r.returncode or not os.path.exists(raw):

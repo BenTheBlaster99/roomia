@@ -28,6 +28,7 @@ ap.add_argument("scene")
 ap.add_argument("--points")
 ap.add_argument("--ring")
 ap.add_argument("--n", type=int, default=4)
+ap.add_argument("--all", action="store_true", help="suggest: every rendered view, best first (the AI-light finish is one image per view)")
 ap.add_argument("--yes", action="store_true")
 ap.add_argument("--dry", action="store_true")
 ap.add_argument("--look", default=os.environ.get("ROOMIA_LOOK_PRESET", "daylight"), choices=["daylight", "golden"])
@@ -287,9 +288,9 @@ elif args.stage == "suggest":
     chosen = []
     for s, i in scored:
         pos = np.array(pts[i]["position"])
-        if all(np.linalg.norm(pos - np.array(pts[j]["position"])) > 3.0 for j in chosen):
+        if args.all or all(np.linalg.norm(pos - np.array(pts[j]["position"])) > 3.0 for j in chosen):
             chosen.append(i)
-        if len(chosen) == args.n:
+        if len(chosen) == args.n and not args.all:
             break
     print("SUGGEST", json.dumps([{"index": i, "name": pts[i]["name"], "score": round(dict((b, a) for a, b in scored)[i], 3)} for i in chosen]))
     print("all ranked:", [(i, round(s, 3)) for s, i in scored])

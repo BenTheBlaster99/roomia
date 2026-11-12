@@ -84,7 +84,7 @@ export interface CloudPhoto {
  * with the same job id for up to 6 minutes: the server answers the photo it kept, never charging twice.
  */
 export async function cloudPhoto(
-  args: { jobId: string; project: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium'; kind?: 'tile' },
+  args: { jobId: string; project: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium'; kind?: 'tile' | 'pano-light'; reference?: Buffer | null },
   onPing: () => void,
 ): Promise<CloudPhoto> {
   const token = await readToken()
@@ -98,6 +98,7 @@ export async function cloudPhoto(
     ...(args.kind ? { kind: args.kind } : {}),
     ...(args.quality ? { quality: args.quality } : {}),
     capture_base64: args.capture.toString('base64'),
+    ...(args.reference ? { reference_base64: args.reference.toString('base64') } : {}),
   })
   const until = Date.now() + 6 * 60_000
   let lastError: unknown = null

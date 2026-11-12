@@ -4,8 +4,9 @@ import { access, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'nod
 import path from 'node:path'
 import { killAllRoomiaBlenders, thermalState } from './blender-guard'
 import { BLENDER, withBlenderSlot } from './blender-render'
-import { panoFacePrompt } from './pano-ai'
-import { generatePhotoreal, isGatewayDown } from './photoreal'
+import { loadSharp } from './load-sharp'
+import { editPanoLight, PANO_LIGHT_SIZE, PANO_LIGHT_VERSION, panoLightInput, panoLightPrompt, panoLightReference } from './pano-light'
+import { isGatewayDown } from './photoreal'
 import { cloudMode, cloudPhoto } from './roomia-cloud'
 import { readCameras, readMeta, sceneDir } from './scene-store'
 import { killTree, TOUR_SCRIPT, tourDir, tourSceneSpec } from './scene-tour'
@@ -26,8 +27,8 @@ import { killTree, TOUR_SCRIPT, tourDir, tourSceneSpec } from './scene-tour'
  */
 export const PIPELINE_VERSION = 'v1'
 export const RECIPE_VERSION = 'auto-1'
-export const TILE_VERSION = 'face-1'
-export const DA_PER_IMAGE = 14
+export const TILE_VERSION = PANO_LIGHT_VERSION
+export const DA_PER_IMAGE = 16
 
 export interface LookSuggestion {
   index: number
@@ -279,7 +280,7 @@ export async function startLookRender(id: string): Promise<LookState> {
       s.step = 'Choix des points pour la finition IA…'
       await save(id, s)
       let out = ''
-      await pipeline(id, ['suggest', '--n', '4'], l => {
+      await pipeline(id, ['suggest', '--all'], l => {
         if (l.startsWith('SUGGEST ')) out = l.slice(8)
       })
       s.suggestions = out ? (JSON.parse(out) as LookSuggestion[]) : []
@@ -300,21 +301,42 @@ export async function startLookRender(id: string): Promise<LookState> {
   return s
 }
 
-/** Nothing is sent: the number of images and what they cost. A point is 6 tiles, +4 with the higher row. */
+/** Nothing is sent: the number of images and what they cost. "Blender + AI light": one AI image per view (1 credit). */
 export function quoteAi(points: number[], ring: number[]) {
-  const images = points.reduce((n, p) => n + 6 + (ring.includes(p) ? 4 : 0), 0)
+  const images = points.length
   return { points, ring, images, cost: images * DA_PER_IMAGE }
 }
 
 const sha = (b: Buffer | string) => createHash('sha256').update(b).digest('hex')
 
-/** One tile: from the cache if this exact picture was edited before (same render, same model and prompt), else paid. */
-async function makeTile(id: string, dir: string, view: string, s: LookState): Promise<void> {
-  const out = path.join(dir, `${view}-ai.jpg`)
-  if (await exists(out)) return
-  const input = await readFile(path.join(dir, `${view}-in.png`))
-  const key = sha(Buffer.concat([input, Buffer.from(TILE_VERSION + panoFacePrompt())]))
-  const cache = path.join(autoDir(id), 'tile-cache', `${key}.jpg`)
+/** The project's AI photo used as house style for every view (12 Nov, F5: a bedroom photo for the bedrooms made the AI redesign
+ * the beds; the living-room photo for all views worked everywhere): the séjour if there is one, else the latest photo. */
+async function houseReference(id: string): Promise<Buffer | null> {
+  const dir = path.join(sceneDir(id), 'photos')
+  const files = (await readdir(dir).catch(() => [] as string[])).filter(f => /\.(jpe?g|png|webp)$/i.test(f)).sort()
+  if (!files.length) return null
+  const pick = files.find(f => /s[eé]jour|salon|living|salle_a_manger|sejour/i.test(f)) ?? files[files.length - 1]
+  const buf = await readFile(path.join(dir, pick)).catch(() => null)
+  return buf ? loadSharp()(buf).resize(1536, 1536, { fit: 'inside' }).jpeg({ quality: 92 }).toBuffer() : null
+}
+
+/** The Blender 360 of a view: pano-k.jpg, unless it is already our AI-light result (then the copy kept before it). */
+async function blenderPano(id: string, k: number): Promise<Buffer> {
+  const t = tourDir(id)
+  const cur = await readFile(path.join(t, `pano-${k}.jpg`))
+  const light = await readFile(path.join(t, `pano-${k}-ai-light.jpg`)).catch(() => null)
+  if (light && light.equals(cur)) return readFile(path.join(t, `pano-${k}-before-sunburst.jpg`)).catch(() => cur)
+  return cur
+}
+
+/** One view's AI image: from the cache if this exact panorama and reference were edited before, else paid (1 credit). */
+async function makeLight(id: string, k: number, name: string, reference: Buffer | null, s: LookState): Promise<void> {
+  const input = await loadSharp()(await blenderPano(id, k)).resize(PANO_LIGHT_SIZE.width, PANO_LIGHT_SIZE.height, { fit: 'fill' }).jpeg({ quality: 95 }).toBuffer()
+  const key = sha(Buffer.concat([input, reference ?? Buffer.alloc(0), Buffer.from(PANO_LIGHT_VERSION + panoLightPrompt(Boolean(reference)))]))
+  const dir = path.join(lookDir(id), 'sunburst')
+  const out = path.join(dir, `pano-${k}-sunburst-2560.jpg`)
+  const cache = path.join(dir, 'cache', `${key}.jpg`)
+  await mkdir(path.dirname(cache), { recursive: true })
   if (await exists(cache)) {
     await copyFile(cache, out)
     s.ai!.cached += 1
@@ -327,13 +349,12 @@ async function makeTile(id: string, dir: string, view: string, s: LookState): Pr
     try {
       if (cloud) {
         const r = await cloudPhoto(
-          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: true, kind: 'tile' },
+          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view: name, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: false, kind: 'pano-light', reference },
           () => {},
         )
         buf = Buffer.from(r.base64, 'base64')
       } else {
-        const r = await generatePhotoreal(input, panoFacePrompt(), { size: '1536x1536', maxInput: 2048, ask: true })
-        buf = Buffer.from(r.base64, 'base64')
+        buf = await editPanoLight(await panoLightInput(input), reference ? await panoLightReference(reference) : null)
       }
     } catch (err) {
       // asked again only after a fast connection or server failure: not processed, so not charged
@@ -341,14 +362,15 @@ async function makeTile(id: string, dir: string, view: string, s: LookState): Pr
     }
   }
   s.ai!.paid += 1
-  await mkdir(path.dirname(cache), { recursive: true })
   await writeFile(cache, buf)
   await writeFile(out, buf)
 }
 
 /**
- * Paid: the AI tiles of the chosen points. `maxCost` is what the person confirmed: a job whose cost is higher is refused.
- * Safe to call again after a crash: the tiles already made are kept (and the cache answers the same ones), so nothing is paid twice.
+ * Paid: "Blender + AI light" on the chosen views (12 Nov): one AI image per view (lib/pano-light.ts, through Roomia's server on the
+ * desktop), then scripts/pano_ai_light.py --finish-only puts its light on Blender's own pixels and installs the view. `maxCost` is
+ * what the person confirmed: a job whose cost is higher is refused. Safe to call again after a crash: the images already made are in
+ * the cache (same panorama + reference = same key, and the server answers a delivered job id again for free), so nothing is paid twice.
  */
 export async function startLookAi(id: string, points: number[], ring: number[], maxCost: number): Promise<LookState> {
   if (lookBusy(id)) return active.get(id)!
@@ -364,36 +386,28 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
   stopped.delete(id)
   void (async () => {
     try {
-      const args = (stage: string) => [stage, '--points', points.join(','), ...(ring.length ? ['--ring', ring.join(',')] : [])]
-      s.step = 'En attente du processeur graphique…'
-      await save(id, s)
-      const prepared = await withBlenderSlot(async () => {
-        if (stopped.has(id)) throw new Error('Arrêtée.')
-        s.step = 'Préparation des vues pour l’IA…'
-        await save(id, s)
-        return pipeline(id, args('ai-prepare'), line)
-      })
-      if (stopped.has(id)) throw new Error('Arrêtée.')
-      if (prepared !== 0) throw new Error('La préparation des vues IA a échoué (voir le journal).')
-      const manifest = JSON.parse(await readFile(path.join(autoDir(id), 'ai-manifest.json'), 'utf8')) as { points: { dir: string; views: string[] }[] }
+      const names = new Map((prev.suggestions ?? []).map(p => [p.index, p.name]))
+      const reference = await houseReference(id)
       s.step = 'Génération des images par l’IA…'
       await save(id, s)
-      const todo = manifest.points.flatMap(p => p.views.map(v => ({ dir: p.dir, view: v })))
+      const made: number[] = []
       let next = 0
       const worker = async () => {
-        while (next < todo.length) {
+        while (next < points.length) {
           if (stopped.has(id)) throw new Error('Arrêtée.')
-          const t = todo[next++]
-          await makeTile(id, t.dir, t.view, s)
+          const k = points[next++]
+          await makeLight(id, k, names.get(k) ?? `Vue ${k}`, reference, s)
+          made.push(k)
           s.ai!.done += 1
           s.step = `Images IA : ${s.ai!.done} sur ${s.ai!.images}`
           await save(id, s)
         }
       }
       await Promise.all([worker(), worker()])
-      s.step = 'Assemblage et contrôle…'
+      s.step = 'Lumière de l’IA sur les vues Blender…'
       await save(id, s)
-      if ((await pipeline(id, args('ai-finish'), line)) !== 0) throw new Error('L’assemblage a échoué (voir le journal).')
+      const finish = await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', made.sort((a, b) => a - b).join(','), '--auto', 'auto', '--finish-only'], line, { scene: id })
+      if (finish !== 0) throw new Error('L’application de la lumière a échoué (voir le journal).')
       s.stage = 'done'
       s.step = 'Finition IA terminée.'
     } catch (err) {
