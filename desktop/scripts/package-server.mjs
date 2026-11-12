@@ -72,9 +72,13 @@ if (!args['skip-build']) {
 // 2. the server, its static files, public/
 step('copy the standalone server')
 const standalone = path.join(fs.realpathSync(path.join(ROOT, DIST)), 'standalone')
-if (!fs.existsSync(path.join(standalone, 'server.js'))) throw new Error(`no standalone server in ${standalone}`)
+// with a tracing root above the project (next.config.ts, linked node_modules) the app is nested: standalone/<project>/server.js and
+// the packages in standalone/<other checkout>/node_modules
+const nested = !fs.existsSync(path.join(standalone, 'server.js'))
+const appIn = nested ? path.join(standalone, path.basename(ROOT)) : standalone
+if (!fs.existsSync(path.join(appIn, 'server.js'))) throw new Error(`no standalone server in ${standalone}`)
 fs.rmSync(OUT, { recursive: true, force: true })
-fs.cpSync(standalone, OUT, { recursive: true, dereference: true })
+fs.cpSync(appIn, OUT, { recursive: true, dereference: true })
 fs.cpSync(path.join(ROOT, DIST, 'static'), path.join(OUT, DIST, 'static'), { recursive: true, dereference: true })
 fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true, dereference: true })
 // 12 Nov: with node_modules a link to another checkout, the standalone output's node_modules is itself a link (cpSync keeps it):
@@ -85,6 +89,19 @@ fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true
     const real = fs.realpathSync(nm)
     fs.unlinkSync(nm)
     fs.cpSync(real, nm, { recursive: true, dereference: true })
+  }
+  if (nested) {
+    for (const d of fs.readdirSync(standalone)) {
+      const from = path.join(standalone, d, 'node_modules')
+      if (d !== path.basename(ROOT) && fs.existsSync(from)) fs.cpSync(from, nm, { recursive: true, dereference: true })
+    }
+  }
+  // compilers the build needed, never the server
+  for (const rel of ['@next/swc-linux-x64-gnu', '@next/swc-linux-x64-musl', '@esbuild', 'typescript', '@swc/core', '@swc/core-linux-x64-gnu', '@swc/core-linux-x64-musl']) {
+    fs.rmSync(path.join(nm, rel), { recursive: true, force: true })
+  }
+  for (const pkg of ['next', 'react', 'react-dom', 'styled-jsx', '@swc/helpers']) {
+    if (!fs.existsSync(path.join(nm, pkg, 'package.json'))) throw new Error(`the standalone server has no ${pkg}`)
   }
 }
 // never the project's data or env files, whatever the tracer picked up

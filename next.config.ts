@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 
@@ -6,9 +8,26 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
 // Roomia Desktop (desktop/scripts/package-server.mjs): a standalone server in its own folder, so building the app
 // never touches the Studio's .next.
 const desktop = process.env.ROOMIA_DESKTOP_BUILD === '1'
+// 12 Nov: node_modules can be a link to another checkout (../roomia/node_modules). The tracer drops every package outside its root,
+// and 0.4.7's first desktop zip had no React. Then trace from the folder that holds both (the standalone output nests the app).
+function tracingRoot(): string | undefined {
+  try {
+    const here = process.cwd()
+    const real = fs.realpathSync(path.join(here, 'node_modules'))
+    if (real.startsWith(here + path.sep)) return undefined
+    const a = here.split(path.sep)
+    const b = real.split(path.sep)
+    let i = 0
+    while (i < a.length && i < b.length && a[i] === b[i]) i++
+    return a.slice(0, i).join(path.sep) || path.sep
+  } catch {
+    return undefined
+  }
+}
+const desktopRoot = desktop ? tracingRoot() : undefined
 
 const nextConfig: NextConfig = {
-  ...(desktop ? { output: 'standalone' as const, distDir: '.next-desktop' } : {}),
+  ...(desktop ? { output: 'standalone' as const, distDir: '.next-desktop', ...(desktopRoot ? { outputFileTracingRoot: desktopRoot } : {}) } : {}),
   // ROOMIA_DIST=.next-test: a test build beside the running Studio's .next (never touches it)
   ...(!desktop && process.env.ROOMIA_DIST ? { distDir: process.env.ROOMIA_DIST } : {}),
   // Dev mode refuses requests from other addresses; testers reach the dev server through a Cloudflare tunnel.
