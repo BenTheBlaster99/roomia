@@ -77,6 +77,16 @@ fs.rmSync(OUT, { recursive: true, force: true })
 fs.cpSync(standalone, OUT, { recursive: true, dereference: true })
 fs.cpSync(path.join(ROOT, DIST, 'static'), path.join(OUT, DIST, 'static'), { recursive: true, dereference: true })
 fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true, dereference: true })
+// 12 Nov: with node_modules a link to another checkout, the standalone output's node_modules is itself a link (cpSync keeps it):
+// make it a real folder, or the sharp swap below never sees it and the package depends on this PC's cache
+{
+  const nm = path.join(OUT, 'node_modules')
+  if (fs.existsSync(nm) && fs.lstatSync(nm).isSymbolicLink()) {
+    const real = fs.realpathSync(nm)
+    fs.unlinkSync(nm)
+    fs.cpSync(real, nm, { recursive: true, dereference: true })
+  }
+}
 // never the project's data or env files, whatever the tracer picked up
 for (const name of fs.readdirSync(OUT)) {
   if (name.startsWith('.env') || ['.scenes', '.data', 'd5-tests', 'sketchup-tests'].includes(name)) {
@@ -118,6 +128,14 @@ const img = path.join(OUT, 'node_modules/@img')
 if (!fs.existsSync(path.join(OUT, 'node_modules/sharp'))) {
   fs.cpSync(path.join(ROOT, 'node_modules/sharp'), path.join(OUT, 'node_modules/sharp'), { recursive: true, dereference: true })
 }
+// 12 Nov: since node_modules became a link to another checkout, the tracer leaves out everything beside sharp (its dependencies and
+// @img with the native part): 0.4.7's first zip had no sharp binary at all. Copy its dependencies, and always have an @img folder
+// so the swap below puts the target's binary in.
+for (const dep of Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/sharp/package.json'), 'utf8')).dependencies ?? {})) {
+  const to = path.join(OUT, 'node_modules', dep)
+  if (!fs.existsSync(to) && !fs.existsSync(path.join(OUT, 'node_modules/sharp/node_modules', dep))) fs.cpSync(path.join(ROOT, 'node_modules', dep), to, { recursive: true, dereference: true })
+}
+fs.mkdirSync(img, { recursive: true })
 if (PLATFORM !== process.platform) {
   // every copy of sharp (Next carries its own in next/node_modules) gets the target's binary, at its own version
   const imgDirs = []
@@ -145,6 +163,8 @@ if (PLATFORM !== process.platform) {
     console.log(`${path.relative(OUT, dir)}: sharp-win32-x64 ${version}`)
   }
   fs.rmSync(tmp, { recursive: true, force: true })
+  const bin = path.join(img, 'sharp-win32-x64', 'lib')
+  if (PLATFORM === 'win32' && !(fs.existsSync(bin) && fs.readdirSync(bin).some(f => f.endsWith('.node')))) throw new Error('no sharp-win32-x64 binary in the package')
 }
 const natives = []
 const walk = d => {
