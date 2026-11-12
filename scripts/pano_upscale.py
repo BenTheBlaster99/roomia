@@ -3,7 +3,7 @@ Sharpness back for an AI-finished 360 (12 Nov): the one-pass AI panorama (pano-s
 whole sphere. Real-ESRGAN x4plus, run locally on the GPU (free), redraws crisp edges and texture at 4x; the result is brought to the
 tour's size. The panorama wraps around: the left and right edges are padded with each other before the upscale, so the join stays clean.
 
-python pano_upscale.py <in.jpg> <out.jpg> [--width 6144] [--tile 512] [--model /home/jackhammer/roomia-models/RealESRGAN_x4plus.pth]
+python pano_upscale.py <in.jpg> <out.jpg> [--width 6144] [--mix 1.0] [--clarity 0.35] [--tile 512] [--model /home/jackhammer/roomia-models/RealESRGAN_x4plus.pth]
 Runs with the AI python (torch + cv2): /home/jackhammer/roomia-ai-venv/bin/python
 """
 import argparse, time
@@ -20,6 +20,8 @@ ap.add_argument("--width", type=int, default=6144)
 ap.add_argument("--tile", type=int, default=512)
 ap.add_argument("--pad", type=int, default=24)
 ap.add_argument("--model", default="/home/jackhammer/roomia-models/RealESRGAN_x4plus.pth")
+ap.add_argument("--mix", type=float, default=1.0, help="share of the upscaler's redrawn detail over a plain resize (1 = all of it)")
+ap.add_argument("--clarity", type=float, default=0.0, help="local contrast on the lightness, 0..0.5 (12 Nov: 0.35 on Blender + AI light)")
 args = ap.parse_args()
 
 
@@ -106,5 +108,14 @@ with torch.inference_mode():
 big = (out[0].permute(1, 2, 0).numpy() * 255 + 0.5).astype(np.uint8)
 big = cv2.cvtColor(big, cv2.COLOR_RGB2BGR)[P * 4:P * 4 + H * 4, P * 4:P * 4 + W * 4]
 res = cv2.resize(big, (args.width, args.width // 2), interpolation=cv2.INTER_AREA)
+if args.mix < 1.0 or args.clarity > 0:
+    lo = cv2.resize(img, (args.width, args.width // 2), interpolation=cv2.INTER_LANCZOS4).astype(np.float32) / 255
+    x = lo + args.mix * (res.astype(np.float32) / 255 - lo)
+    if args.clarity > 0:
+        lab = cv2.cvtColor(np.clip(x, 0, 1), cv2.COLOR_BGR2LAB)
+        L = lab[..., 0]
+        lab[..., 0] = np.clip(L + args.clarity * (L - cv2.GaussianBlur(L, (0, 0), 18)), 0, 100)
+        x = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    res = (np.clip(x, 0, 1) * 255 + 0.5).astype(np.uint8)
 cv2.imwrite(args.out, res, [cv2.IMWRITE_JPEG_QUALITY, 93])
 print("UPSCALE %dx%d -> %dx%d in %.1f s on %s" % (W, H, res.shape[1], res.shape[0], time.time() - t0, dev.type))
