@@ -43,6 +43,20 @@ if _lk:
 # look_apply in its own namespace: its many short names (n, c, d, o...) must not overwrite this script's
 _ns = dict(globals())
 exec(open(os.path.join(spec["scriptsDir"], "look_apply.py")).read(), _ns)
+# the 360's soft fill above every point (look_pipeline.job "fills"): a room with no fixtures of its own stays readable. Same rule as
+# look_render.py: 25 W (ROOMIA_LOOK_FILL), shrinking with the number of ceiling spots within 4 m, never below 12 % of it.
+for _i, _st in enumerate(stops):
+    _p = _st["p"]
+    _n_dl = sum(1 for o_ in scene.objects if o_.name.startswith("look_dl_") and (o_.location.x - _p.x) ** 2 + (o_.location.y - _p.y) ** 2 < 16)
+    _ld = bpy.data.lights.new("look_fill%d" % _i, "POINT")
+    _ld.energy = float(spec.get("fillPower", 25)) * max(0.12, 1.0 - _n_dl / 3.0)
+    _ld.shadow_soft_size = 0.6
+    _ld.color = (1.0, 0.9, 0.78)
+    _fo = bpy.data.objects.new("look_fill%d" % _i, _ld)
+    _fo.location = Vector((_p.x, _p.y, _p.z + 1.1))  # the stop is camera height (1.4 m): 2.5 m above the floor, as the 360's fill
+    _fo.lightgroup = "INTERIOR"
+    _fo.visible_glossy = _fo.visible_camera = False
+    scene.collection.objects.link(_fo)
 LOOK = (R.get("looks") or {}).get(PRESET) or {}
 _gains = LOOK.get("gains", {})
 for _lg in [g_ for g_ in vl.lightgroups if float(_gains.get(g_.name, 0.0)) == 0.0]:
