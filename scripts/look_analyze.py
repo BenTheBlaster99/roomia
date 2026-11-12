@@ -189,9 +189,14 @@ def better_spot(c):
                 continue  # no floor under it, or another level (a step, the bed's top)
             if cast(q, Vector((0, 0, 1)), 6.0)[0] is None:
                 continue  # no ceiling: outside
+            need = max(old + 0.2, 0.6)
+            # exact shortcut (12 Nov profile: this search was half of the 290 s): the full clearance is a minimum over 32 rays,
+            # so it cannot exceed the minimum over 8 of them; a candidate that already fails with 8 never needs the 32
+            if min(cast(q, d8, 3.0)[2] for d8 in HDIRS[::2]) < need:
+                continue
             cl = clearance(q)
             score = min(cl, 1.2) - 0.15 * r
-            if cl >= max(old + 0.2, 0.6) and (best is None or score > best[0]):
+            if cl >= need and (best is None or score > best[0]):
                 best = (score, q, r, cl)
     return None if best is None else (best[1], best[2], old, best[3])
 

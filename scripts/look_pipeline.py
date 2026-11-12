@@ -167,7 +167,7 @@ def install(width, pairs):
     json.dump(t, open(tour_p, "w"), ensure_ascii=False)
 
 
-ANALYSIS_VERSION = 2  # bump when look_analyze.py's method changes
+ANALYSIS_VERSION = 3  # bump when look_analyze.py's method changes (3: camera search with the 8-ray pre-test, same results)
 
 
 def source_hash():
