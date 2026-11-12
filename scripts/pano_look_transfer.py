@@ -27,6 +27,8 @@ ap.add_argument("--gain-min", type=float, default=0.35)
 ap.add_argument("--gain-max", type=float, default=4.0)
 ap.add_argument("--width", type=int, default=0)
 ap.add_argument("--local-colour", action="store_true", help="let the colour follow the AI locally too (can leak an AI object's colour)")
+ap.add_argument("--dehaze", type=float, default=1.0, help="0..1: bring Blender's black point and midtone spread back (the AI look lifts the shadows: a milky haze)")
+ap.add_argument("--keep-bright", type=float, default=0.75, help="how much of the AI's brighter midtones to keep after the dehaze (0 = Blender's, 1 = the AI's)")
 ap.add_argument("--no-align", action="store_true", help="skip bending the AI picture onto Blender's layout")
 ap.add_argument("--blender-linear", help="Blender's raw linear render of the same view (look/<auto>/t<k>-lin.npy, RGB float): full detail in the darks")
 args = ap.parse_args()
@@ -170,6 +172,28 @@ if args.ai_detail > 0:
 if args.blender_linear:
     # very bright spots (the window, a lamp) can exceed 1 after the gain: soft roll-off instead of a hard clip
     out = np.where(out > 0.8, 0.8 + 0.2 * np.tanh((out - 0.8) / 0.2), out)
-res = (to_srgb(out) * 255 + 0.5).astype(np.uint8)
+if args.dehaze > 0:
+    # 12 Nov: the transfer lifts the darkest 1 % from 0.04 to 0.18 (display values) and squeezes the midtones: a fog. On the display
+    # lightness, the black point goes back to Blender's, the white point stays, and the median lands between Blender's and the AI's.
+    LW = np.array([0.0722, 0.7152, 0.2126], np.float32)
+    disp = to_srgb(out)
+    Lo = disp @ LW
+    Lb = to_srgb(np.clip(B, 0, 1)) @ LW if not args.blender_linear else to_srgb(np.clip(to_lin(B8), 0, 1)) @ LW
+    band = slice(int(H * 0.15), int(H * 0.85))
+    b_out, w_out, m_out = np.percentile(Lo[band], [1, 99.5, 50])
+    b_bl, m_bl = np.percentile(Lb[band], [1, 50])
+    black = b_out + args.dehaze * (b_bl - b_out)
+    t = np.clip((Lo - b_out) / max(1e-4, w_out - b_out), 0, None)
+    target_m = m_bl + args.keep_bright * (m_out - m_bl)
+    tm = (m_out - b_out) / max(1e-4, w_out - b_out)
+    want = (target_m - black) / max(1e-4, w_out - black)
+    gamma = float(np.clip(np.log(max(want, 1e-3)) / np.log(max(tm, 1e-3)), 0.6, 2.5))
+    Ln = black + (w_out - black) * np.power(t, gamma)
+    Ln = np.where(Lo > w_out, Lo, Ln)
+    disp = np.clip(disp * (Ln / np.maximum(Lo, 1e-4))[..., None], 0, 1)
+    print("LOOK_DEHAZE black %.3f -> %.3f, median %.3f -> %.3f (Blender %.3f), gamma %.2f" % (b_out, black, m_out, float(np.median((disp @ LW)[band])), m_bl, gamma))
+    res = (disp * 255 + 0.5).astype(np.uint8)
+else:
+    res = (to_srgb(out) * 255 + 0.5).astype(np.uint8)
 cv2.imwrite(args.out, res, [cv2.IMWRITE_JPEG_QUALITY, 93])
 print("LOOK_TRANSFER %dx%d in %.1f s, trusted share %.0f %%, gain median %.2f" % (W, H, time.time() - t0, 100 * float((trust > 0.5).mean()), float(np.median(g))))
