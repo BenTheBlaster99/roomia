@@ -109,3 +109,6 @@ Observation from the video test: the F5 prepared scene plus the shot-planning tr
 
 ### Found while testing the video (12 Nov)
 `look_finalize_panos.py` overwrote `exposure.json` with only the points it was run on. The AI step finalizes two points, so the file held two points and the video exposed every shot from them (Point 6, Point 9 and Scène 3 came out almost black). Fixed: finalize merges into the file; the video exposes each shot with its own point's exposure and white balance (`pointGrades`), as the 360 does. The 11 s of dark footage in the first F5 video came from this.
+
+### Plan drawing profile (12 Nov, DayTestF5, cProfile)
+31.8 s total: 14.6 s in 26 distance transforms (11 s in the feature transform), 8.4 s in dilations/erosions (59 full-image dilations; 55 of them were the door-gap search dilating the same room once per pair). Fixed the last (each room dilated once): **36 s → 26 s, byte-identical image and rooms.** The quarter-size growth (`ROOMIA_PLAN_GROW_DS=4`) saved only 4 s and moved a room's area by up to 1.3 m²: **not adopted**. Next lever, if wanted: the distance transforms (crop each to the apartment's box, or compute `dil()` with a bounded radius).

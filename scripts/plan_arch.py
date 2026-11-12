@@ -262,12 +262,13 @@ for did in door_ids:
     a_, b_ = c + ax * proj.min(), c + ax * proj.max()
     doors.append((a_, b_))
 # gaps: where two rooms meet across no wall, 0.6 to 1.4 m wide
+# each room dilated once, not once per pair (12 Nov profile: 55 full-image dilations were 8 s of 32)
+_grown = {i: ndi.binary_dilation(rooms == i) for i in labels}
 for i in labels:
     for j in labels:
         if j <= i:
             continue
-        mi = ndi.binary_dilation(rooms == i)
-        touch = mi & (rooms == j)
+        touch = _grown[i] & (rooms == j)
         if touch.sum() < 3:
             continue
         ys, xs = np.nonzero(touch)
