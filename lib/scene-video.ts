@@ -70,6 +70,8 @@ export interface VideoOptions {
   recipe?: boolean
   /** Continue a render that was stopped: the frames already made are kept (recipe video only). */
   resume?: boolean
+  /** Test runs: film only these tour views (their `index`). */
+  only?: number[]
 }
 
 const DEFAULTS = { width: 1920, height: 1080, fps: 25, shotSeconds: 5, samples: 24 }
@@ -680,7 +682,7 @@ async function lookInputs(sceneId: string) {
     if (m && (await stat(path.join(d, 'recipe-auto.json')).then(() => true, () => false)) && (!best || m > best.mtime)) best = { dir: d, mtime: m }
   }
   if (!best) return null
-  const exposure = JSON.parse(await readFile(path.join(best.dir, 'exposure.json'), 'utf8')) as { groupMedian: number; points: Record<string, { wb: number[] }> }
+  const exposure = JSON.parse(await readFile(path.join(best.dir, 'exposure.json'), 'utf8')) as { groupMedian: number; points: Record<string, { wb: number[]; used: number }> }
   const recipe = JSON.parse(await readFile(path.join(best.dir, 'recipe-auto.json'), 'utf8')) as { looks?: Record<string, { lift?: number }> }
   const median = (xs: number[]) => [...xs].sort((p, q) => p - q)[Math.floor(xs.length / 2)]
   const wbs = Object.values(exposure.points).map(p => p.wb)
@@ -688,6 +690,8 @@ async function lookInputs(sceneId: string) {
     prepared,
     recipe: path.join(best.dir, 'recipe-auto.json'),
     exposureEV: exposure.groupMedian,
+    // every shot is exposed for its own point, as the 360 is (a dark corridor is lifted, a bright room is not): t<index> in exposure.json
+    points: Object.fromEntries(Object.entries(exposure.points).map(([k, v]) => [k.replace(/^t/, ''), { ev: (v as { used: number }).used, wb: v.wb }])),
     wb: [0, 1, 2].map(c => (wbs.length ? median(wbs.map(w => w[c])) : 1)),
     lift: recipe.looks?.daylight?.lift ?? 0.04,
   }
@@ -713,7 +717,7 @@ async function build(sceneId: string, options: VideoOptions) {
 
   // The stops clients see, and which of them see each other (the walk goes through the doors, not the walls).
   const tour = await readTour(sceneId)
-  const stops = tour.views.filter(v => v.pano)
+  const stops = tour.views.filter(v => v.pano && (!options.only || options.only.includes(v.index)))
   if (!stops.length) throw new Error("Préparez d'abord la visite 360° : la vidéo passe par ses points.")
   const at = new Map(stops.map((v, n) => [v.index, n]))
   const links = stops.flatMap((v, n) => v.links.filter(l => at.has(l) && at.get(l)! > n).map(l => [n, at.get(l)!]))
@@ -730,7 +734,7 @@ async function build(sceneId: string, options: VideoOptions) {
       outDir: work,
       framesDir,
       rawDir,
-      ...(look ? { preparedBlend: look.prepared, recipe: look.recipe, scriptsDir: path.join(process.cwd(), 'scripts'), preset: 'daylight', exposureEV: look.exposureEV, wb: look.wb, lift: look.lift, noise: options.noise ?? 0.05, resume: options.resume === true } : {}),
+      ...(look ? { preparedBlend: look.prepared, recipe: look.recipe, scriptsDir: path.join(process.cwd(), 'scripts'), preset: 'daylight', exposureEV: look.exposureEV, wb: look.wb, pointGrades: look.points, lift: look.lift, noise: options.noise ?? 0.05, resume: options.resume === true } : {}),
       stops: stops.map(v => ({ index: v.index, name: v.name, position: v.position })),
       links,
       viewTransform: 'AgX',

@@ -95,4 +95,15 @@ for n, x in lin.items():
     Image.fromarray((img * 255 + 0.5).astype(np.uint8)).save(os.path.join(d, n + "-pano.png"))
     out[n] = {"wb": [round(float(v), 3) for v in gains], "own": round(own[n], 2), "used": round(e, 2), "displayMedian": round(float(np.median(img @ LUM)), 3)}
     print("EXPOSURE", n, out[n], flush=True)
-json.dump({"groupMedian": med, "range": rng, "target": target, "points": out}, open(os.path.join(d, "exposure.json"), "w"), indent=1)
+# merge, never replace (12 Nov): a run on a few points (the AI step re-finalizes two of fourteen) used to overwrite the whole
+# file, and the video then exposed every shot from two points. The group median of the fullest run is kept.
+ep = os.path.join(d, "exposure.json")
+prev = {}
+try:
+    prev = json.load(open(ep))
+except Exception:
+    pass
+points_all = dict(prev.get("points", {}))
+points_all.update(out)
+group = med if len(out) >= len(prev.get("points", {})) else prev.get("groupMedian", med)
+json.dump({"groupMedian": group, "range": rng, "target": target, "points": points_all}, open(ep, "w"), indent=1)

@@ -41,10 +41,15 @@ def write_png(path, img):
 
 t_render = time.time()
 t_prev = [time.time()]
+PG = spec.get("pointGrades") or {}
 def frame_written(sc, *args):
     t_a = time.time()
     p = sc.render.frame_path(frame=sc.frame_current)
-    img = np.clip(grade(read_exr(p) * WBG, GR), 0, 1)
+    # the shot's own point: its exposure and white balance from the 360's finalize (a dark corridor is lifted, a bright room is not)
+    pg = PG.get(str(shots[min((sc.frame_current - 1) // SHOT, len(shots) - 1)]["stop"]["index"]))
+    gr_f = dict(GR, exposure=float(pg["ev"])) if pg else GR
+    wb_f = np.array(pg["wb"], np.float32) if pg else WBG
+    img = np.clip(grade(read_exr(p) * wb_f, gr_f), 0, 1)
     if LIFT:
         img = np.clip(img + LIFT * (1 - img) ** 3, 0, 1)
     write_png(os.path.join(frames_dir, "f-%04d.png" % sc.frame_current), img)
