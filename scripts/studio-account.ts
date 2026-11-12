@@ -7,6 +7,7 @@
  *   npx tsx scripts/studio-account.ts create-user <login> "<name>"      # a Roomia Desktop account; asks for the password
  *   npx tsx scripts/studio-account.ts credits <login> <+N|-N> "<reason>" # e.g. credits sarah +20 "pilot"
  *   npx tsx scripts/studio-account.ts history <login>                  # the account's last 30 credit movements
+ *   npx tsx scripts/studio-account.ts report [login]                   # per client: given / used / left, per project and our DA cost
  *   npx tsx scripts/studio-account.ts password <login>                 # a new password; signs out every device
  *   npx tsx scripts/studio-account.ts suspend|activate <login>
  *
@@ -81,6 +82,34 @@ async function main() {
       console.log(`${new Date(Number(r.at)).toISOString().slice(0, 16).replace('T', ' ')}\t${r.kind}\t${delta > 0 ? '+' : ''}${delta}\t→ ${r.balance_after}\t${r.outcome ?? ''}\t${r.detail ?? ''}`)
     }
     console.log(`Solde : ${user.credits} crédit(s).`)
+  } else if (command === 'report') {
+    // 12 Nov: what each client was given and used, per project. Our cost per delivered image: an AI photo 14 DA, a 360 AI light 16 DA.
+    const [login] = args
+    const users = db.prepare(`SELECT id, login, name, credits FROM users ${login ? 'WHERE login = ?' : ''} ORDER BY login`).all(...(login ? [login] : []))
+    if (!users.length) throw new Error(login ? `Compte « ${login} » introuvable.` : 'Aucun compte.')
+    const costOf = (view: string) => (/^360 lumière/.test(view) ? 16 : 14)
+    const kindOf = (view: string) => (/^360 lumière/.test(view) ? '360 IA' : /^360 tuile/.test(view) ? '360 tuiles' : 'photos')
+    for (const u of users) {
+      const given = Number(db.prepare(`SELECT COALESCE(SUM(delta), 0) AS n FROM ledger WHERE user_id = ? AND kind IN ('grant', 'adjust')`).get(u.id)?.n ?? 0)
+      const jobs = db.prepare(`SELECT scene_id, view, status FROM jobs WHERE user_id = ?`).all(u.id) as { scene_id: string; view: string | null; status: string }[]
+      const used = jobs.filter(j => j.status === 'consumed')
+      const pending = jobs.filter(j => j.status === 'reserved').length
+      console.log(`\n${u.login} (${u.name}) · donnés ${given} · utilisés ${used.length} · en cours ${pending} · solde ${u.credits}`)
+      const projects = new Map<string, Record<string, number>>()
+      for (const j of used) {
+        const p = projects.get(j.scene_id) ?? {}
+        const k = kindOf(j.view ?? '')
+        p[k] = (p[k] ?? 0) + 1
+        p.DA = (p.DA ?? 0) + costOf(j.view ?? '')
+        projects.set(j.scene_id, p)
+      }
+      let total = 0
+      for (const [scene, p] of projects) {
+        total += p.DA
+        console.log(`  ${scene.replace(/^desktop:/, '')}\t${['photos', '360 IA', '360 tuiles'].filter(k => p[k]).map(k => `${p[k]} ${k}`).join(' · ')}\t= ${p.DA} DA`)
+      }
+      console.log(`  coût pour nous : ${total} DA`)
+    }
   } else if (command === 'password') {
     const [login] = args
     const user = db.prepare('SELECT id FROM users WHERE login = ?').get(login ?? '')
