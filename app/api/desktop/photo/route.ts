@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       let reserved = false
       const started = performance.now()
       try {
-        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, panoLight ? `360 lumière · ${view}` : tile ? `360 tuile · ${view}` : view)
+        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, panoLight ? `360 lumière · ${view}` : tile ? `360 tuile · ${view}` : view, panoLight || tile ? 'pano' : 'photo')
         reserved = true
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // The photo is made and kept even if the app left: it is paid for, and a retry with the same id gets it.

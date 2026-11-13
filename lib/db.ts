@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS claims (
 );
 CREATE INDEX IF NOT EXISTS ledger_user ON ledger(user_id, at);
 CREATE INDEX IF NOT EXISTS jobs_user ON jobs(user_id, created_at);
+CREATE TABLE IF NOT EXISTS forfaits (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  label TEXT NOT NULL,
+  items TEXT NOT NULL,
+  since INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS forfait_usage (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  item TEXT NOT NULL,
+  detail TEXT,
+  at INTEGER NOT NULL
+);
 `
 
 function processAlive(pid: number): boolean {

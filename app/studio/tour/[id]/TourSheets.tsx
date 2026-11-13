@@ -3,8 +3,10 @@
 // The tour's other deliverables, each in its own tab (11 Nov makeover): the architect's 2D plan, the 3D plan, the video and
 // the AI photos (the views picked one by one, each with its own ambiance). Before, plans and video sat behind ?edit=1.
 import { useEffect, useState } from 'react'
+import { forfaitLeft, plural } from '@/lib/forfait'
 import type { TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
+import { useForfait } from '../../components/useForfait'
 
 const DA_PER_PHOTO = 14
 const PACKAGE_PHOTOS = 20
@@ -190,7 +192,11 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
   )
   const [running, setRunning] = useState('')
   const [failed, setFailed] = useState<string[]>([])
+  // a client's forfait counts photos, not DA (lib/forfait.ts)
+  const { forfait, refresh: refreshForfait } = useForfait()
+  const photosLeft = forfaitLeft(forfait, 'photo')
   const chosen = candidates.filter(v => picked[v.index])
+  const overForfait = photosLeft !== null && chosen.length > photosLeft
   const count = (m: Mood) => chosen.filter(v => picked[v.index] === m).length
 
   async function launch() {
@@ -209,6 +215,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
     }
     setRunning('')
     setFailed(bad)
+    refreshForfait()
     onDone()
   }
 
@@ -285,18 +292,28 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
               <td>Temps estimé</td>
               <td>{chosen.length * 2} min</td>
             </tr>
-            <tr>
-              <td>Crédits</td>
-              <td>{chosen.length * DA_PER_PHOTO} DA</td>
-            </tr>
+            {photosLeft !== null ? (
+              <tr>
+                <td>Forfait</td>
+                <td>{plural(photosLeft, 'photo restante', 'photos restantes')}</td>
+              </tr>
+            ) : (
+              <tr>
+                <td>Crédits</td>
+                <td>{chosen.length * DA_PER_PHOTO} DA</td>
+              </tr>
+            )}
           </tbody>
         </table>
         {running ? (
           <p className="tour-note">{running}</p>
         ) : (
-          <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0}>
-            Lancer {chosen.length > 1 ? `les ${chosen.length} photos` : 'la photo'}
-          </button>
+          <>
+            {overForfait && <p className="tour-note">Choisissez au plus {plural(photosLeft!, 'photo', 'photos')}, ou contactez Roomia pour étendre le forfait.</p>}
+            <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0 || overForfait}>
+              Lancer {chosen.length > 1 ? `les ${chosen.length} photos` : 'la photo'}
+            </button>
+          </>
         )}
         {failed.length > 0 && <p className="tour-error">Pas faites : {failed.join(', ')}. Vous pouvez les relancer.</p>}
         <p className="tour-note">Rien n’est débité avant le lancement.</p>

@@ -11,6 +11,7 @@ import { useStudioStore } from '@/store/useStudioStore'
 import MaterialRolesPanel from './MaterialRolesPanel'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
+import { forfaitLeft, plural, type Forfait } from '@/lib/forfait'
 import DesktopRenderNotice from './DesktopRenderNotice'
 
 type Phase = 'idle' | 'checking' | 'running' | 'done' | 'error'
@@ -70,7 +71,7 @@ export default function SceneSidebar() {
   const [checked, setChecked] = useState(false)
   const [placeholders, setPlaceholders] = useState(0)
   /** Signed-in account and its render credits (null where the Studio has no accounts). */
-  const [account, setAccount] = useState<{ name: string; credits: number } | null>(null)
+  const [account, setAccount] = useState<{ name: string; credits: number; forfait?: Forfait | null } | null>(null)
   // inside Roomia Desktop (its preload): a way back to Mes projets
   const desktop = useSyncExternalStore(
     () => () => undefined,
@@ -101,9 +102,9 @@ export default function SceneSidebar() {
     let cancelled = false
     fetch('/api/auth/me')
       .then(async res => {
-        const data = (await res.json().catch(() => null)) as { user?: { name: string; credits: number }; desktop?: boolean } | null
+        const data = (await res.json().catch(() => null)) as { user?: { name: string; credits: number; forfait?: Forfait | null }; desktop?: boolean } | null
         if (cancelled || !data) return
-        if (res.ok && data.user) setAccount({ name: data.user.name, credits: data.user.credits })
+        if (res.ok && data.user) setAccount({ name: data.user.name, credits: data.user.credits, forfait: data.user.forfait ?? null })
         else if (data.desktop) setDesktopAccount(res.status === 401 ? 'signed-out' : 'offline')
       })
       .catch(() => undefined)
@@ -345,7 +346,21 @@ export default function SceneSidebar() {
             setLastPhoto(typeof event.photoFile === 'string' ? event.photoFile : null)
             setReporting(false)
             setReportState(null)
-            if (typeof event.credits === 'number') setAccount(a => (a ? { ...a, credits: Number(event.credits) } : a))
+            if (typeof event.credits === 'number') {
+              // a forfait counts this photo (not when the server only gave back one it had already delivered)
+              setAccount(a =>
+                a
+                  ? {
+                      ...a,
+                      credits: Number(event.credits),
+                      forfait:
+                        a.forfait && a.credits !== Number(event.credits)
+                          ? { ...a.forfait, items: a.forfait.items.map(i => (i.key === 'photo' ? { ...i, used: i.used + 1 } : i)) }
+                          : a.forfait,
+                    }
+                  : a,
+              )
+            }
             finished = true
           }
         }
@@ -397,7 +412,8 @@ export default function SceneSidebar() {
   const running = phase === 'running'
   const busy = running || phase === 'checking'
   // No photo without a credit: the request would be refused anyway, after a capture that takes minutes on a CPU-only PC.
-  const noCredits = !!account && account.credits < 1
+  const photosLeft = forfaitLeft(account?.forfait, 'photo')
+  const noCredits = !!account && (photosLeft !== null ? photosLeft < 1 : account.credits < 1)
   const hasView = useCurrent || selected !== null
 
   return (
@@ -415,7 +431,12 @@ export default function SceneSidebar() {
           <p className="mt-0.5 text-xs text-[var(--rm-muted)]">Scène importée · prête à rendre</p>
           {account && (
             <p className="mt-1 text-xs text-[var(--rm-text)]">
-              {account.name} · <span className="font-semibold">{account.credits} crédit{account.credits > 1 ? 's' : ''}</span>
+              {account.name} ·{' '}
+              <span className="font-semibold">
+                {photosLeft !== null
+                  ? `${plural(photosLeft, 'photo IA restante', 'photos IA restantes')} (forfait)`
+                  : `${account.credits} crédit${account.credits > 1 ? 's' : ''}`}
+              </span>
               {' · '}
               <button
                 type="button"
@@ -606,11 +627,13 @@ export default function SceneSidebar() {
           {!busy && (
             <p className="mt-1.5 text-center text-xs text-[var(--rm-muted)]">
               {checked ? 'Vue vérifiée : la photo prend environ 1 minute' : 'Compter 2 à 3 minutes'}
-              {account ? ' · 1 crédit par photo livrée (rien si elle échoue)' : ''}
+              {account ? (photosLeft !== null ? ' · 1 photo du forfait par photo livrée (rien si elle échoue)' : ' · 1 crédit par photo livrée (rien si elle échoue)') : ''}
             </p>
           )}
-          {account && account.credits < 1 && (
-            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Plus de crédits sur ce compte. Contactez Roomia pour recharger.</p>
+          {noCredits && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {photosLeft !== null ? 'Plus de photos IA dans votre forfait. Contactez Roomia pour l’étendre.' : 'Plus de crédits sur ce compte. Contactez Roomia pour recharger.'}
+            </p>
           )}
           {desktopAccount === 'signed-out' && (
             <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">

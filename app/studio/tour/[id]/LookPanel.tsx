@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { forfaitLeft, plural } from '@/lib/forfait'
 import type { LookState as LookJob } from '@/lib/look-pipeline'
+import { useForfait } from '../../components/useForfait'
 
 /** The job's state, and the PC's thermal / pause state the route adds (lib/blender-guard.ts). */
 type LookState = LookJob & { thermal?: { paused: boolean; waiting: boolean; userPaused: boolean; temp: number } }
@@ -29,6 +31,9 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   const [state, setState] = useState<LookState | null>(null)
   const [error, setError] = useState('')
   const [picked, setPicked] = useState<number[]>([])
+  // a client's forfait counts 360 views, not credits or DA (lib/forfait.ts)
+  const { forfait, refresh: refreshForfait } = useForfait()
+  const panoLeft = forfaitLeft(forfait, 'pano')
 
   const load = useCallback(() => read(sceneId).then(s => s && setState(s)), [sceneId])
   const running = state?.stage === 'running'
@@ -53,8 +58,15 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
     if (state?.suggestions && picked.length === 0 && state.stage === 'ready') setPicked(state.suggestions.map(s => s.index))
   }, [state, picked.length])
 
+  // a finished (or stopped) AI job changed what is left of the forfait
+  useEffect(() => {
+    if (!running) refreshForfait()
+  }, [running, refreshForfait])
+
   const images = picked.length
   const cost = images * DA_PER_IMAGE
+  const overForfait = panoLeft !== null && images > panoLeft
+  const resumeLabel = (c: number) => (panoLeft !== null ? 'Reprendre' : `Reprendre (${c} DA au plus)`)
   const toggle = (list: number[], set: (v: number[]) => void, i: number) => set(list.includes(i) ? list.filter(x => x !== i) : [...list, i])
 
   async function start(body: Record<string, unknown>) {
@@ -127,7 +139,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               <strong>Finition IA arrêtée</strong>
               <span>{state.step || 'Interrompue.'} Les images déjà faites sont gardées : les reprendre ne les repaie pas.</span>
               <button type="button" onClick={() => void start({ action: 'ai', points: state.ai!.points, ring: state.ai!.ring, maxCost: state.ai!.cost })}>
-                Reprendre ({state.ai.cost} DA au plus)
+                {resumeLabel(state.ai.cost)}
               </button>
             </>
           )}
@@ -147,7 +159,8 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                 <>
                   <strong>Finition IA (payante)</strong>
                   <span>
-                    L’IA donne sa lumière et ses couleurs à chaque vue ; Blender garde chaque objet et chaque texture. Une image IA par vue (1 crédit). Le style vient de
+                    L’IA donne sa lumière et ses couleurs à chaque vue ; Blender garde chaque objet et chaque texture.{' '}
+                    {panoLeft !== null ? 'Chaque vue finie compte pour 1 vue de votre forfait.' : 'Une image IA par vue (1 crédit).'} Le style vient de
                     votre photo IA du séjour : faites-la d’abord pour le meilleur résultat.
                   </span>
                   <div className="look-points">
@@ -166,14 +179,21 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                       </div>
                     ))}
                   </div>
-                  <span>
-                    <b>
-                      {images} vue{images > 1 ? 's' : ''} · {images} crédit{images > 1 ? 's' : ''}
-                    </b>{' '}
-                    ({cost} DA). Rien n’est envoyé avant votre confirmation.
-                  </span>
-                  <button type="button" disabled={picked.length === 0} onClick={() => void start({ action: 'ai', points: picked, ring: [], maxCost: cost })}>
-                    Confirmer et lancer ({images} crédit{images > 1 ? 's' : ''})
+                  {panoLeft !== null ? (
+                    <span>
+                      <b>{plural(images, 'vue choisie', 'vues choisies')}</b> · votre forfait : {plural(panoLeft, 'vue restante', 'vues restantes')}.{' '}
+                      {overForfait ? <span className="tour-error">Choisissez au plus {panoLeft} vue{panoLeft > 1 ? 's' : ''}, ou contactez Roomia pour étendre le forfait.</span> : 'Rien n’est envoyé avant votre confirmation.'}
+                    </span>
+                  ) : (
+                    <span>
+                      <b>
+                        {images} vue{images > 1 ? 's' : ''} · {images} crédit{images > 1 ? 's' : ''}
+                      </b>{' '}
+                      ({cost} DA). Rien n’est envoyé avant votre confirmation.
+                    </span>
+                  )}
+                  <button type="button" disabled={picked.length === 0 || overForfait} onClick={() => void start({ action: 'ai', points: picked, ring: [], maxCost: cost })}>
+                    {panoLeft !== null ? `Confirmer et lancer (${plural(images, 'vue', 'vues')} du forfait)` : `Confirmer et lancer (${images} crédit${images > 1 ? 's' : ''})`}
                   </button>
                 </>
               )}
@@ -184,7 +204,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
             <>
               <strong>Finition IA terminée</strong>
               <span>
-                {state?.ai?.images} images ({state?.ai?.paid} payées, {state?.ai?.cached} reprises du cache). Rechargez la page pour voir les vues finies.
+                {state?.ai?.images} images ({state?.ai?.paid} {panoLeft !== null ? 'décomptées du forfait' : 'payées'}, {state?.ai?.cached} reprises du cache). Rechargez la page pour voir les vues finies.
               </span>
               <button type="button" onClick={() => window.location.reload()}>
                 Voir la visite
@@ -199,7 +219,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               <span>Les images déjà faites sont gardées. Relancer ne les repaie pas.</span>
               {state.ai && (
                 <button type="button" onClick={() => void start({ action: 'ai', points: state.ai!.points, ring: state.ai!.ring, maxCost: state.ai!.cost })}>
-                  Reprendre ({state.ai.cost} DA au plus)
+                  {resumeLabel(state.ai.cost)}
                 </button>
               )}
             </>

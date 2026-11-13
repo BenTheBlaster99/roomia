@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import type { ForfaitItem } from '@/lib/forfait'
 import type { CloudDrive } from '@/lib/roomia-cloud'
 import DesktopNav from '../components/DesktopNav'
 
@@ -14,6 +15,44 @@ const KIND_LABELS: Record<string, string> = {
   claim: 'Signalement',
   refund: 'Remboursé (signalement)',
   'claim-denied': 'Signalement refusé',
+  forfait: 'Forfait',
+}
+
+/** With a forfait (lib/forfait.ts) the history speaks of images, never of credits. */
+const FORFAIT_KIND_LABELS: Record<string, string> = {
+  ...KIND_LABELS,
+  reserve: 'Image en cours',
+  consume: 'Image livrée',
+  release: 'Échec, rien n’est décompté',
+  refund: 'Rendue au forfait (signalement)',
+  grant: 'Ajout au forfait',
+  adjust: 'Correction',
+}
+
+function ForfaitLine({ item }: { item: ForfaitItem }) {
+  if (item.included) {
+    return (
+      <li className="flex items-center justify-between gap-3 rounded-xl bg-[var(--rm-bg)] px-3 py-2">
+        <span className="text-sm font-medium text-[var(--rm-text)]">{item.label}</span>
+        <span className="text-sm text-[var(--rm-primary)]">Inclus ✓</span>
+      </li>
+    )
+  }
+  const left = Math.max(0, item.total - item.used)
+  return (
+    <li className="rounded-xl bg-[var(--rm-bg)] px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--rm-text)]">{item.label}</span>
+        <span className="text-sm text-[var(--rm-text)]">
+          <b className={left === 0 ? 'text-amber-700' : 'text-[var(--rm-primary)]'}>{left}</b>
+          <span className="text-[var(--rm-muted)]"> restante{left > 1 ? 's' : ''} sur {item.total}</span>
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--rm-text)]/10" aria-hidden>
+        <div className="h-full rounded-full bg-[var(--rm-primary)]" style={{ width: `${item.total ? (left / item.total) * 100 : 0}%` }} />
+      </div>
+    </li>
+  )
 }
 
 const when = (ms: number) => new Date(ms).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
@@ -64,6 +103,8 @@ export default function AccountClient() {
   }
 
   const photos = data ? (showAll ? data.photos : data.photos.slice(0, 12)) : []
+  const forfait = data?.user.forfait ?? null
+  const labels = forfait ? FORFAIT_KIND_LABELS : KIND_LABELS
 
   return (
     <div className="min-h-screen bg-[var(--rm-bg)]">
@@ -102,12 +143,35 @@ export default function AccountClient() {
                   {data.user.name} <span className="font-normal text-[var(--rm-muted)]">({data.user.login})</span>
                 </p>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-[var(--rm-muted)]">Crédits</p>
-                <p className="text-2xl font-semibold text-[var(--rm-primary)]">{data.user.credits}</p>
-                <p className="text-xs text-[var(--rm-muted)]">1 crédit par photo IA livrée · les rendus Blender sont gratuits</p>
-              </div>
+              {forfait ? (
+                <div className="text-right">
+                  <p className="text-sm text-[var(--rm-muted)]">Votre forfait</p>
+                  <p className="text-lg font-semibold text-[var(--rm-primary)]">{forfait.label}</p>
+                </div>
+              ) : (
+                <div className="text-right">
+                  <p className="text-sm text-[var(--rm-muted)]">Crédits</p>
+                  <p className="text-2xl font-semibold text-[var(--rm-primary)]">{data.user.credits}</p>
+                  <p className="text-xs text-[var(--rm-muted)]">1 crédit par photo IA livrée · les rendus Blender sont gratuits</p>
+                </div>
+              )}
             </section>
+
+            {forfait && (
+              <section className={card}>
+                <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Mon forfait · {forfait.label}</h2>
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {forfait.items.map(item => (
+                    <ForfaitLine key={item.key} item={item} />
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-[var(--rm-muted)]">
+                  Une photo ou une vue 360° n’est décomptée qu’une fois livrée : rien si elle échoue. Une mise à jour = une nouvelle version du projet envoyée
+                  depuis SketchUp ; les plans et la visite 360° sont refaits.{' '}
+                  {forfait.items.some(i => !i.included && i.used >= i.total) ? 'Pour étendre votre forfait, contactez Roomia.' : ''}
+                </p>
+              </section>
+            )}
 
             <section className={card}>
               <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Visites publiées · {data.tours.length}</h2>
@@ -180,7 +244,7 @@ export default function AccountClient() {
             </section>
 
             <section className={card}>
-              <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Historique des crédits</h2>
+              <h2 className="mb-2 font-semibold text-[var(--rm-text)]">{forfait ? 'Historique' : 'Historique des crédits'}</h2>
               {data.ledger.length === 0 ? (
                 <p className="text-sm text-[var(--rm-muted)]">Aucun mouvement pour l’instant.</p>
               ) : (
@@ -190,8 +254,8 @@ export default function AccountClient() {
                       <tr>
                         <th className="py-1 pr-3 font-medium">Date</th>
                         <th className="py-1 pr-3 font-medium">Mouvement</th>
-                        <th className="py-1 pr-3 text-right font-medium">Crédits</th>
-                        <th className="py-1 text-right font-medium">Solde</th>
+                        {!forfait && <th className="py-1 pr-3 text-right font-medium">Crédits</th>}
+                        {!forfait && <th className="py-1 text-right font-medium">Solde</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -199,13 +263,15 @@ export default function AccountClient() {
                         <tr key={i} className="border-t border-[var(--rm-text)]/5">
                           <td className="py-1.5 pr-3 whitespace-nowrap text-[var(--rm-muted)]">{when(l.at)}</td>
                           <td className="py-1.5 pr-3 text-[var(--rm-text)]">
-                            {KIND_LABELS[l.kind] ?? l.kind}
+                            {labels[l.kind] ?? l.kind}
                             {l.detail && l.kind !== 'reserve' && l.kind !== 'consume' ? <span className="text-[var(--rm-muted)]"> · {l.detail}</span> : null}
                           </td>
-                          <td className={`py-1.5 pr-3 text-right tabular-nums ${l.delta > 0 ? 'text-[var(--rm-primary)]' : 'text-[var(--rm-text)]'}`}>
-                            {l.delta > 0 ? `+${l.delta}` : l.delta}
-                          </td>
-                          <td className="py-1.5 text-right tabular-nums text-[var(--rm-muted)]">{l.balance_after}</td>
+                          {!forfait && (
+                            <td className={`py-1.5 pr-3 text-right tabular-nums ${l.delta > 0 ? 'text-[var(--rm-primary)]' : 'text-[var(--rm-text)]'}`}>
+                              {l.delta > 0 ? `+${l.delta}` : l.delta}
+                            </td>
+                          )}
+                          {!forfait && <td className="py-1.5 text-right tabular-nums text-[var(--rm-muted)]">{l.balance_after}</td>}
                         </tr>
                       ))}
                     </tbody>

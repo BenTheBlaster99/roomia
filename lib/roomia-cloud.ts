@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import path from 'node:path'
 import { CreditError } from './credits'
+import type { Forfait } from './forfait'
 import { PhotoChoiceError } from './photoreal'
 import type { Lighting } from './render-lighting'
 
@@ -21,6 +22,8 @@ export interface CloudUser {
   name: string
   role: string
   credits: number
+  /** the client's package, shown instead of credits (lib/forfait.ts); absent from servers before 0.4.8 */
+  forfait?: Forfait | null
 }
 
 async function readToken(): Promise<string | null> {
@@ -66,6 +69,13 @@ export async function cloudMe(): Promise<CloudUser | null> {
   if (res.status === 401) return null
   if (!res.ok) throw unreachable()
   return ((await res.json()) as { user: CloudUser }).user
+}
+
+/** Tells Roomia's server about a free use its forfait counts (a new version of a project). Best effort: never throws. */
+export async function cloudUsage(item: 'update', detail: string): Promise<void> {
+  const token = await readToken().catch(() => null)
+  if (!token) return
+  await call('/api/desktop/usage', { method: 'POST', body: JSON.stringify({ item, detail }) }, token).catch(() => undefined)
 }
 
 export interface CloudPhoto {

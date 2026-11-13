@@ -6,6 +6,10 @@
  *   npx tsx scripts/studio-account.ts list
  *   npx tsx scripts/studio-account.ts create-user <login> "<name>"      # a Roomia Desktop account; asks for the password
  *   npx tsx scripts/studio-account.ts credits <login> <+N|-N> "<reason>" # e.g. credits sarah +20 "pilot"
+ *   npx tsx scripts/studio-account.ts forfait <login> "<label>" photo=20 pano=10 plan2d=1 plan3d=1 update=3
+ *                                     # a client package shown instead of credits (lib/forfait.ts); replaces any previous one
+ *   npx tsx scripts/studio-account.ts forfait <login>                  # what is used and left
+ *   npx tsx scripts/studio-account.ts forfait <login> --remove         # back to plain credits
  *   npx tsx scripts/studio-account.ts history <login>                  # the account's last 30 credit movements
  *   npx tsx scripts/studio-account.ts report [login]                   # per client: given / used / left, per project and our DA cost
  *   npx tsx scripts/studio-account.ts password <login>                 # a new password; signs out every device
@@ -18,7 +22,8 @@
 import { readdir } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
 import { createUser, setPassword } from '../lib/auth'
-import { adjustCredits } from '../lib/credits'
+import { adjustCredits, forfaitOf, removeForfait, setForfait } from '../lib/credits'
+import type { ForfaitItemKey } from '../lib/forfait'
 import { getDb } from '../lib/db'
 import { readMeta, SCENES_DIR, writeMeta } from '../lib/scene-store'
 
@@ -72,6 +77,30 @@ async function main() {
     if (!admin) throw new Error('Aucun compte admin : créez-en un avec create-admin.')
     const balance = adjustCredits(Number(user.id), Number(amount), why.join(' '), Number(admin.id))
     console.log(`« ${login} » : ${Number(amount) > 0 ? '+' : ''}${Number(amount)} → solde ${balance} crédit(s).`)
+  } else if (command === 'forfait') {
+    const [login, label, ...parts] = args
+    const user = db.prepare('SELECT id FROM users WHERE login = ?').get(login ?? '')
+    if (!user) throw new Error(`Compte « ${login} » introuvable.`)
+    if (label === '--remove') {
+      removeForfait(Number(user.id))
+      console.log(`« ${login} » : plus de forfait, crédits simples.`)
+      return
+    }
+    if (label) {
+      const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1").get()
+      if (!admin) throw new Error('Aucun compte admin : créez-en un avec create-admin.')
+      const totals = Object.fromEntries(
+        parts.map(p => {
+          const [key, n] = p.split('=')
+          return [key as ForfaitItemKey, Number(n)]
+        }),
+      )
+      setForfait(Number(user.id), label, totals, Number(admin.id))
+    }
+    const f = forfaitOf(Number(user.id))
+    if (!f) return console.log(`« ${login} » n’a pas de forfait.`)
+    console.log(`« ${login} » · forfait ${f.label}`)
+    for (const i of f.items) console.log(`  ${i.label} : ${i.included ? 'inclus' : `${Math.max(0, i.total - i.used)} restant(s) sur ${i.total}`}`)
   } else if (command === 'history') {
     const [login] = args
     const user = db.prepare('SELECT id, credits FROM users WHERE login = ?').get(login ?? '')
@@ -127,7 +156,7 @@ async function main() {
       console.log(`${u.id}\t${u.login}\t${u.role}\t${u.status}\t${u.credits} crédits\t${u.name}`)
     }
   } else {
-    console.log('commands: create-admin | create-user | credits | history | password | suspend | activate | assign-scenes | list (see the top of this file)')
+    console.log('commands: create-admin | create-user | credits | forfait | history | password | suspend | activate | assign-scenes | list (see the top of this file)')
   }
 }
 

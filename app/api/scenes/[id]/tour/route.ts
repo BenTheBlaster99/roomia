@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
 import { editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
 import { readMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
@@ -63,7 +64,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // The new version must be reachable by the same person (its owner, with accounts on).
       const deniedFrom = await accessDenied(req, body.newVersion)
       if (deniedFrom) return deniedFrom
-      return Response.json({ status: await startNewVersion(id, body.newVersion) })
+      const status = await startNewVersion(id, body.newVersion)
+      // Roomia Desktop: a client's forfait counts its updates (lib/forfait.ts); the work is free and never waits for this
+      if (cloudMode()) void readMeta(id).then(meta => cloudUsage('update', meta?.fileName ?? id))
+      return Response.json({ status })
     }
     if (body?.update === true) return Response.json({ status: await startTourUpdate(id) })
     if (body?.mirrors === true) return Response.json({ status: await startMirrorRepair(id) })
