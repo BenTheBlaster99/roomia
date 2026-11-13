@@ -79,6 +79,21 @@ const appIn = nested ? path.join(standalone, path.basename(ROOT)) : standalone
 if (!fs.existsSync(path.join(appIn, 'server.js'))) throw new Error(`no standalone server in ${standalone}`)
 fs.rmSync(OUT, { recursive: true, force: true })
 fs.cpSync(appIn, OUT, { recursive: true, dereference: true })
+// 13 Nov: the build folder is a link to ~/.cache (NTFS), and Next 16.2.7 copied that link into the standalone output instead of
+// the server's files: put back what a standalone build folder holds (the files 0.4.7 shipped), from the real build
+{
+  const dist = path.join(OUT, DIST)
+  if (fs.existsSync(dist) && fs.lstatSync(dist).isSymbolicLink()) {
+    const real = fs.realpathSync(path.join(ROOT, DIST))
+    fs.unlinkSync(dist)
+    fs.mkdirSync(dist, { recursive: true })
+    for (const f of ['BUILD_ID', 'app-path-routes-manifest.json', 'build-manifest.json', 'package.json', 'prerender-manifest.json', 'react-loadable-manifest.json', 'required-server-files.json', 'routes-manifest.json']) {
+      if (fs.existsSync(path.join(real, f))) fs.copyFileSync(path.join(real, f), path.join(dist, f))
+    }
+    fs.cpSync(path.join(real, 'server'), path.join(dist, 'server'), { recursive: true, dereference: true, filter: src => !src.endsWith('.nft.json') })
+    console.log(`${DIST} was a link in the standalone output: rebuilt from ${real}`)
+  }
+}
 fs.cpSync(path.join(ROOT, DIST, 'static'), path.join(OUT, DIST, 'static'), { recursive: true, dereference: true })
 fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true, dereference: true })
 // 12 Nov: with node_modules a link to another checkout, the standalone output's node_modules is itself a link (cpSync keeps it):
