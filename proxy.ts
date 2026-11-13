@@ -4,6 +4,7 @@ import createMiddleware from 'next-intl/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 import { routing } from './i18n/routing'
 import { ACCESS_COOKIE, accessToken } from './lib/access'
+import { whatsappLink } from './lib/contact'
 import { accountsEnabled, SESSION_COOKIE } from './lib/session-cookie'
 
 const intl = createMiddleware(routing)
@@ -18,6 +19,7 @@ const intl = createMiddleware(routing)
  *   GET /studio/explore/<id>        walk ("Visite libre")
  *   GET /api/scenes/<id>/tour|video|photos|look|viewport[/…]   what those pages load, for a published tour only
  *   /_next/*                        the page's scripts and styles (not matched either)
+ * The Studio's front door (/ and /studio, where the website's button points) sends visitors to a WhatsApp demo request.
  * Everything else from outside gets 404. A request comes from outside when it was addressed to studio.room-ia.com
  * (cloudflared keeps the visitor's Host); on this PC it is localhost/127.0.0.1 and nothing changes.
  */
@@ -41,6 +43,10 @@ async function fromOutside(req: NextRequest): Promise<NextResponse> {
   const id = reading ? (pathname.match(TOUR_PAGE) ?? pathname.match(TOUR_DATA))?.[1] : undefined
   if (id && (await published(id))) return NextResponse.next()
   if (reading && pathname === '/favicon.ico') return NextResponse.next()
+  // the website's "Tester sur mon projet" still points at /studio: send those visitors to a demo request instead
+  if (reading && (pathname === '/' || pathname === '/studio' || pathname === '/studio/')) {
+    return NextResponse.redirect(whatsappLink('Bonjour, je souhaite une démo de Roomia Render.'), 302)
+  }
   return new NextResponse('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
