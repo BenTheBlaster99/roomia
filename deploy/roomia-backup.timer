@@ -1,0 +1,11 @@
+[Unit]
+Description=Roomia daily backup
+
+[Timer]
+# Once a day; if the PC was off at that time, it runs a few minutes after the next login
+OnCalendar=*-*-* 14:00:00
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Roomia daily backup (accounts database + server config -> DATA/Linux-Work/backup-logs)
+# DATA must be mounted; the script itself checks it can write there
+RequiresMountsFor=/media/jackhammer/DATA
+
+[Service]
+Type=oneshot
+ExecStart=/home/jackhammer/.nvm/versions/node/v24.18.0/bin/node /media/jackhammer/DATA/Linux-Work/Projects/roomia-w/deploy/backup-daily.mjs
+Environment=ROOMIA_DB_PATH=/home/jackhammer/roomia-data/roomia.db
