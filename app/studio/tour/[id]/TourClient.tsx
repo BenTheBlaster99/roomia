@@ -10,6 +10,7 @@ import DesktopPublish from './DesktopPublish'
 import LookPanel from './LookPanel'
 import PanoViewer, { type PanoSpot } from './PanoViewer'
 import { GallerySheet, PhotosSheet, Plan3dSheet, PlanSheet, VideoSheet, type PlanData } from './TourSheets'
+import AutoAiPicker, { type AutoAiChoice } from './AutoAiPicker'
 import DesktopRenderNotice, { isCpuOnly, loadDesktopEngine, renderEstimate } from '../../components/DesktopRenderNotice'
 
 interface TourData {
@@ -116,6 +117,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   /** The level whose plan is shown, when the visitor picked one; otherwise the current point's. */
   const [planLevel, setPlanLevel] = useState<number | null>(null)
   const [busy, setBusy] = useState('')
+  /** the AI finish to run by itself after the 360 build (AutoAiPicker), or null for Blender only */
+  const [autoAi, setAutoAi] = useState<AutoAiChoice>(null)
   // ?edit=1: Roomia's own controls (paid upgrades); a client opening the tour never sees them.
   const [editing] = useState(() => !published && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1')
   const swipe = useRef<{ x: number; y: number } | null>(null)
@@ -229,7 +232,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   const panoSpots: PanoSpot[] = useMemo(() => spots.slice(0, 5).map(s => ({ key: String(s.view.index), label: s.view.name, yaw: s.yaw, pitch: s.pitch })), [spots])
 
   /** complete: the build, then every stop in photo quality (paid). */
-  async function prepare(complete = false) {
+  async function prepare(complete = false, autoAi: AutoAiChoice = null) {
     const engine = await loadDesktopEngine()
     if (isCpuOnly(engine) && !window.confirm(`Ce PC n’a pas de carte graphique utilisable : la visite sera rendue sur le processeur. ${renderEstimate(engine!, 'tour', Math.max(views.length, 4))}\n\nLancer quand même ?`)) return
     setBusy('pano')
@@ -237,7 +240,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
       const res = await fetch(`/api/scenes/${sceneId}/tour`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(complete ? { complete: true, light: 'soleil' } : {}),
+        body: JSON.stringify(complete ? { complete: true, light: 'soleil' } : autoAi ? { autoAi } : {}),
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) throw new Error(body?.detail ?? 'La préparation n’a pas pu démarrer.')
@@ -412,8 +415,9 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             ) : (
               <>
                 <span>Roomia place les points de vue dans chaque pièce, puis prépare les 360° (rendu Cycles) et le plan.</span>
-                <button type="button" onClick={() => prepare()} disabled={!!busy}>
-                  Créer la visite 360°
+                <AutoAiPicker views={views} onChange={setAutoAi} />
+                <button type="button" onClick={() => prepare(false, autoAi)} disabled={!!busy}>
+                  {autoAi ? 'Créer la visite 360° (Blender + finition IA)' : 'Créer la visite 360°'}
                 </button>
                 <DesktopRenderNotice kind="tour" points={Math.max(views.length, 4)} />
               </>
@@ -646,8 +650,9 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               )}
               {missingPanos > 0 && (
                 <>
-                  <button type="button" onClick={() => prepare()} disabled={!!busy}>
-                    Préparer la visite 360° ({views.length} vues, 1 à 5 min selon la taille)
+                  <AutoAiPicker views={views} onChange={setAutoAi} />
+                  <button type="button" onClick={() => prepare(false, autoAi)} disabled={!!busy}>
+                    {autoAi ? `Préparer la visite 360° + finition IA (${views.length} vues)` : `Préparer la visite 360° (${views.length} vues, 1 à 5 min selon la taille)`}
                   </button>
                   <DesktopRenderNotice kind="tour" points={Math.max(views.length, 4)} />
                 </>

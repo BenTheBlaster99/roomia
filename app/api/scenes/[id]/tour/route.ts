@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
 import { editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { planAutoAi } from '@/lib/look-pipeline'
 import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
 import { readMeta } from '@/lib/scene-store'
 
@@ -27,6 +28,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * With { update: true }: remakes only the AI 360° faces and the photos that see what the new version changed (paid).
  * With { mirrors: true }: puts the real mirrors back into AI 360° views not approved yet (free).
  * With { complete: true, light? }: the build, then every stop in photo quality (paid, 1 image per stop).
+ * With { autoAi: { views?: [{ index, name }], max } } on a plain build: the golden-hour Présentation is followed by the paid AI
+ * light on those views (all of them when no list), at most `max`, without another click (lib/look-pipeline.ts planAutoAi).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -44,6 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     mirrors?: unknown
     complete?: unknown
     bake?: unknown
+    autoAi?: { views?: unknown; max?: unknown }
   } | null
   try {
     if (body?.stop === true) return Response.json({ status: await stopTourBuild(id) })
@@ -79,6 +83,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const light: TourAiLight = TOUR_AI_LIGHTS.find(l => l === body.light) ?? 'soleil'
       return Response.json({ status: await startTourBuild(id, { photoQuality: light }) })
     }
+    // the AI finish asked for with the 360 (or not: an older plan must not fire on this build)
+    const auto = body?.autoAi
+    const max = Math.min(200, Math.max(0, Math.round(Number(auto?.max ?? 0)) || 0))
+    const views = Array.isArray(auto?.views)
+      ? (auto.views as { index?: unknown; name?: unknown }[]).map(v => ({ index: Number(v?.index), name: String(v?.name ?? '').slice(0, 80) })).filter(v => Number.isInteger(v.index))
+      : undefined
+    await planAutoAi(id, auto && max > 0 && (!views || views.length) ? { max, ...(views ? { views } : {}) } : null)
     // {bake: true}: the build also bakes the free walk's light (experiment, 2 Nov)
     return Response.json({ status: await startTourBuild(id, body?.bake === true ? { bakeExplorer: true } : {}) })
   } catch (err) {

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { adminDenied } from '@/lib/access-guard'
 import { getUser, setPassword } from '@/lib/auth'
-import { adjustCredits, CreditError } from '@/lib/credits'
+import { adjustCredits, CreditError, removeForfait, setForfait } from '@/lib/credits'
 import { getDb } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -9,6 +9,8 @@ export const runtime = 'nodejs'
 /**
  * POST — one change to an account:
  *   { action: 'credits', delta, reason }   add (positive) or remove (negative) credits
+ *   { action: 'forfait', label, photo, pano, plan2d, plan3d, update }   gives a forfait (lib/forfait.ts), replacing any other
+ *   { action: 'forfait-remove' }            back to plain credits
  *   { action: 'suspend' } / { action: 'activate' }
  *   { action: 'password', password }        sets a new password and signs the account out everywhere
  */
@@ -24,6 +26,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     switch (body?.action) {
       case 'credits':
         return Response.json({ ok: true, credits: adjustCredits(id, Number(body.delta), String(body.reason ?? ''), check.user.id) })
+      case 'forfait': {
+        const n = (k: string) => Math.max(0, Math.round(Number(body[k] ?? 0)) || 0)
+        const label = String(body.label ?? '').trim().slice(0, 60) || 'Projet'
+        const forfait = setForfait(id, label, { photo: n('photo'), pano: n('pano'), plan2d: n('plan2d'), plan3d: n('plan3d'), update: n('update') }, check.user.id)
+        return Response.json({ ok: true, forfait })
+      }
+      case 'forfait-remove':
+        removeForfait(id)
+        return Response.json({ ok: true })
       case 'suspend':
         if (id === check.user.id) return Response.json({ detail: 'Vous ne pouvez pas suspendre votre propre compte.' }, { status: 400 })
         db.prepare(`UPDATE users SET status = 'suspended' WHERE id = ?`).run(id)

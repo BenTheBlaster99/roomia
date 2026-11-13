@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { adminDenied } from '@/lib/access-guard'
+import { forfaitOf } from '@/lib/credits'
 import { getDb } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -31,5 +32,5 @@ export async function GET(req: NextRequest) {
        FROM claims c JOIN users u ON u.id = c.user_id ORDER BY (c.status = 'pending') DESC, c.id DESC LIMIT 100`,
     )
     .all()
-  return Response.json({ users, ledger, claims })
+  return Response.json({ users: users.map(u => ({ ...u, forfait: forfaitOf(Number(u.id)) })), ledger, claims })
 }

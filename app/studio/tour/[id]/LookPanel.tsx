@@ -6,7 +6,7 @@ import type { LookState as LookJob } from '@/lib/look-pipeline'
 import { useForfait } from '../../components/useForfait'
 
 /** The job's state, and the PC's thermal / pause state the route adds (lib/blender-guard.ts). */
-type LookState = LookJob & { thermal?: { paused: boolean; waiting: boolean; userPaused: boolean; temp: number } }
+type LookState = LookJob & { thermal?: { paused: boolean; waiting: boolean; userPaused: boolean; temp: number }; autoAi?: number }
 
 const DA_PER_IMAGE = 16
 
@@ -114,9 +114,14 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                 déjà faites ne sont pas payées deux fois.
               </span>
               {state?.detail && <span>{state.detail}</span>}
+              {state?.job === 'render' && (state.autoAi ?? 0) > 0 && (
+                <span>
+                  <b>Ensuite : finition IA de {state.autoAi} vue{state.autoAi! > 1 ? 's' : ''}</b>, elle démarre toute seule.
+                </span>
+              )}
               {state?.ai && (
                 <span>
-                  {state.ai.done} / {state.ai.images} images · {state.ai.paid} payées · {state.ai.cached} reprises du cache
+                  {state.ai.done} / {state.ai.images} images · {state.ai.paid} {panoLeft !== null ? 'décomptées du forfait' : 'payées'} · {state.ai.cached} reprises du cache
                 </span>
               )}
               {state?.job === 'render' && (

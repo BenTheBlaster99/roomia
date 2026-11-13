@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import type { Forfait } from '@/lib/forfait'
 
 type Row = Record<string, string | number | null>
 
@@ -20,6 +21,24 @@ const KIND_LABELS: Record<string, string> = {
   claim: 'Signalement',
   refund: 'Remboursé (signalement)',
   'claim-denied': 'Signalement refusé',
+  forfait: 'Forfait donné',
+}
+
+/** A new client forfait (lib/forfait.ts), as the admin types it. */
+const FORFAIT_DEFAULT = { label: 'Projet', photo: '20', pano: '10', update: '3', plan2d: true, plan3d: true }
+
+function ForfaitSummary({ forfait }: { forfait: Forfait | null }) {
+  if (!forfait) return <span className="text-xs text-[var(--rm-muted)]">Pas de forfait (crédits simples)</span>
+  return (
+    <div className="text-xs">
+      <p className="font-semibold">{forfait.label}</p>
+      {forfait.items.map(i => (
+        <p key={i.key}>
+          {i.label} : {i.included ? 'inclus' : <b>{Math.max(0, i.total - i.used)} / {i.total}</b>}
+        </p>
+      ))}
+    </div>
+  )
 }
 
 const when = (ms: unknown) => (ms ? new Date(Number(ms)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
@@ -40,6 +59,7 @@ export default function AdminClient({ adminLogin }: { adminLogin: string }) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [form, setForm] = useState({ login: '', name: '', password: randomPassword(), credits: '10', reason: 'Pack de lancement' })
   const [creditInputs, setCreditInputs] = useState<Record<number, { delta: string; reason: string }>>({})
+  const [forfaitInputs, setForfaitInputs] = useState<Record<number, typeof FORFAIT_DEFAULT>>({})
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/overview').catch(() => null)
@@ -215,6 +235,94 @@ export default function AdminClient({ adminLogin }: { adminLogin: string }) {
                   </tr>
                 )
               })}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="overflow-x-auto rounded-2xl border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] p-5">
+          <h2 className="mb-1 font-semibold">Forfaits clients</h2>
+          <p className="mb-3 text-sm text-[var(--rm-muted)]">
+            Le client voit son forfait (photos, vues 360°, plans, mises à jour) à la place des crédits ou des DA. Les photos et les vues 360° sont décomptées une fois
+            livrées ; les mises à jour sont comptées, jamais bloquées. Donner un forfait remplace l’ancien et remet ses compteurs à zéro.
+          </p>
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="text-xs uppercase text-[var(--rm-muted)]">
+              <tr>
+                <th className="py-2">Compte</th>
+                <th>Forfait actuel (reste / total)</th>
+                <th>Nouveau forfait</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.users
+                .filter(u => u.role !== 'admin')
+                .map(u => {
+                  const id = Number(u.id)
+                  const forfait = (u as unknown as { forfait: Forfait | null }).forfait
+                  const f = forfaitInputs[id] ?? FORFAIT_DEFAULT
+                  const set = (patch: Partial<typeof FORFAIT_DEFAULT>) => setForfaitInputs({ ...forfaitInputs, [id]: { ...f, ...patch } })
+                  const num = (key: 'photo' | 'pano' | 'update', label: string) => (
+                    <label className="flex flex-col text-xs text-[var(--rm-muted)]">
+                      {label}
+                      <input className={`${input} w-20`} type="number" min={0} value={f[key]} onChange={e => set({ [key]: e.target.value })} />
+                    </label>
+                  )
+                  return (
+                    <tr key={id} className="border-t border-[var(--rm-text)]/8 align-top">
+                      <td className="py-2.5">
+                        <p className="font-medium">{u.name}</p>
+                        <p className="text-xs text-[var(--rm-muted)]">{u.login}</p>
+                      </td>
+                      <td className="py-2.5">
+                        <ForfaitSummary forfait={forfait} />
+                        {forfait && (
+                          <button
+                            type="button"
+                            className="mt-1 text-xs text-red-700 underline underline-offset-2"
+                            onClick={() => {
+                              if (window.confirm(`Retirer le forfait de ${u.login} ? Le compte repasse en crédits simples (solde : ${u.credits}).`)) {
+                                void post(`/api/admin/users/${id}`, { action: 'forfait-remove' }, `Forfait de ${u.login} retiré.`)
+                              }
+                            }}
+                          >
+                            Retirer le forfait
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex flex-wrap items-end gap-2">
+                          <label className="flex flex-col text-xs text-[var(--rm-muted)]">
+                            Nom
+                            <input className={`${input} w-32`} value={f.label} onChange={e => set({ label: e.target.value })} />
+                          </label>
+                          {num('photo', 'Photos IA')}
+                          {num('pano', 'Vues 360° IA')}
+                          {num('update', 'Mises à jour')}
+                          <label className="flex items-center gap-1 pb-2 text-xs">
+                            <input type="checkbox" checked={f.plan2d} onChange={e => set({ plan2d: e.target.checked })} /> Plan 2D
+                          </label>
+                          <label className="flex items-center gap-1 pb-2 text-xs">
+                            <input type="checkbox" checked={f.plan3d} onChange={e => set({ plan3d: e.target.checked })} /> Plan 3D
+                          </label>
+                          <button
+                            type="button"
+                            className={button}
+                            onClick={() => {
+                              if (forfait && !window.confirm(`${u.login} a déjà un forfait : le remplacer (compteurs remis à zéro) ?`)) return
+                              void post(
+                                `/api/admin/users/${id}`,
+                                { action: 'forfait', label: f.label, photo: Number(f.photo), pano: Number(f.pano), update: Number(f.update), plan2d: f.plan2d ? 1 : 0, plan3d: f.plan3d ? 1 : 0 },
+                                `Forfait « ${f.label} » donné à ${u.login}.`,
+                              )
+                            }}
+                          >
+                            Donner ce forfait
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
             </tbody>
           </table>
         </section>

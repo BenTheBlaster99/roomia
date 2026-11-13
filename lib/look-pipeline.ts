@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { killAllRoomiaBlenders, thermalState } from './blender-guard'
 import { BLENDER, withBlenderSlot } from './blender-render'
@@ -297,8 +297,49 @@ export async function startLookRender(id: string): Promise<LookState> {
       }
     }
     await save(id, s)
+    // the person asked for the AI finish when starting the 360 (planAutoAi): it follows now, without a click
+    if (s.stage === 'ready') await runAutoAi(id, s.suggestions ?? []).catch(err => console.error('automatic AI finish did not start', id, err))
   })()
   return s
+}
+
+// ── One click (13 Nov, the user's ask): "Préparer la visite 360°" with the AI finish chosen goes Blender → AI light by itself ──
+
+const autoAiFile = (id: string) => path.join(lookDir(id), 'auto-ai.json')
+
+/** The views the AI finish will take when the Présentation is ready (by name first: the build may renumber them), at most `max`. */
+export interface AutoAiPlan {
+  views?: { index: number; name: string }[]
+  max: number
+}
+
+/** Remembers the AI finish asked for with the 360 build; it starts when the golden-hour Présentation is ready. */
+export async function planAutoAi(id: string, plan: AutoAiPlan | null): Promise<void> {
+  if (!plan || plan.max < 1) {
+    await rm(autoAiFile(id), { force: true })
+    return
+  }
+  await mkdir(lookDir(id), { recursive: true })
+  await writeFile(autoAiFile(id), JSON.stringify({ ...plan, at: Date.now() }))
+}
+
+/** Is an AI finish waiting for the Présentation? (the tour page says it will follow by itself) */
+export async function autoAiPlanned(id: string): Promise<number> {
+  const plan = JSON.parse(await readFile(autoAiFile(id), 'utf8').catch(() => 'null')) as AutoAiPlan | null
+  return plan ? Math.min(plan.max, plan.views?.length ?? plan.max) : 0
+}
+
+/** Once only: the planned views among those the Présentation rendered, then the paid AI light (startLookAi). */
+async function runAutoAi(id: string, suggestions: LookSuggestion[]): Promise<void> {
+  const plan = JSON.parse(await readFile(autoAiFile(id), 'utf8').catch(() => 'null')) as AutoAiPlan | null
+  if (!plan) return
+  await rm(autoAiFile(id), { force: true })
+  const wanted = plan.views
+    ? plan.views.map(v => suggestions.find(x => x.name === v.name)?.index ?? (suggestions.some(x => x.index === v.index) ? v.index : null))
+    : suggestions.map(x => x.index)
+  const points = [...new Set(wanted.filter((k): k is number => k !== null))].slice(0, Math.max(0, plan.max))
+  if (!points.length) return
+  await startLookAi(id, points, [], points.length * DA_PER_IMAGE)
 }
 
 /** Nothing is sent: the number of images and what they cost. "Blender + AI light": one AI image per view (1 credit). */

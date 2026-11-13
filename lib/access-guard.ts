@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { ACCESS_COOKIE, accessToken } from './access'
 import { SESSION_COOKIE, userFromToken, type User } from './auth'
-import { accountsEnabled } from './session-cookie'
+import { accountsEnabled, adminAreaEnabled } from './session-cookie'
 import { isSceneId, readMeta } from './scene-store'
 
 /**
@@ -44,8 +44,13 @@ export async function accessDenied(req: NextRequest, sceneId?: string): Promise<
 
 /** Admin-only routes: anyone else gets "not found". */
 export function adminDenied(req: NextRequest): { user: User } | { denied: Response } {
-  if (!accountsEnabled()) return { denied: Response.json({ detail: 'Introuvable' }, { status: 404 }) }
-  const user = sessionUser(req)
+  if (!adminAreaEnabled()) return { denied: Response.json({ detail: 'Introuvable' }, { status: 404 }) }
+  let user: User | null = null
+  try {
+    user = userFromToken(req.cookies.get(SESSION_COOKIE)?.value)
+  } catch (err) {
+    console.error('session check failed:', err instanceof Error ? err.message : err)
+  }
   if (!user) return { denied: Response.json({ detail: 'Connectez-vous.' }, { status: 401 }) }
   if (user.role !== 'admin') return { denied: Response.json({ detail: 'Introuvable' }, { status: 404 }) }
   return { user }

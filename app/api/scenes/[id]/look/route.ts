@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
-import { getLookState, quoteAi, startLookAi, startLookRender, stopLook } from '@/lib/look-pipeline'
+import { autoAiPlanned, getLookState, quoteAi, startLookAi, startLookRender, stopLook } from '@/lib/look-pipeline'
 import { setUserPause, thermalState } from '@/lib/blender-guard'
 import { readMeta } from '@/lib/scene-store'
 
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const denied = await accessDenied(req, id)
   if (denied) return denied
   if ((await readMeta(id))?.status !== 'ready') return Response.json({ detail: 'Scène introuvable ou pas encore prête.' }, { status: 404 })
-  return Response.json({ ...(await getLookState(id)), thermal: thermalState() })
+  return Response.json({ ...(await getLookState(id)), thermal: thermalState(), autoAi: await autoAiPlanned(id) })
 }
 
 const ints = (v: unknown) => (Array.isArray(v) ? v.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < 200) : [])

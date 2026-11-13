@@ -9,3 +9,10 @@ export const studioOnly = () => process.env.ROOMIA_STUDIO_ONLY === '1'
  * is open, as before, for demos and the expo. ROOMIA_ACCOUNTS=1 (with a restart) turns them on.
  */
 export const accountsEnabled = () => process.env.ROOMIA_ACCOUNTS === '1'
+
+/**
+ * The admin page (accounts, credits, forfaits): with accounts on, or on the Studio PC that serves Roomia Desktop
+ * (ROOMIA_DESKTOP_CLOUD=1, never inside the desktop app itself). There the Studio stays open on this PC and only the admin
+ * page asks for an admin sign-in; from outside (studio.room-ia.com) it doesn't exist (proxy.ts).
+ */
+export const adminAreaEnabled = () => accountsEnabled() || (process.env.ROOMIA_DESKTOP_CLOUD === '1' && !process.env.ROOMIA_CLOUD_URL)

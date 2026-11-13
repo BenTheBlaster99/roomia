@@ -208,3 +208,5 @@
 .tour-lightbox-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: default; color: var(--fg); }
 /* a SketchUp view's 360 is centred on its camera: the middle of it, enlarged, is what the camera sees */
 .tour-pick-img img.pano-mid { transform: scale(3); transform-origin: 50% 50%; }
+.auto-ai { display: grid; gap: 8px; text-align: left; max-width: 34rem; }
+.auto-ai > label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
