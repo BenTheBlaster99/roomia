@@ -5,7 +5,7 @@ import BeforeAfter from '@/components/landing/BeforeAfter'
 import DemoForm from '@/components/landing/DemoForm'
 import ResultShot from '@/components/landing/ResultShot'
 import WordScroller from '@/components/landing/WordScroller'
-import { STUDIO_URL, WHATSAPP_DISPLAY, whatsappLink } from '@/lib/contact'
+import { WHATSAPP_DISPLAY, whatsappLink } from '@/lib/contact'
 import './landing.css'
 
 // The previous home page (the interior configurator) is kept in ./_ancienne-accueil, out of routing.
@@ -116,7 +116,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
                 Chaque vue de votre projet SketchUp devient une <strong>photo réaliste</strong>, sans réglages ni attente. Vos matériaux, vos meubles, votre cadrage : le design reste le vôtre.
               </p>
               <div className="ctas">
-                <a className="btn btn-main" href={STUDIO_URL}>
+                {/* 13 Nov: the Studio is no longer online (clients use Roomia Desktop): testing starts with a conversation */}
+                <a className="btn btn-main" href={whatsappLink('Bonjour, je souhaite tester Roomia sur mon projet.')} target="_blank" rel="noopener noreferrer">
                   Tester sur mon projet
                 </a>
                 <a className="btn btn-ghost" href="#resultats">

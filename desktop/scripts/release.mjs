@@ -161,19 +161,26 @@ const mb = f => (readFileSync(f).length / 1e6).toFixed(1)
 console.log(`update ${from} → ${version}: ${Object.keys(files).length - 1} files, ${removed.length} removed, ${mb(patch)} MB (full zip ${mb(full)} MB)`)
 
 // ── notes, release, README ──
+// the installer (node scripts/build-installer.mjs, from 0.4.7): published with the release when it was built
+const setup = path.join(DIST, `Roomia-Setup-${version}.exe`)
+const setupSha = existsSync(setup) ? createHash('sha256').update(readFileSync(setup)).digest('hex') : null
 const notes = `${readFileSync(notesFile, 'utf8').trim()}
 
-Roomia 0.3.0 and later install this update by themselves (or menu Aide → Rechercher une mise à jour). First install: Windows 10/11, 64-bit, extract the zip and run Roomia.exe.
+Roomia 0.3.0 and later install this update by themselves (or menu Aide → Rechercher une mise à jour). ${
+  setupSha
+    ? `First install: Windows 10/11, 64-bit, run Roomia-Setup-${version}.exe (or extract the zip and run Roomia.exe).`
+    : 'First install: Windows 10/11, 64-bit, extract the zip and run Roomia.exe.'
+}
 SHA-256: ${fullSha}
 Update from ${from}: SHA-256 ${patchSha}
-`
+${setupSha ? `Setup: SHA-256 ${setupSha}\n` : ''}`
 const notesOut = path.join(DIST, `notes-${version}.md`)
 writeFileSync(notesOut, notes)
 if (dryRun) {
   console.log(`dry run: nothing published. Notes in ${notesOut}, update zip ${patch}`)
   process.exit(0)
 }
-gh('release', 'create', `v${version}`, full, patch, '--target', 'main', '--prerelease', '--title', `Roomia Desktop ${version} (preview)`, '--notes-file', notesOut)
+gh('release', 'create', `v${version}`, full, patch, ...(setupSha ? [setup] : []), '--target', 'main', '--prerelease', '--title', `Roomia Desktop ${version} (preview)`, '--notes-file', notesOut)
 console.log(`published https://github.com/${REPO}/releases/tag/v${version}`)
 
 const readme = path.join(ROOT, 'README.md')

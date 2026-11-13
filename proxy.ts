@@ -67,6 +67,11 @@ export default async function proxy(req: NextRequest) {
 
   const { pathname } = req.nextUrl
 
+  // the website on Vercel is a demonstration only: no Studio there either
+  if (process.env.VERCEL && under(pathname, ['/studio'])) {
+    return NextResponse.redirect(whatsappLink('Bonjour, je souhaite une démo de Roomia Render.'), 302)
+  }
+
   if (accountsEnabled() && under(pathname, SIGNED_IN)) {
     if (req.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next()
     const url = req.nextUrl.clone()
