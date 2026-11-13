@@ -607,7 +607,7 @@ async function recipeScript(): Promise<string> {
 
 function run(command: string, args: string[], onLine: (line: string) => void): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     const timer = setTimeout(() => child.kill('SIGKILL'), BLENDER_TIMEOUT_MS)
     let stderr = ''
     const unguard = guardMemory(child, reason => (stderr += `\nArrêté : ${reason}`))

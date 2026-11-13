@@ -1503,7 +1503,7 @@ export async function captureSplat(sceneId: string, options: SplatCaptureOptions
   )
   const lines: string[] = []
   const code = await new Promise<number>((resolve, reject) => {
-    const child = spawn(BLENDER, ['--background', '--python', scriptPath, '--', specPath], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(BLENDER, ['--background', '--python', scriptPath, '--', specPath], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     // if memory runs out, Blender goes first, never the desktop or the Studio (7 Nov, F5)
     if (child.pid) writeFile(`/proc/${child.pid}/oom_score_adj`, '900').catch(() => {})
     let buf = ''

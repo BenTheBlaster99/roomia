@@ -60,7 +60,7 @@ export function guardMemory(child: ChildProcess, onStop: (reason: string) => voi
         if (mb && mb < MIN_FREE_MB) stop(`mémoire presque pleine (${Math.round(mb)} Mo libres)`)
       })
       .catch(() => undefined)
-    execFile('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500 }, (err, out) => {
+    execFile('nvidia-smi', ['--query-gpu=memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 1500, windowsHide: true }, (err, out) => {
       if (err) return
       const [used, total] = out.split(',').map(Number)
       if (total && total - used < MIN_FREE_GPU_MB) stop(`mémoire graphique presque pleine (${total - used} Mo libres)`)
@@ -639,6 +639,8 @@ function runBlender(scriptPath: string, specPath: string): Promise<{ code: numbe
   return new Promise(resolve => {
     const child = spawn(BLENDER, ['--background', '--python', scriptPath, '--', specPath], {
       stdio: ['ignore', 'pipe', 'pipe'],
+      // Windows: the server has no console of its own, so a child would open a black window of its own
+      windowsHide: true,
     })
     let stderr = ''
     // Blender prints progress to stdout; if nobody reads it the pipe fills up and Blender freezes. The texture and cache

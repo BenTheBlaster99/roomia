@@ -114,7 +114,7 @@ function killJob(child: ChildProcess) {
 
 function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string; scene?: string } = {}): Promise<number> {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' })
+    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' })
     if (opts.scene) {
       const set = kids.get(opts.scene) ?? new Set<ChildProcess>()
       set.add(child)

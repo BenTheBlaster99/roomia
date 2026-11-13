@@ -62,7 +62,7 @@ function runPrepProcess(meta: SceneMeta): Promise<void> {
   ]
 
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     let stderr = ''
     child.stderr.on('data', chunk => {
       stderr = (stderr + chunk).slice(-4000)

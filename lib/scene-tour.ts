@@ -3721,7 +3721,7 @@ export function killTree(child: ChildProcess) {
 
 function run(command: string, args: string[], onLine?: (line: string) => void, timeoutMs = BLENDER_TIMEOUT_MS): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     if (command === BLENDER) {
       liveBlender.add(child)
       child.on('close', () => liveBlender.delete(child))
