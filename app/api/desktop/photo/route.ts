@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest } from 'next/server'
-import { consumeCredit, CreditError, isJobId, releaseCredit, reserveCredit } from '@/lib/credits'
+import { consumeCredit, CreditError, forfaitOf, isJobId, releaseCredit, reserveCredit } from '@/lib/credits'
 import { getDb } from '@/lib/db'
 import { bearerUser, cloudOff, desktopCloudEnabled, desktopPhotoPath, notSignedIn } from '@/lib/desktop-cloud'
 import { getOpenAIClient } from '@/lib/openai-client'
@@ -45,6 +45,15 @@ export async function POST(req: NextRequest) {
   const panoLight = body?.kind === 'pano-light'
   const reference = panoLight && typeof body?.reference_base64 === 'string' ? Buffer.from(body.reference_base64, 'base64') : null
   const quality = body?.quality === 'medium' ? 'medium' : undefined
+
+  // 13 Nov: Roomia Desktop 0.4.6 and older finish a 360 with 6 "tiles" per view. With a forfait each tile would take one of its
+  // 360 views (a 3-view finish = 18 views), so those apps are refused, before anything is reserved: they must update first.
+  if (tile && forfaitOf(user.id)) {
+    return Response.json(
+      { detail: 'Votre version de Roomia est trop ancienne pour la finition 360° de votre forfait. Mettez à jour (menu Aide → Rechercher une mise à jour), relancez Roomia, puis recommencez. Rien n’a été décompté.' },
+      { status: 426 },
+    )
+  }
 
   const job = getDb().prepare('SELECT user_id, status, photo_file FROM jobs WHERE id = ?').get(jobId)
   if (job && Number(job.user_id) !== user.id) return Response.json({ detail: 'Requête incomplète.' }, { status: 400 })
