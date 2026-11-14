@@ -47,26 +47,38 @@
 @keyframes tour-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
 @keyframes tour-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
 
-/* Arrows inside the photo or the 360°: towards the next views, where they stand. */
+/* Arrows inside the photo or the 360° (14 Nov): a ring lying on the floor with a chevron, the next point's name under it. */
 .tour-spot, .pano-spot {
-  position: absolute; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px;
-  border-radius: 999px; border: 1px solid rgba(236, 230, 218, 0.4); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  font-size: 14px; white-space: nowrap; cursor: pointer; transition: background 0.2s, transform 0.2s;
+  position: absolute; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none;
+  cursor: pointer; color: #fff; -webkit-tap-highlight-color: transparent;
 }
 .tour-spot { transform: translate(-50%, -50%); }
-.tour-spot span, .pano-spot span {
-  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--ink); font-size: 14px; font-weight: 700;
+.pano-spot { left: 0; top: 0; opacity: 0; transition: opacity 0.25s; }
+.spot-disc {
+  display: grid; place-items: center; width: 62px; height: 62px; border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.92); background: radial-gradient(circle, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 70%);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 0 12px rgba(255, 255, 255, 0.25);
+  transform: perspective(320px) rotateX(52deg); transition: transform 0.25s, background 0.25s, border-color 0.25s;
+  animation: spot-breathe 2.6s ease-in-out infinite;
 }
-.tour-spot:hover, .pano-spot:hover { background: rgba(217, 166, 92, 0.85); color: var(--ink); }
-.pano-spot { left: 0; top: 0; opacity: 0; transition: opacity 0.2s, background 0.2s; }
-
-.tour-arrow {
-  position: absolute; top: 50%; z-index: 3; width: 52px; height: 52px; margin-top: -26px; border-radius: 50%;
-  border: 1px solid var(--line); background: var(--glass); font-size: 30px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+.spot-disc svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45)); }
+.spot-label {
+  padding: 4px 11px; border-radius: 999px; background: rgba(11, 16, 14, 0.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--fg); opacity: 0.9; transition: opacity 0.2s, background 0.2s;
 }
-.tour-arrow:hover { border-color: var(--brass); }
-.tour-arrow.left { left: max(12px, env(safe-area-inset-left, 0px)); }
-.tour-arrow.right { right: max(12px, env(safe-area-inset-right, 0px)); }
+.tour-spot:hover .spot-disc, .pano-spot:hover .spot-disc, .tour-spot:focus-visible .spot-disc, .pano-spot:focus-visible .spot-disc {
+  background: radial-gradient(circle, rgba(217, 166, 92, 0.95), rgba(217, 166, 92, 0.55) 75%); border-color: #fff;
+  transform: perspective(320px) rotateX(40deg) scale(1.12); animation: none;
+}
+.tour-spot:hover .spot-label, .pano-spot:hover .spot-label { opacity: 1; background: rgba(217, 166, 92, 0.92); color: var(--ink); }
+@keyframes spot-breathe {
+  0%, 100% { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0.35); }
+  50% { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), 0 0 0 10px rgba(255, 255, 255, 0); }
+}
+/* going through an arrow: the last frame of the point left grows and fades over the next one */
+.pano-fade { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; z-index: 2; }
+.pano-fade.go { animation: pano-through 0.55s cubic-bezier(0.3, 0.6, 0.3, 1) forwards; }
+@keyframes pano-through { from { opacity: 1; transform: scale(1); filter: blur(0); } to { opacity: 0; transform: scale(1.18); filter: blur(6px); } }
 
 /* 360° mode */
 .pano { position: absolute; inset: 0; cursor: grab; touch-action: none; }
@@ -115,12 +127,13 @@
 .tour-version input { max-width: 100%; color: var(--fg); font-size: 13px; }
 
 @media (max-width: 640px) {
-  .tour-arrow { width: 44px; height: 44px; margin-top: -22px; font-size: 26px; }
   .tour-plan { width: 128px; padding: 6px; }
-  .tour-spot, .pano-spot { font-size: 12px; padding: 6px 10px 6px 7px; }
+  .spot-disc { width: 50px; height: 50px; }
+  .spot-label { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tour-photo.in, .tour-photo.out { animation-duration: 0.01s; }
+  .tour-photo.in, .tour-photo.out, .pano-fade.go { animation-duration: 0.01s; }
+  .spot-disc { animation: none; }
 }
 
 /* Roomia Desktop: publishing the tour for the architect's clients (DesktopPublish.tsx) */
@@ -210,3 +223,75 @@
 .tour-pick-img img.pano-mid { transform: scale(3); transform-origin: 50% 50%; }
 .auto-ai { display: grid; gap: 8px; text-align: left; max-width: 34rem; }
 .auto-ai > label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+
+/* 14 Nov: renaming a point, downloads, what is still being made (a small pill instead of the corner panel) */
+.tour-pencil { margin-left: 6px; padding: 0 4px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+.tour-pencil:hover { color: var(--brass); }
+.tour-rename { display: flex; gap: 6px; justify-content: center; }
+.tour-rename input { width: min(260px, 50vw); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--glass); color: var(--fg); font-size: 13px; }
+.tour-rename button { padding: 4px 10px; border-radius: 8px; border: 0; background: var(--brass); color: #1a1406 !important; font-weight: 600; cursor: pointer; }
+.tour-download { border: 1px solid var(--line); background: var(--glass); color: var(--fg); padding: 7px 14px; border-radius: 999px; font-size: 14px; text-decoration: none; white-space: nowrap; }
+.tour-download:hover { background: rgba(217, 166, 92, 0.85); color: var(--ink); }
+.tour-pano-download {
+  position: absolute; z-index: 3; top: 12px; right: max(14px, env(safe-area-inset-right, 0px)); padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--fg); font-size: 13px; text-decoration: none;
+}
+.tour-pano-download:hover { background: rgba(217, 166, 92, 0.85); color: var(--ink); }
+.tour-pill {
+  position: absolute; z-index: 6; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: min(560px, calc(100vw - 340px)); padding: 7px 8px 7px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 13px; color: var(--muted);
+}
+.tour-pill > span:not(.tour-pill-dot) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-pill button { border: 0; border-radius: 999px; padding: 4px 10px; background: var(--fg); color: var(--ink); font-weight: 600; cursor: pointer; font-size: 12px; }
+.tour-pill-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--brass); animation: pill-dot 1.2s ease-in-out infinite; }
+@keyframes pill-dot { 50% { opacity: 0.25; } }
+@media (max-width: 640px) { .tour-pill { max-width: calc(100vw - 28px); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
+.tour-hint { bottom: 64px; }
+
+/* the first screens: before the visit exists, and while it is being made */
+.floating-back { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); }
+.tour-intro-title { font-size: 20px; color: var(--fg); text-align: center; max-width: 560px; }
+.pipeline-steps { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 10px; text-align: left; min-width: min(360px, 86vw); }
+.pipeline-steps li { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 15px; }
+.pipeline-steps li.now { color: var(--fg); font-weight: 600; }
+.pipeline-steps li.done { color: var(--fg); }
+.pipeline-mark { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); font-size: 13px; }
+.pipeline-steps li.now .pipeline-mark { border-color: var(--brass); color: var(--brass); box-shadow: 0 0 0 4px rgba(217, 166, 92, 0.15); }
+.pipeline-steps li.done .pipeline-mark { background: var(--brass); border-color: var(--brass); color: #1a1406; }
+.pipeline-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.tour.tour-message .tour-note { max-width: 440px; }
+
+/* The points before the build (PointsEditor.tsx) */
+.tour.points { user-select: none; }
+.points-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 10px; }
+.points-head > div:not(.tour-levels) { flex: 1; min-width: 260px; display: grid; gap: 2px; }
+.points-head strong { font-size: 17px; }
+.points-head span { color: var(--muted); font-size: 13px; }
+.points-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 0 18px 18px; }
+.points-plan-wrap { flex: 1; min-width: 0; display: grid; place-items: center; border-radius: 14px; background: #f4f2ee; padding: 14px; overflow: hidden; }
+.points-plan { position: relative; max-width: 100%; max-height: 100%; width: auto; height: 100%; touch-action: none; }
+.points-plan img { width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: auto; -webkit-user-drag: none; }
+.points-plan.adding, .points-plan.adding img { cursor: crosshair; }
+.points-dot {
+  position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; padding: 0; border-radius: 50%; border: 2px solid #fff;
+  background: var(--brass); color: #1a1406; font-size: 13px; cursor: grab; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); z-index: 2;
+}
+.points-dot b { position: relative; z-index: 1; }
+.points-dot.view { background: #2f6f5e; color: #fff; }
+.points-dot.off { background: #b9b4aa; color: #fff; opacity: 0.8; cursor: pointer; }
+.points-dot.sel { outline: 3px solid #1a1406; outline-offset: 2px; z-index: 3; }
+.points-cone {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 34px; margin-top: -17px; transform-origin: 0 50%; pointer-events: none; z-index: 0;
+  background: linear-gradient(to right, rgba(217, 166, 92, 0.85), rgba(217, 166, 92, 0)); clip-path: polygon(0 50%, 100% 0, 100% 100%);
+}
+.points-dot.view .points-cone { background: linear-gradient(to right, rgba(47, 111, 94, 0.85), rgba(47, 111, 94, 0)); }
+.points-side { flex: 0 0 300px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: rgba(236, 230, 218, 0.05); overflow-y: auto; user-select: text; }
+.points-card { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.points-name { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.points-name input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--glass); color: var(--fg); font-size: 14px; }
+.points-turn { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.points-sum { margin-top: auto; display: grid; gap: 6px; }
+.tour-btn.secondary.on { border-color: var(--brass); color: var(--brass); }
+.tour-btn.secondary.danger:hover { background: rgba(217, 80, 80, 0.85); color: #fff; border-color: transparent; }
+@media (max-width: 860px) { .points-body { flex-direction: column; } .points-side { flex: none; } .points-plan { height: auto; width: 100%; } }

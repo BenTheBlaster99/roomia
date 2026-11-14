@@ -176,7 +176,12 @@ export default function StudioScene() {
   const selectItem = useStudioStore(s => s.selectItem)
   const captureMode = useStudioStore(s => s.captureMode)
   const importedRoom = useStudioStore(s => s.importedRoom)
+  const importStatus = useStudioStore(s => s.importStatus)
   const { width, length, height } = room
+  // 14 Nov: the old empty studio room (a cube) never shows while a project opens, nor in Roomia Desktop at all: there the Studio
+  // is only ever a project's page
+  const opening = typeof window !== 'undefined' && (!!window.roomiaDesktop || new URLSearchParams(window.location.search).has('scene'))
+  const defaultRoom = !importedRoom && importStatus !== 'loading' && !opening
 
   return (
     <div className="w-full h-full min-h-[400px]">
@@ -217,9 +222,9 @@ export default function StudioScene() {
             color="#FFF5E0"
           />
 
-          {importedRoom ? <ImportedRoom /> : <Room />}
+          {importedRoom ? <ImportedRoom /> : defaultRoom ? <Room /> : null}
 
-          {!captureMode && (
+          {!captureMode && (importedRoom || defaultRoom) && (
             <Grid
               position={[width / 2, 0.002, length / 2]}
               args={[width, length]}

@@ -4355,20 +4355,22 @@ export interface ChosenPoints {
 export const readChosenPoints = async (sceneId: string) => JSON.parse(await readFile(chosenPath(sceneId), 'utf8').catch(() => 'null')) as ChosenPoints | null
 
 /** Starts the proposal: Blender opens the file, places the points like a build would, and draws the plan, but renders no 360°. */
-export async function startTourPropose(sceneId: string): Promise<TourProposal> {
+export async function startTourPropose(sceneId: string, fresh = false): Promise<TourProposal> {
   if ((await readTourStatus(sceneId)).state === 'building') throw new Error('Une préparation est déjà en cours.')
   const current = await readProposal(sceneId)
   if (current?.state === 'running') return current
+  // "Replacer les points automatiquement": the person's last choice is forgotten, Roomia places them again from scratch
+  if (fresh) await rm(chosenPath(sceneId), { force: true })
   const p: TourProposal = { state: 'running', step: 'En attente du processeur graphique…', at: new Date().toISOString(), pid: process.pid }
   await writeProposal(sceneId, p)
-  void propose(sceneId).catch(async err => {
+  void propose(sceneId, fresh).catch(async err => {
     console.error('tour proposal failed', sceneId, err)
     await writeProposal(sceneId, { state: 'failed', error: err instanceof Error ? err.message : String(err), at: new Date().toISOString() })
   })
   return p
 }
 
-async function propose(sceneId: string) {
+async function propose(sceneId: string, fresh = false) {
   const dir = tourDir(sceneId)
   const work = path.join(dir, 'propose-work')
   await clearDir(work)
@@ -4379,7 +4381,9 @@ async function propose(sceneId: string) {
   // the person's last choice comes back as it was; otherwise the last build's points, kept where they still make sense
   const prevAuto = chosen
     ? chosen.auto
-    : (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index).map(v => ({ id: v.id ?? `auto-${v.index}`, name: v.name, position: v.position!, target: v.target! }))
+    : fresh
+      ? []
+      : (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index).map(v => ({ id: v.id ?? `auto-${v.index}`, name: v.name, position: v.position!, target: v.target! }))
   const scriptPath = path.join(work, 'tour.py')
   const specPath = path.join(work, 'tour.json')
   await writeFile(scriptPath, TOUR_SCRIPT)

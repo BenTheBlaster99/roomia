@@ -4,11 +4,9 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { applySceneView } from '@/lib/studio-import/heavy-view-camera'
 import { captureHeavyCamera } from '@/lib/studio-import/heavy-view-camera'
-import { UNIT_LABELS, type ImportLengthUnit } from '@/lib/studio-import/fit-imported-room'
 import { type TimeOfDay } from '@/lib/render-lighting'
 import { DEFAULT_LENS, LENSES, lensHfov, type LensId, type SceneCamera } from '@/lib/scene-cameras'
 import { useStudioStore } from '@/store/useStudioStore'
-import MaterialRolesPanel from './MaterialRolesPanel'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
 import { forfaitLeft, plural, type Forfait } from '@/lib/forfait'
@@ -47,7 +45,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function SceneSidebar() {
   const importedRoom = useStudioStore(s => s.importedRoom)
   const clearImportedRoom = useStudioStore(s => s.clearImportedRoom)
-  const setImportFit = useStudioStore(s => s.setImportFit)
   const sceneId = importedRoom?.sceneId ?? ''
 
   const [cameras, setCameras] = useState<SceneCamera[]>([])
@@ -85,7 +82,6 @@ export default function SceneSidebar() {
   const [reporting, setReporting] = useState(false)
   const [reportText, setReportText] = useState('')
   const [reportState, setReportState] = useState<{ ok: boolean; text: string } | null>(null)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   /** The image service was too slow or down: the user chooses medium quality or holding the photo. */
   const [choice, setChoice] = useState<{ tried: string; reason: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -800,13 +796,6 @@ export default function SceneSidebar() {
                 )}
               </>
             )}
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen(true)}
-              className="mt-2 text-left text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
-            >
-              Un miroir, une vitre ou une lumière mal rendu ? Corriger un matériau
-            </button>
           </section>
         )}
 
@@ -854,36 +843,8 @@ export default function SceneSidebar() {
           </span>
         </a>
 
-        <details
-          open={advancedOpen}
-          onToggle={e => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-          className="group rounded-xl border border-[var(--rm-text)]/10 px-3 py-2.5 text-xs text-[var(--rm-muted)]"
-        >
-          <summary className="cursor-pointer select-none font-medium text-[var(--rm-text)]">Options avancées</summary>
-          <div className="mt-3 space-y-3">
-            {/* Only useful once there is a capture or photo to correct: a mirror, glass or lamp rendered wrong. */}
-            {(photoSrc || captureSrc) && <MaterialRolesPanel sceneId={sceneId} />}
-            <label className="flex items-center justify-between gap-3">
-              Unité
-              <select
-                value={importedRoom.unit}
-                onChange={e => setImportFit({ unit: e.target.value as ImportLengthUnit })}
-                className="rounded-md border border-[var(--rm-text)]/15 bg-[var(--rm-bg)] px-2 py-1 text-[var(--rm-text)]"
-              >
-                {(Object.keys(UNIT_LABELS) as ImportLengthUnit[]).map(key => (
-                  <option key={key} value={key}>
-                    {UNIT_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={importedRoom.zUp} onChange={e => setImportFit({ zUp: e.target.checked })} />
-              Z vers le haut (SketchUp)
-            </label>
-            {importedRoom.warning && <p className="leading-relaxed text-amber-800">{importedRoom.warning}</p>}
-          </div>
-        </details>
+        {/* 14 Nov: "Options avancées" removed (the user: it served no purpose); the import's warning stays visible when there is one */}
+        {importedRoom.warning && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{importedRoom.warning}</p>}
       </div>
     </aside>
   )

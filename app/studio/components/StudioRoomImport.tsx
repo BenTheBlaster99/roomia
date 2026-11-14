@@ -125,9 +125,12 @@ export function ImportedRoomBar() {
   }
 
   if (importStatus === 'loading') {
+    // 14 Nov: a calm cover over the 3D view while the project opens (the empty studio room no longer shows behind it)
     return (
-      <div className="absolute left-3 top-3 z-20 max-w-sm rounded-xl border border-[var(--rm-text)]/12 bg-[var(--rm-surface)]/95 px-3 py-2 text-xs shadow-md backdrop-blur">
-        Chargement de la pièce SketchUp…
+      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[var(--rm-bg)]">
+        <span className="h-10 w-10 animate-spin rounded-full border-[3px] border-[var(--rm-text)]/15 border-t-[var(--rm-primary)]" aria-hidden="true" />
+        <p className="text-sm font-medium text-[var(--rm-text)]">Ouverture du projet…</p>
+        <p className="text-xs text-[var(--rm-muted)]">Quelques secondes : Roomia prépare le modèle et ses vues.</p>
       </div>
     )
   }

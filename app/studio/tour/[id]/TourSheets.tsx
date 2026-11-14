@@ -8,7 +8,6 @@ import type { TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { useForfait } from '../../components/useForfait'
 
-const DA_PER_PHOTO = 14
 const PACKAGE_PHOTOS = 20
 
 export interface PlanData {
@@ -297,12 +296,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
                 <td>Forfait</td>
                 <td>{plural(photosLeft, 'photo restante', 'photos restantes')}</td>
               </tr>
-            ) : (
-              <tr>
-                <td>Crédits</td>
-                <td>{chosen.length * DA_PER_PHOTO} DA</td>
-              </tr>
-            )}
+            ) : null}
           </tbody>
         </table>
         {running ? (

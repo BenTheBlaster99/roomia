@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     if (body?.stop === true) return Response.json({ status: await stopTourBuild(id) })
     // the points before the build (14 Nov): Roomia proposes them on the plan, the person confirms (then the build starts)
-    if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id) })
+    if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id, (body as { fresh?: unknown }).fresh === true) })
     if (body?.confirmPoints) {
       const views = Array.isArray(body.confirmPoints.views) ? body.confirmPoints.views.map(Number) : []
       const auto = Array.isArray(body.confirmPoints.auto) ? (body.confirmPoints.auto as { id?: string; name: string; position: number[]; target: number[] }[]) : []

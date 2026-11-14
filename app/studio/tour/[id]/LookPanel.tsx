@@ -23,16 +23,14 @@ async function post(sceneId: string, body: Record<string, unknown>): Promise<{ o
 
 /**
  * "Présentation": the golden-hour 360° tour of every point (free, Blender only), then the AI finishing of the points that
- * deserve it. The AI step is paid, so the person chooses the points, sees the exact number of images and the cost, and
- * confirms that amount before anything is sent (lib/look-pipeline.ts refuses a job above the amount confirmed).
+ * deserve it. Since 14 Nov there is nothing to choose and no price shown: every view, up to what the account allows (the forfait).
  */
 export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tourReady: boolean }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<LookState | null>(null)
   const [error, setError] = useState('')
-  const [picked, setPicked] = useState<number[]>([])
   // a client's forfait counts 360 views, not credits or DA (lib/forfait.ts)
-  const { forfait, refresh: refreshForfait } = useForfait()
+  const { forfait, signedIn, credits, refresh: refreshForfait } = useForfait()
   const panoLeft = forfaitLeft(forfait, 'pano')
 
   const load = useCallback(() => read(sceneId).then(s => s && setState(s)), [sceneId])
@@ -53,21 +51,16 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
     const timer = setInterval(() => void load(), 3000)
     return () => clearInterval(timer)
   }, [running, load])
-  // every view starts selected (the AI light is one image per view)
-  useEffect(() => {
-    if (state?.suggestions && picked.length === 0 && state.stage === 'ready') setPicked(state.suggestions.map(s => s.index))
-  }, [state, picked.length])
 
   // a finished (or stopped) AI job changed what is left of the forfait
   useEffect(() => {
     if (!running) refreshForfait()
   }, [running, refreshForfait])
 
-  const images = picked.length
-  const cost = images * DA_PER_IMAGE
-  const overForfait = panoLeft !== null && images > panoLeft
-  const resumeLabel = (c: number) => (panoLeft !== null ? 'Reprendre' : `Reprendre (${c} DA au plus)`)
-  const toggle = (list: number[], set: (v: number[]) => void, i: number) => set(list.includes(i) ? list.filter(x => x !== i) : [...list, i])
+  // 14 Nov: no choosing and no price any more: every view, up to what the forfait (or the credits) allows
+  const aiCount = Math.min(state?.suggestions?.length ?? 0, signedIn ? (panoLeft ?? credits) : 0)
+  const allPoints = (state?.suggestions ?? []).slice(0, aiCount).map(x => x.index)
+  const resumeLabel = (_c: number) => 'Reprendre'
 
   async function start(body: Record<string, unknown>) {
     setError('')
@@ -91,8 +84,8 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
             <>
               <strong>Qualité finale · plein jour</strong>
               <span>
-                Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° en plein jour. Gratuit : aucun crédit,
-                environ 1 à 2 minutes par vue sur votre PC.
+                Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° en plein jour, lampes allumées. Environ 1 à 2 minutes
+                par vue sur votre PC.
               </span>
               {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
               {state?.error && <span className="tour-error">{state.error}</span>}
@@ -100,7 +93,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               {state?.step && state.stage === 'idle' && <span>{state.step}</span>}
               {!tourReady && <span className="tour-error">Préparez d’abord la visite 360° (bouton « Préparer la visite ») : la présentation s’appuie sur ses points et son plan.</span>}
               <button type="button" disabled={!tourReady} onClick={() => void start({ action: 'render' })}>
-                Générer la présentation (gratuit)
+                Refaire la lumière du jour
               </button>
             </>
           )}
@@ -110,8 +103,8 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               <strong>{state?.step || 'En cours…'}</strong>
               {state?.ai ? <progress max={state.ai.images} value={state.ai.done} /> : <progress />}
               <span>
-                {minutes} min écoulée{minutes > 1 ? 's' : ''}. Vous pouvez continuer à travailler, mais ne fermez pas Roomia. Si le PC s’arrête, relancez : les images IA
-                déjà faites ne sont pas payées deux fois.
+                {minutes} min écoulée{minutes > 1 ? 's' : ''}. Vous pouvez continuer à travailler, mais ne fermez pas Roomia. Si le PC s’arrête, relancez : les vues
+                déjà finies sont gardées.
               </span>
               {state?.detail && <span>{state.detail}</span>}
               {state?.job === 'render' && (state.autoAi ?? 0) > 0 && (
@@ -121,7 +114,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               )}
               {state?.ai && (
                 <span>
-                  {state.ai.done} / {state.ai.images} images · {state.ai.paid} {panoLeft !== null ? 'décomptées du forfait' : 'payées'} · {state.ai.cached} reprises du cache
+                  {state.ai.done} / {state.ai.images} vues
                 </span>
               )}
               {state?.job === 'render' && (
@@ -142,7 +135,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
           {stage === 'interrupted' && state?.job === 'ai' && state.ai && (
             <>
               <strong>Finition IA arrêtée</strong>
-              <span>{state.step || 'Interrompue.'} Les images déjà faites sont gardées : les reprendre ne les repaie pas.</span>
+              <span>{state.step || 'Interrompue.'} Les vues déjà finies sont gardées.</span>
               <button type="button" onClick={() => void start({ action: 'ai', points: state.ai!.points, ring: state.ai!.ring, maxCost: state.ai!.cost })}>
                 {resumeLabel(state.ai.cost)}
               </button>
@@ -160,45 +153,15 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
               <button type="button" onClick={() => window.location.reload()}>
                 Voir la visite
               </button>
-              {state?.suggestions && state.suggestions.length > 0 && (
+              {state?.suggestions && state.suggestions.length > 0 && aiCount > 0 && (
                 <>
-                  <strong>Finition IA (payante)</strong>
+                  <strong>Finition IA</strong>
                   <span>
-                    L’IA donne sa lumière et ses couleurs à chaque vue ; Blender garde chaque objet et chaque texture.{' '}
-                    {panoLeft !== null ? 'Chaque vue finie compte pour 1 vue de votre forfait.' : 'Une image IA par vue (1 crédit).'} Le style vient de
-                    votre photo IA du séjour : faites-la d’abord pour le meilleur résultat.
+                    L’IA donne à chaque vue sa lumière du jour et ses lampes allumées ; Blender garde chaque objet et chaque texture.
+                    {aiCount < state.suggestions.length ? ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.` : ''}
                   </span>
-                  <div className="look-points">
-                    {state.suggestions.map(s => (
-                      <div key={s.index} className="look-point">
-                        <label>
-                          <input type="checkbox" checked={picked.includes(s.index)} onChange={() => toggle(picked, setPicked, s.index)} />
-                          <span
-                            className="look-thumb"
-                            style={{ backgroundImage: `url(/api/scenes/${sceneId}/tour/pano-${s.index}.jpg)` }}
-                            role="img"
-                            aria-label={s.name}
-                          />
-                          <b>{s.name}</b>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                  {panoLeft !== null ? (
-                    <span>
-                      <b>{plural(images, 'vue choisie', 'vues choisies')}</b> · votre forfait : {plural(panoLeft, 'vue restante', 'vues restantes')}.{' '}
-                      {overForfait ? <span className="tour-error">Choisissez au plus {panoLeft} vue{panoLeft > 1 ? 's' : ''}, ou contactez Roomia pour étendre le forfait.</span> : 'Rien n’est envoyé avant votre confirmation.'}
-                    </span>
-                  ) : (
-                    <span>
-                      <b>
-                        {images} vue{images > 1 ? 's' : ''} · {images} crédit{images > 1 ? 's' : ''}
-                      </b>{' '}
-                      ({cost} DA). Rien n’est envoyé avant votre confirmation.
-                    </span>
-                  )}
-                  <button type="button" disabled={picked.length === 0 || overForfait} onClick={() => void start({ action: 'ai', points: picked, ring: [], maxCost: cost })}>
-                    {panoLeft !== null ? `Confirmer et lancer (${plural(images, 'vue', 'vues')} du forfait)` : `Confirmer et lancer (${images} crédit${images > 1 ? 's' : ''})`}
+                  <button type="button" onClick={() => void start({ action: 'ai', points: allPoints, ring: [], maxCost: allPoints.length * DA_PER_IMAGE })}>
+                    Finir toute la visite avec l’IA ({plural(aiCount, 'vue', 'vues')})
                   </button>
                 </>
               )}
@@ -209,7 +172,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
             <>
               <strong>Finition IA terminée</strong>
               <span>
-                {state?.ai?.images} images ({state?.ai?.paid} {panoLeft !== null ? 'décomptées du forfait' : 'payées'}, {state?.ai?.cached} reprises du cache). Rechargez la page pour voir les vues finies.
+                {state?.ai?.images} vues finies. Rechargez la page pour les voir.
               </span>
               <button type="button" onClick={() => window.location.reload()}>
                 Voir la visite

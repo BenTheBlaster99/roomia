@@ -53,6 +53,7 @@ export default function PanoViewer({
   initialPitch = 0,
   initialFov = 75,
   still = false,
+  arrive = false,
 }: {
   src: string
   /** An 8192 px copy, swapped in after src on screens that can hold it (not phones: 128 MB of texture). */
@@ -65,8 +66,11 @@ export default function PanoViewer({
   initialFov?: number
   /** No slow turn while nobody touches it: the free walk opens it facing where the visitor was looking. */
   still?: boolean
+  /** Coming from another point: opens a little zoomed in and settles (with the parent's fade, a step into the room). */
+  arrive?: boolean
   spots: PanoSpot[]
-  onSpot: (key: string) => void
+  /** An arrow was clicked: the view has turned and zoomed towards it; `snapshot` is the last frame (JPEG data URL) to fade from. */
+  onSpot: (key: string, snapshot?: string) => void
   onLook?: (yaw: number, pitch: number) => void
   onReady?: () => void
 }) {
@@ -75,17 +79,22 @@ export default function PanoViewer({
   const spotsRef = useRef(spots)
   const lookRef = useRef(onLook)
   const readyRef = useRef(onReady)
+  const spotRef = useRef(onSpot)
+  /** Set by the viewer: turn and zoom towards an arrow, then hand over (see onSpot). */
+  const flyRef = useRef<((spot: PanoSpot) => void) | null>(null)
   // The render loop reads the latest arrows and callbacks without restarting the viewer.
   useEffect(() => {
     spotsRef.current = spots
     lookRef.current = onLook
     readyRef.current = onReady
-  }, [spots, onLook, onReady])
+    spotRef.current = onSpot
+  }, [spots, onLook, onReady, onSpot])
 
   useEffect(() => {
     const el = host.current
     if (!el) return
-    const renderer = new THREE.WebGLRenderer({ antialias: false })
+    // the last frame is read back for the fade to the next point (14 Nov)
+    const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true })
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     el.prepend(renderer.domElement)
@@ -122,6 +131,7 @@ export default function PanoViewer({
     new THREE.TextureLoader().load(src, tex => {
       use(tex)
       if (disposed) return
+      if (arrive && !reduceMotion) anim = { from: { yaw, pitch, fov: fov * 0.72 }, to: { yaw, pitch, fov }, t0: performance.now(), dur: 650 }
       readyRef.current?.()
       if (hd) new THREE.TextureLoader().load(hdSrc, use)
     })
@@ -129,7 +139,18 @@ export default function PanoViewer({
     let yaw = initialYaw
     let pitch = initialPitch
     let fov = initialFov
-    let touched = still
+    let touched = still || arrive
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    /** a short move of the view (an arrow clicked, an arrival), eased */
+    let anim: { from: { yaw: number; pitch: number; fov: number }; to: { yaw: number; pitch: number; fov: number }; t0: number; dur: number; done?: () => void } | null = null
+    flyRef.current = spot => {
+      touched = true
+      // the shortest way round to the arrow, a little down towards the floor where it stands, zoomed in: a step forward
+      const target = yaw + Math.atan2(Math.sin(spot.yaw - yaw), Math.cos(spot.yaw - yaw))
+      const done = () => spotRef.current(spot.key, renderer.domElement.toDataURL('image/jpeg', 0.82))
+      if (reduceMotion) return done()
+      anim = { from: { yaw, pitch, fov }, to: { yaw: target, pitch: Math.max(-0.35, Math.min(0.1, spot.pitch * 0.5)), fov: Math.max(38, fov * 0.6) }, t0: performance.now(), dur: 420, done }
+    }
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = el
       renderer.setSize(w, h, false)
@@ -186,6 +207,25 @@ export default function PanoViewer({
     let lastLook = NaN
     let lastPitch = NaN
     const frame = () => {
+      if (anim) {
+        const t = Math.min(1, (performance.now() - anim.t0) / anim.dur)
+        const k = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+        yaw = anim.from.yaw + (anim.to.yaw - anim.from.yaw) * k
+        pitch = anim.from.pitch + (anim.to.pitch - anim.from.pitch) * k
+        fov = anim.from.fov + (anim.to.fov - anim.from.fov) * k
+        if (t >= 1) {
+          const done = anim.done
+          anim = null
+          if (done) {
+            // drawn once more at the end position, then read back
+            uniforms.yaw.value = yaw
+            uniforms.pitch.value = pitch
+            uniforms.tanHalf.value = Math.tan(((fov / 2) * Math.PI) / 180)
+            renderer.render(scene, camera)
+            done()
+          }
+        }
+      }
       // A slow turn until the visitor takes over, so the page shows at once that it is a 360°.
       if (!touched && !reduce && texture) yaw += 0.0012
       uniforms.yaw.value = yaw
@@ -223,6 +263,7 @@ export default function PanoViewer({
 
     return () => {
       disposed = true
+      flyRef.current = null
       cancelAnimationFrame(raf)
       observer.disconnect()
       el.removeEventListener('pointerdown', down)
@@ -234,7 +275,7 @@ export default function PanoViewer({
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [src, hdSrc, initialYaw, initialPitch, initialFov, still])
+  }, [src, hdSrc, initialYaw, initialPitch, initialFov, still, arrive])
 
   return (
     <div className="pano" ref={host}>
@@ -247,11 +288,24 @@ export default function PanoViewer({
             if (node) spotEls.current.set(s.key, node)
             else spotEls.current.delete(s.key)
           }}
-          onClick={() => onSpot(s.key)}
+          onClick={() => (flyRef.current ? flyRef.current(s) : onSpot(s.key))}
+          aria-label={`Aller à ${s.label}`}
         >
-          <span aria-hidden="true">↑</span> {s.label}
+          <SpotMark />
+          <span className="spot-label">{s.label}</span>
         </button>
       ))}
     </div>
+  )
+}
+
+/** The arrow towards another point: a ring lying on the floor with a chevron, the point's name under it. */
+export function SpotMark() {
+  return (
+    <span className="spot-disc" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26">
+        <path d="M5 14.5 12 7.5l7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
   )
 }
