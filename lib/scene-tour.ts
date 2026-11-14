@@ -5435,7 +5435,33 @@ export interface TourView {
 }
 
 /** Everything the tour page needs: each saved view with its latest photo and its panorama, and the plan. */
+/**
+ * 15 Nov, once per scene: a 360 finished the 12 Nov way (the AI's light put on Blender's pixels) gets the AI image itself, as the
+ * user wants ("never show Blender's work"). Free: the AI image is already in look/sunburst. Only a view whose pano-k.jpg is still
+ * exactly that finish is changed; a view rendered again since is left alone.
+ */
+async function upgradeAiPanos(sceneId: string): Promise<void> {
+  const marker = path.join(sceneDir(sceneId), 'look', 'ai-direct.done')
+  if (await stat(marker).then(() => true, () => false)) return
+  const t = tourDir(sceneId)
+  const sun = path.join(sceneDir(sceneId), 'look', 'sunburst')
+  const files = await readdir(t).catch(() => [] as string[])
+  for (const f of files) {
+    const m = /^pano-(\d{1,3})-ai-light\.jpg$/.exec(f)
+    if (!m) continue
+    const k = m[1]
+    const seam = path.join(sun, `pano-${k}-sunburst-2560-seam.jpg`)
+    const [cur, light, ai] = await Promise.all([readFile(path.join(t, `pano-${k}.jpg`)).catch(() => null), readFile(path.join(t, f)).catch(() => null), readFile(seam).catch(() => null)])
+    if (!cur || !light || !ai || !cur.equals(light) || ai.equals(cur)) continue
+    await writeFile(path.join(t, `pano-${k}.jpg`), ai)
+    await writeFile(path.join(t, f), ai)
+  }
+  await mkdir(path.dirname(marker), { recursive: true })
+  await writeFile(marker, new Date().toISOString())
+}
+
 export async function readTour(sceneId: string, { review = false } = {}) {
+  await upgradeAiPanos(sceneId).catch(() => {})
   const [cameras, photos, status, labels] = await Promise.all([readCameras(sceneId), listPhotos(sceneId), readTourStatus(sceneId), readLabels(sceneId)])
   const built = await readBuild(sceneId)
   const linksOf = (index: number) => (built?.links ?? []).flatMap(([a, b]) => (a === index ? [b] : b === index ? [a] : []))
@@ -5529,5 +5555,10 @@ export async function readTour(sceneId: string, { review = false } = {}) {
   )
   // the points before the build (14 Nov): the proposal being made or waiting for the person, and whether points were chosen
   const [proposal, chosen, plan3dState] = await Promise.all([readProposal(sceneId), readChosenPoints(sceneId), readPlan3dState(sceneId)])
-  return { plan3dState, status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360, proposal, chosen: !!chosen }
+  // 15 Nov (Sarah: "the AI finish changed nothing"): the daylight look and the AI light replace pano-k.jpg in place, after the
+  // build. The page asked for the same ?v=<build time> URL and the app's browser kept showing the Blender 360 from its cache. The
+  // version now also carries the newest 360 file's time, so a finished view is always a new URL.
+  const filesAt = Math.max(0, ...(await Promise.all(views.map(v => (v.pano ? stat(path.join(tourDir(sceneId), v.pano)).then(st => st.mtimeMs, () => 0) : 0)))))
+  const version = `${built?.builtAt ?? ''}-${Math.round(filesAt)}`
+  return { plan3dState, status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, version, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360, proposal, chosen: !!chosen }
 }

@@ -1,5 +1,6 @@
 """
-"Blender + AI light" for the 360 views of a scene (12 Nov, chosen by the user on F5): per view, one AI pass over the whole panorama
+The AI finish of the 360 views of a scene. Since 15 Nov the view's 360 IS the AI image (the user: never show Blender's work).
+Before (12 Nov, still with --transfer): "Blender + AI light": per view, one AI pass over the whole panorama
 (pano-sunburst.mts, 2560x1280, 16 DA) is used ONLY as the light and colour source; Blender keeps every object and texture
 (pano_look_transfer.py: alignment, guided gain, colour from the room tint, dehaze).
 
@@ -24,6 +25,7 @@ ap.add_argument("--refs", default="{}")
 ap.add_argument("--default-ref")
 ap.add_argument("--auto", default="auto-f")
 ap.add_argument("--yes", action="store_true")
+ap.add_argument("--transfer", action="store_true", help="the 12 Nov way: only the AI's light, put on Blender's pixels")
 args = ap.parse_args()
 S = os.path.abspath(args.scene_dir) if args.scene_dir else os.path.join(os.path.abspath(os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")), args.scene)
 T, D = os.path.join(S, "tour"), os.path.join(S, "look", "sunburst")
@@ -65,16 +67,20 @@ for k in views:
     P[:, -n:] -= d * w[:, ::-1]
     seam = os.path.join(D, "pano-%d-sunburst-2560-seam.jpg" % k)
     Image.fromarray(P.clip(0, 255).astype(np.uint8)).save(seam, quality=94)
-    out = os.path.join(D, "pano-%d-light.jpg" % k)
-    lin = os.path.join(S, "look", args.auto, "t%d-lin.npy" % k)
-    cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.05", "--gain-max", "20"]
-    if os.path.exists(lin):
-        cmd += ["--blender-linear", lin]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    info = " | ".join(l for l in r.stdout.splitlines() if l.startswith(("LOOK_DEHAZE", "LOOK_TRANSFER")))
-    if r.returncode or not os.path.exists(out):
-        print("AI_LIGHT view %d: the transfer failed: %s" % (k, r.stderr.strip()[-300:]), flush=True)
-        continue
+    # 15 Nov, the user: the client never sees Blender's work, the 360 IS the AI's final image (Sarah: "the AI changed nothing" —
+    # the light alone on Blender's pixels still looked like Blender). The old transfer stays behind --transfer.
+    out, info = seam, "AI image"
+    if args.transfer:
+        out = os.path.join(D, "pano-%d-light.jpg" % k)
+        lin = os.path.join(S, "look", args.auto, "t%d-lin.npy" % k)
+        cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.05", "--gain-max", "20"]
+        if os.path.exists(lin):
+            cmd += ["--blender-linear", lin]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        info = " | ".join(l for l in r.stdout.splitlines() if l.startswith(("LOOK_DEHAZE", "LOOK_TRANSFER")))
+        if r.returncode or not os.path.exists(out):
+            print("AI_LIGHT view %d: the transfer failed: %s" % (k, r.stderr.strip()[-300:]), flush=True)
+            continue
     shutil.copyfile(blender, os.path.join(T, "pano-%d-ai-orig.jpg" % k))
     shutil.copyfile(out, os.path.join(T, "pano-%d-ai-light.jpg" % k))
     shutil.copyfile(out, os.path.join(T, "pano-%d.jpg" % k))

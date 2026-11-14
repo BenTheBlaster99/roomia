@@ -24,6 +24,8 @@ interface TourData {
   /** A site with several levels: one plan each, bottom up. */
   levels: TourLevel[] | null
   builtAt: string | null
+  /** changes when a 360 file changes (the look and the AI light replace them after the build) */
+  version?: string
   /** A quick preview tour (desktop app): the golden-hour Présentation makes the final 360°. */
   preview?: boolean
   /** The golden-hour Présentation starts by itself when the build ends (desktop app). */
@@ -278,10 +280,10 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   // The 360° the arrows lead to are fetched ahead, so the next point appears at once.
   useEffect(() => {
     for (const s of spots.slice(0, 5)) {
-      if (s.view.pano) new Image().src = `/api/scenes/${sceneId}/tour/${s.view.pano}?v=${encodeURIComponent(data?.builtAt ?? '')}`
+      if (s.view.pano) new Image().src = `/api/scenes/${sceneId}/tour/${s.view.pano}?v=${encodeURIComponent(data?.version ?? data?.builtAt ?? '')}`
       else if (s.view.photo) new Image().src = photoUrl(sceneId, s.view.photo)
     }
-  }, [spots, sceneId, data?.builtAt])
+  }, [spots, sceneId, data?.version, data?.builtAt])
 
   const photoSpots = useMemo(() => {
     if (!current) return []
@@ -456,7 +458,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           look={look}
           onStop={() => void stopBuild()}
           onPause={on => void pauseBuild(on)}
-          onPreview={hasPano ? () => setPreview(true) : undefined}
+          onPreview={hasPano && editing ? () => setPreview(true) : undefined}
         />
       )
     }
@@ -491,7 +493,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   const levelShown = levels ? (planLevel ?? current.level ?? levels[0].index) : null
   const plan = levels ? (levels.find(l => l.index === levelShown) ?? levels[0]) : data.plan
   const onPlan = (v: TourView) => !levels || v.level === levelShown
-  const version = encodeURIComponent(data.builtAt ?? '')
+  const version = encodeURIComponent(data.version ?? data.builtAt ?? '')
   const previous = prev !== null ? views[order[prev]] : null
   const update = data.update
   const toUpdate = update ? update.views.length + update.photos.length : 0
