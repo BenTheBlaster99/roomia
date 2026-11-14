@@ -9,6 +9,8 @@ interface RoomiaDesktopBridge {
   report?: () => Promise<string | null>
   /** Opens an address in the system browser. */
   openExternal?: (url: string) => void
+  /** Installs (or repairs) the SketchUp extension « Envoyer à Roomia » in every SketchUp of this PC. */
+  installSketchup?: () => Promise<void>
 }
 
 interface Window {

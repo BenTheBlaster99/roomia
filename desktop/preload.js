@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld('roomiaDesktop', {
   openProjects: () => ipcRenderer.invoke('roomia:open-projects'),
   report: () => ipcRenderer.invoke('roomia:report'),
   openExternal: url => ipcRenderer.invoke('roomia:open-external', String(url)),
+  // 14 Nov: installs (or repairs) the SketchUp extension in every SketchUp of this PC, then says how to use it
+  installSketchup: () => ipcRenderer.invoke('roomia:install-sketchup'),
 })

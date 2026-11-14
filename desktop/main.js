@@ -112,6 +112,13 @@ async function start() {
   })
   win.once('ready-to-show', () => win.show())
   win.on('closed', () => (win = null))
+  // 14 Nov: a download (a 360°, the whole project's zip) asks where to save as usual, then shows the file in its folder
+  win.webContents.session.on('will-download', (_e, item) => {
+    item.once('done', (_d, state) => {
+      if (state === 'completed') shell.showItemInFolder(item.getSavePath())
+      else log(`download ${item.getFilename()} ${state}`)
+    })
+  })
   guardNavigation(win.webContents)
   await win.loadFile(path.join(__dirname, 'splash.html'))
 
@@ -783,6 +790,7 @@ ipcMain.handle('roomia:open-projects', event => {
   if (fromUs(event)) shell.openPath(DIRS.projects)
 })
 ipcMain.handle('roomia:report', event => (fromUs(event) ? createReport() : null))
+ipcMain.handle('roomia:install-sketchup', event => (fromUs(event) ? sketchupExtension() : null))
 // links to Roomia's own sites only (a client tour link, the release page)
 ipcMain.handle('roomia:open-external', (event, url) => {
   if (!fromUs(event) || typeof url !== 'string') return

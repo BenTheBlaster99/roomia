@@ -113,6 +113,20 @@ export default function ProjectsClient() {
           </p>
         )}
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+        {/* 14 Nov: how a project arrives from SketchUp (Roomia installs the extension itself; the button repairs it) */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] px-4 py-3">
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-medium text-[var(--rm-text)]">Depuis SketchUp</p>
+            <p className="text-[var(--rm-muted)]">
+              Enregistrez vos scènes (Fenêtre → Scènes → +), puis menu <b>Extensions → Roomia → Envoyer à Roomia</b> (ou le bouton maison) : le projet
+              s’ouvre ici. Roomia installe l’extension tout seul ; redémarrez SketchUp si vous ne la voyez pas.
+            </p>
+          </div>
+          {/* this page only exists in Roomia Desktop: the bridge is there */}
+          <button type="button" className={button} onClick={() => void window.roomiaDesktop?.installSketchup?.()}>
+            Installer l’extension SketchUp
+          </button>
+        </div>
         {data && data.projects.length === 0 && (
           <div className="rounded-2xl border border-dashed border-[var(--rm-text)]/20 bg-[var(--rm-surface)] p-8 text-center">
             <p className="mb-1 font-medium text-[var(--rm-text)]">Aucun projet pour l’instant</p>

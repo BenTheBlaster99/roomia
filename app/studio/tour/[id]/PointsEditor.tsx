@@ -150,10 +150,11 @@ export default function PointsEditor({
 
       <div className="points-body">
         <div className="points-plan-wrap">
+          <div className="points-plan-fit">
           <div
             ref={box}
             className={`points-plan${adding ? ' adding' : ''}`}
-            style={{ aspectRatio: `${level.width} / ${level.height}` }}
+            style={{ aspectRatio: `${level.width} / ${level.height}`, ['--ratio' as string]: level.width / level.height }}
             onPointerDown={e => {
               if (adding && e.target === e.currentTarget) addAt(e.clientX, e.clientY)
               else if (e.target === e.currentTarget) setSelected(null)
@@ -196,6 +197,7 @@ export default function PointsEditor({
                   <b>{p.on ? number.get(p.key) : '–'}</b>
                 </button>
               ))}
+          </div>
           </div>
         </div>
 
