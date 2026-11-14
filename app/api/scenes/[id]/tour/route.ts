@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
-import { confirmTourPoints, editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { confirmTourPoints, dropTourProposal, editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { planAutoAi } from '@/lib/look-pipeline'
 import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
 import { readMeta } from '@/lib/scene-store'
@@ -57,6 +57,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     if (body?.stop === true) return Response.json({ status: await stopTourBuild(id) })
     // the points before the build (14 Nov): Roomia proposes them on the plan, the person confirms (then the build starts)
+    if ((body as { dropProposal?: unknown } | null)?.dropProposal === true) {
+      await dropTourProposal(id)
+      return Response.json(await readTour(id))
+    }
     if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id, (body as { fresh?: unknown }).fresh === true) })
     if (body?.confirmPoints) {
       const views = Array.isArray(body.confirmPoints.views) ? body.confirmPoints.views.map(Number) : []

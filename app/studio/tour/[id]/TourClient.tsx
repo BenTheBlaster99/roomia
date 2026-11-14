@@ -421,12 +421,22 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   if (!data) return <div className="tour tour-message">Chargement de la visite…</div>
   if (published && !current) return <div className="tour tour-message">Cette visite n’est pas disponible pour le moment.</div>
 
+  // The points proposed on the plan, waiting for the person: the editor, also over a visit that exists already ("Revoir les points")
+  if (!published && data.proposal?.state === 'ready' && !building) {
+    return (
+      <PointsEditor
+        sceneId={sceneId}
+        proposal={data.proposal}
+        busy={!!busy}
+        onConfirm={(p, max) => void confirmPoints(p, max)}
+        onRedo={() => void propose(true)}
+        onCancel={hasPano ? () => void post({ dropProposal: true }, 'Impossible d’annuler.') : undefined}
+      />
+    )
+  }
   // ── Before the visit exists, or while it is being made: the steps, never the unfinished Blender pictures ──
   if (!published && !editing && (pipeline || !hasPano) && !(preview && hasPano)) {
     const proposal = data.proposal
-    if (!pipeline && proposal?.state === 'ready') {
-      return <PointsEditor sceneId={sceneId} proposal={proposal} busy={!!busy} onConfirm={(p, max) => void confirmPoints(p, max)} onRedo={() => void propose(true)} />
-    }
     if (pipeline) {
       return (
         <Pipeline
@@ -516,6 +526,11 @@ export default function TourClient({ sceneId, title, published = false }: { scen
         </div>
         {!published && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
         {!published && <DesktopPublish sceneId={sceneId} />}
+        {!published && (
+          <button type="button" className="tour-download" onClick={() => void propose()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
+            Points de vue
+          </button>
+        )}
         {!published && (
           <a className="tour-download" href={`/api/scenes/${sceneId}/export`} title="Le projet entier dans un dossier : 360°, photos, plans, vidéo">
             ⤓ Tout télécharger

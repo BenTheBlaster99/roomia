@@ -68,12 +68,15 @@ export default function PointsEditor({
   busy,
   onConfirm,
   onRedo,
+  onCancel,
 }: {
   sceneId: string
   proposal: TourProposal
   busy: boolean
   onConfirm: (points: ConfirmedPoints, aiMax: number) => void
   onRedo: () => void
+  /** back to the visit as it is (when one exists): the proposal is dropped, nothing is rendered */
+  onCancel?: () => void
 }) {
   const levels = proposal.levels ?? []
   const eye = proposal.eye ?? 1.6
@@ -271,6 +274,11 @@ export default function PointsEditor({
           <button type="button" className="tour-btn secondary" disabled={busy} onClick={onRedo}>
             Replacer les points automatiquement
           </button>
+          {onCancel && (
+            <button type="button" className="tour-btn secondary" disabled={busy} onClick={onCancel}>
+              Annuler : garder la visite actuelle
+            </button>
+          )}
         </aside>
       </div>
     </div>

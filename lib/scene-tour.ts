@@ -4480,6 +4480,12 @@ async function propose(sceneId: string, fresh = false) {
   await rm(work, { recursive: true, force: true }).catch(() => undefined)
 }
 
+/** "Annuler : garder la visite actuelle": the proposal waiting in the editor is dropped (a running one is left to finish). */
+export async function dropTourProposal(sceneId: string) {
+  if ((await readProposal(sceneId))?.state === 'running') return
+  await rm(proposalPath(sceneId), { force: true })
+}
+
 /**
  * The person confirmed the points: kept SketchUp scenes (by index) and the other points with where they stand and look. They are
  * kept in points.json (every later build uses them, a new version of the file included), then the build starts.
