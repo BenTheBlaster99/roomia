@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ detail: 'Cette photo a déjà été produite.' }, { status: 409 })
   }
   if (job?.status === 'reserved') return ndjson([{ type: 'pending', detail: 'Photo en cours sur le serveur Roomia.' }])
-  if (job) return Response.json({ detail: 'Cette demande a déjà été traitée. Relancez la photo.' }, { status: 409 })
+  // a job that failed before (released, nothing charged) is simply made again: resuming a 360 finish asks the same id
+  if (job && job.status !== 'released') return Response.json({ detail: 'Cette demande a déjà été traitée. Relancez la photo.' }, { status: 409 })
 
   const capture = typeof body?.capture_base64 === 'string' ? Buffer.from(body.capture_base64, 'base64') : null
   if (!capture || capture.length < 10_000 || capture.length > MAX_CAPTURE_BYTES) {

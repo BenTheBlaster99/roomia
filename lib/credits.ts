@@ -56,7 +56,11 @@ export function reserveCredit(userId: number, jobId: string, sceneId: string, vi
       }
     }
     const existing = db.prepare('SELECT status FROM jobs WHERE id = ?').get(jobId)
-    if (existing) {
+    // 15 Nov (Sarah: "Reprendre" on the Qualité finale answered "Cette demande a déjà été traitée"): a 360 view's job id is made from
+    // its picture, so resuming asks the same id again. A job that failed was given back and charged nothing: it may be asked again.
+    if (existing?.status === 'released') {
+      db.prepare('DELETE FROM jobs WHERE id = ? AND status = ?').run(jobId, 'released')
+    } else if (existing) {
       throw new CreditError(
         existing.status === 'consumed'
           ? 'Cette photo a déjà été produite : elle est dans « Mes photos ».'
