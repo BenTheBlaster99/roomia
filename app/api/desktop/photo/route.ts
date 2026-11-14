@@ -97,18 +97,20 @@ export async function POST(req: NextRequest) {
         reserved = true
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // The photo is made and kept even if the app left: it is paid for, and a retry with the same id gets it.
-        const photo = panoLight
-          ? {
+        // 14 Nov: a connection to the image service that never opened (this PC's line drops it now and then) is tried again
+        // here, twice, so the person never sees that blip; a request that got through is never sent twice.
+        const photo = await neverOpenedRetry(() => panoLight
+          ? (async () => ({
               base64: (await editPanoLight(await panoLightInput(capture), reference && reference.length > 1000 ? await panoLightReference(reference) : null)).toString('base64'),
               quality: 'high',
               fellBack: false,
               fidelity: 'high',
               provider: 'gateway',
               size: '2560x1280',
-            }
+            }))()
           : tile
-          ? await generatePhotoreal(capture, panoFacePrompt(), { ask, quality, size: '1536x1536', maxInput: 2048 })
-          : await generatePhotoreal(capture, buildSceneRenderPrompt(lighting), { ask, quality })
+          ? generatePhotoreal(capture, panoFacePrompt(), { ask, quality, size: '1536x1536', maxInput: 2048 })
+          : generatePhotoreal(capture, buildSceneRenderPrompt(lighting), { ask, quality }))
         const image = Buffer.from(photo.base64, 'base64')
         const unusable = await checkDeliveredImage(image)
         if (unusable) throw new Error(`Le serveur d’images a renvoyé une image inutilisable (${unusable}). Aucun crédit n’est utilisé.`)
@@ -157,4 +159,28 @@ const STREAM_HEADERS = { 'Content-Type': 'text/event-stream; charset=utf-8', 'Ca
 
 function ndjson(events: Record<string, unknown>[]) {
   return new Response(events.map(e => JSON.stringify(e)).join('\n') + '\n', { headers: STREAM_HEADERS })
+}
+
+/** The connection never opened: nothing reached the image service, so nothing was made or billed. */
+function neverOpened(err: unknown): boolean {
+  const codes = new Set(['ETIMEDOUT', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'EAI_AGAIN', 'ENOTFOUND', 'UND_ERR_CONNECT_TIMEOUT'])
+  for (let e: unknown = err, depth = 0; e && depth < 5; e = (e as { cause?: unknown }).cause, depth++) {
+    const code = (e as { code?: string }).code
+    if (code && codes.has(code)) return true
+    for (const inner of ((e as { errors?: unknown[] }).errors ?? [])) if (codes.has((inner as { code?: string }).code ?? '')) return true
+  }
+  return false
+}
+
+async function neverOpenedRetry<T>(make: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const t = Date.now()
+    try {
+      return await make()
+    } catch (err) {
+      if (attempt >= 2 || !neverOpened(err) || Date.now() - t > 30_000) throw err
+      console.error(`image service connection never opened (${attempt + 1}), trying again`)
+      await new Promise(r => setTimeout(r, 4000 * (attempt + 1)))
+    }
+  }
 }
