@@ -76,12 +76,21 @@ export async function panoDownload(sceneId: string, index: number) {
 
 interface Entry {
   name: string
-  file: string
+  /** a file on disk, or the bytes made for the export (the web visit's page) */
+  file?: string
+  data?: Buffer
   /** a 360° gets its tag on the way */
   pano?: boolean
 }
 
-/** Everything the project made, as zip entries under one folder named after the project. */
+/**
+ * Everything the project made, as one folder named after the project (15 Nov, the user's layout):
+ *   360/          the 360° images, and index.html: the whole visit, ready to put on a website (see lib/scene-web-visit.ts)
+ *   Galerie/      the AI renders
+ *   Plan 2D.png   one file (the architect's plan when there is one)
+ *   Plan 3D.jpg   one file
+ *   <Projet>.mp4  the video, when there is one
+ */
 export async function exportEntries(sceneId: string): Promise<{ folder: string; entries: Entry[] }> {
   const folder = await projectTitle(sceneId)
   const tour = await readTour(sceneId)
@@ -90,34 +99,50 @@ export async function exportEntries(sceneId: string): Promise<{ folder: string; 
   const add = async (name: string, file: string, pano = false) => {
     if (await exists(file)) entries.push({ name: `${folder}/${name}`, file, pano })
   }
-  // the 360°, in the order of the visit list
+  // the 360°, in the order of the visit list, and the web visit that shows them
+  const panoNames = new Map<number, string>()
   for (const [n, v] of tour.views.entries()) {
-    if (v.pano) await add(`360/${two(n + 1)} ${safeName(v.name)}.jpg`, path.join(dir, v.panoHd ?? v.pano), true)
+    if (!v.pano) continue
+    const name = `${two(n + 1)} ${safeName(v.name)}.jpg`
+    const file = path.join(dir, v.panoHd ?? v.pano)
+    if (!(await exists(file))) continue
+    entries.push({ name: `${folder}/360/${name}`, file, pano: true })
+    panoNames.set(v.index, name)
   }
-  // the AI photos, named after their view (newest first in listPhotos: numbered when a view has several)
+  if (panoNames.size) {
+    const { panoDataScript, webVisitHtml, WEB_VISIT_README } = await import('./scene-web-visit')
+    entries.push({ name: `${folder}/360/index.html`, data: Buffer.from(webVisitHtml(folder, tour.views, panoNames), 'utf8') })
+    // the same pictures as data URLs, only for the page opened from the disk (Chrome refuses files to WebGL)
+    for (const v of tour.views) {
+      const name = panoNames.get(v.index)
+      if (name) entries.push({ name: `${folder}/360/visite-data/${name.slice(0, 2)}.js`, data: Buffer.from(panoDataScript(name.slice(0, 2), await readFile(path.join(dir, v.panoHd ?? v.pano!))), 'utf8') })
+    }
+    entries.push({ name: `${folder}/360/LISEZ-MOI.txt`, data: Buffer.from(WEB_VISIT_README.replace(/\n/g, '\r\n'), 'utf8') })
+  }
+  // the gallery: the AI renders, named after their view (numbered when a view has several)
   const seen = new Map<string, number>()
   for (const p of [...(await listPhotos(sceneId))].reverse()) {
     const base = safeName(p.view ?? 'Photo')
     const k = (seen.get(base) ?? 0) + 1
     seen.set(base, k)
-    await add(`Photos/${base}${k > 1 ? ` (${k})` : ''}${path.extname(p.file) || '.jpg'}`, path.join(photosDir(sceneId), p.file))
+    await add(`Galerie/${base}${k > 1 ? ` (${k})` : ''}${path.extname(p.file) || '.jpg'}`, path.join(photosDir(sceneId), p.file))
   }
-  // the plans: per level when the site has several
+  // one 2D plan and one 3D plan (per level when the site has several): the architect's plan when it was made
+  const archi = (JSON.parse(await readFile(path.join(dir, 'tour.json'), 'utf8').catch(() => '{}')) as { plan?: { archi?: { rendu?: string } } }).plan?.archi
   const levels = tour.levels && tour.levels.length > 1 ? tour.levels : null
-  const plans = levels
-    ? levels.map(l => ({ base: l.file.replace(/\.png$/, ''), hd: l.hd, lines: l.lines, label: ` - ${safeName(l.name)}` }))
-    : [{ base: 'plan', hd: 'plan-hd.png', lines: 'plan-hd-traits.png', label: '' }]
-  for (const { base, hd, lines, label } of plans) {
-    await add(`Plans/Plan 2D${label}.png`, path.join(dir, hd ?? `${base}-hd.png`))
-    await add(`Plans/Plan 2D - traits${label}.png`, path.join(dir, lines ?? `${base}-hd-traits.png`))
-    await add(`Plans/Plan 3D${label}.jpg`, path.join(dir, `${base}-3d.jpg`))
+  if (levels) {
+    for (const l of levels) {
+      const base = l.file.replace(/\.png$/, '')
+      await add(`Plan 2D - ${safeName(l.name)}.png`, path.join(dir, l.hd ?? `${base}-hd.png`))
+      await add(`Plan 3D - ${safeName(l.name)}.jpg`, path.join(dir, `${base}-3d.jpg`))
+    }
+  } else {
+    const architect = archi?.rendu && (await exists(path.join(dir, archi.rendu)))
+    await add('Plan 2D.png', path.join(dir, architect ? archi!.rendu! : 'plan-hd.png'))
+    await add('Plan 3D.jpg', path.join(dir, 'plan-3d.jpg'))
   }
-  const archi = (JSON.parse(await readFile(path.join(dir, 'tour.json'), 'utf8').catch(() => '{}')) as { plan?: { archi?: { rendu?: string; technique?: string; pdf?: string } } }).plan?.archi
-  if (archi?.rendu) await add('Plans/Plan architecte.png', path.join(dir, archi.rendu))
-  if (archi?.technique) await add('Plans/Plan architecte - technique.png', path.join(dir, archi.technique))
-  if (archi?.pdf) await add('Plans/Plan architecte A3.pdf', path.join(dir, archi.pdf))
   const { video } = await readVideo(sceneId)
-  if (video?.file) await add(`Video/${folder}.mp4`, path.join(videoDir(sceneId), video.file))
+  if (video?.file) await add(`${folder}.mp4`, path.join(videoDir(sceneId), video.file))
   return { folder, entries }
 }
 
@@ -138,12 +163,16 @@ export function zipStream(entries: Entry[]): ReadableStream<Uint8Array> {
           const entry = new ZipPassThrough(e.name)
           entry.mtime = new Date()
           zip.add(entry)
+          if (e.data) {
+            entry.push(new Uint8Array(e.data), true)
+            continue
+          }
           if (e.pano) {
-            entry.push(await withPanoXmp(await readFile(e.file)), true)
+            entry.push(await withPanoXmp(await readFile(e.file!)), true)
             continue
           }
           await new Promise<void>((resolve, reject) => {
-            const stream = createReadStream(e.file)
+            const stream = createReadStream(e.file!)
             stream.on('data', chunk => entry.push(chunk as Buffer))
             stream.on('end', () => {
               entry.push(new Uint8Array(0), true)

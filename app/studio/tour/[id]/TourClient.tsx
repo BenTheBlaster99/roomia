@@ -576,13 +576,9 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               Nouvelles photos
             </button>
           )}
-          {/* the free walk starts where the visitor stands in the tour */}
-          {data.walk && (
-            <a
-              href={`/studio/explore/${sceneId}?at=${current.index}${shown === 'pano' && lookYaw ? `&turn=${((-lookYaw * 180) / Math.PI).toFixed(1)}` : ''}${editing ? '&edit=1' : ''}`}
-            >
-              Visite libre
-            </a>
+          {/* Visite libre: taken out for now (15 Nov, the user); the reviewer still reaches it with ?edit=1 */}
+          {data.walk && editing && (
+            <a href={`/studio/explore/${sceneId}?at=${current.index}&edit=1`}>Visite libre</a>
           )}
         </div>
       </header>

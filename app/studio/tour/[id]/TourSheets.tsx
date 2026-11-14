@@ -314,6 +314,12 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
       </div>
       <aside className="tour-sheet-side">
         <h2>Nouvelles photos</h2>
+        {/* 15 Nov (the user): the client may want any angle, not only the saved scenes: the 3D view of the project, where he frames
+            the picture himself and renders it (it then comes into the Galerie) */}
+        <a className="tour-btn" href={`/studio?scene=${sceneId}`}>
+          Choisir un angle en 3D
+        </a>
+        <p className="tour-note">Cadrez librement dans la vue 3D du projet et lancez la photo depuis là. Ou choisissez ci-dessous parmi vos scènes SketchUp.</p>
         <p className="tour-big">
           {chosen.length}
           <span> / {PACKAGE_PHOTOS} photos</span>

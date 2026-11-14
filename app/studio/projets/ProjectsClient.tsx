@@ -215,11 +215,7 @@ export default function ProjectsClient() {
                       <a className={button} href={`/studio?scene=${p.id}`}>
                         Vue 3D
                       </a>
-                      {p.walk && (
-                        <a className={button} href={`/studio/explore/${p.id}`}>
-                          Visite libre
-                        </a>
-                      )}
+                      {/* Visite libre: taken out for now (15 Nov, the user) */}
                     </>
                   )}
                   <button type="button" className={button} onClick={() => setRenaming({ id: p.id, name: p.name })}>
