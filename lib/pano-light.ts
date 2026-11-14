@@ -9,7 +9,7 @@ import { GPT_IMAGE_MODEL, getOpenAIClient } from './openai-client'
  * (scripts/pano_look_transfer.py): Blender keeps every object and texture. One call, nothing retried here (each try is paid).
  * Shared by the desktop's paid route (app/api/desktop/photo, kind 'pano-light') and the Studio's own mode (lib/look-pipeline.ts).
  */
-export const PANO_LIGHT_VERSION = 'pl1'
+export const PANO_LIGHT_VERSION = 'pl2'
 export const PANO_LIGHT_SIZE = { width: 2560, height: 1280 }
 
 export function panoLightPrompt(withReference: boolean): string {
@@ -33,7 +33,14 @@ ROOM, keep exactly:
 
 LOOK:
 - Broad daylight from the windows. Not golden hour, not sunset, not night.
-- The ceiling lights on and soft, neutral white (about 4000 K), never orange.
+
+INTERIOR LIGHTS, switched ON (this matters most): every light fixture that is in the panorama is clearly lit, as in a professional
+interior photograph taken with all the lamps on:
+- each recessed ceiling spot shows a bright glowing lens and a soft cone or pool of light on the wall or floor below it;
+- LED strips, ceiling coves and lit niches glow along their whole length and wash the surface next to them;
+- pendants, wall lamps, floor and table lamps glow from inside their shades and light what is around them;
+- neutral warm white (about 3500-4000 K), never orange, never blown out.
+Only the fixtures that already exist are lit: never add a lamp, a spot or a light source.
 - Bright, clean walls and ceiling with subtle real shading; realistic floor reflections; crisp but natural detail; no oversharpening.
 - One coherent room: the same light, colour and material look in every direction.
 

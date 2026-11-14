@@ -75,10 +75,12 @@ R = {
             # 11 Nov bench (F5: bathroom, bedroom, living, dining; variants A-E): neutral 4000 K fixtures, tighter brighter spots
             # (visible pools on walls and wardrobes), a little more daylight and contrast. 3200 K had pushed every room beige:
             # the white balance hit its 15 % limit and the picture went hazy. 6000 K-ish sky at 320 turned rooms green (E).
-            "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": 0.5, "COVES": 0.15, "COVE_LINES": 1.0, "PENDANTS": 1, "PENDANT_GLOW": 3, "SLOT": 10},
+            # 14 Nov (the user: "the lights need to be shown that they are on"): the glowing fixtures x3, the cove washes x3, the LED
+            # lines x2, the downlights 110 -> 150 W, so a lamp reads as switched on in broad daylight too.
+            "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": 1.5, "COVES": 0.45, "COVE_LINES": 2.0, "PENDANTS": 1.5, "PENDANT_GLOW": 4, "SLOT": 10},
             "tints": {"INTERIOR": [1.0, 1.0, 1.0], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
             "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.4, "saturation": 1.2},
-            "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 110)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
+            "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 150)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
             "lift": 0.04,
             "walkExposure": -0.3,
         },

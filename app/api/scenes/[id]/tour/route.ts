@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
-import { editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { confirmTourPoints, editTourPoint, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { planAutoAi } from '@/lib/look-pipeline'
 import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
 import { readMeta } from '@/lib/scene-store'
@@ -22,12 +22,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * POST — renders the panoramas and the plan in the background (free: Blender only, no image service).
  * With { ai: [viewIndex, …] }: makes those viewpoints’ 360° photoreal (paid: 1 image each).
  * With { review: { index, approve, reason? } }: approves an AI 360° (clients then see it) or rejects it (reason: PANO_REJECT_REASONS).
- * With { point: { index, hidden?, startYaw? } }: removes a point from the tour, or sets where its 360° starts.
+ * With { point: { index, hidden?, startYaw?, name? } }: removes a point from the tour, sets where its 360° starts, or renames it.
  * With { newVersion: sceneId }: a new version of the file, uploaded as a scene of its own, replaces this scene's file;
  * the tour is rebuilt and finds what changed (free).
  * With { update: true }: remakes only the AI 360° faces and the photos that see what the new version changed (paid).
  * With { mirrors: true }: puts the real mirrors back into AI 360° views not approved yet (free).
  * With { complete: true, light? }: the build, then every stop in photo quality (paid, 1 image per stop).
+ * With { propose: true }: Roomia places the points and draws the plan, renders no 360° (free, ~1 min); the page shows them.
+ * With { confirmPoints: { views: [sceneIndex], auto: [{ id?, name, position, target }] }, autoAi?: { max } }: the person's points;
+ * the build starts with exactly those, then the Présentation and the AI finish on all of them (at most `max`).
  * With { autoAi: { views?: [{ index, name }], max } } on a plain build: the golden-hour Présentation is followed by the paid AI
  * light on those views (all of them when no list), at most `max`, without another click (lib/look-pipeline.ts planAutoAi).
  */
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ai?: unknown
     light?: unknown
     review?: { index?: unknown; approve?: unknown; reason?: unknown }
-    point?: { index?: unknown; hidden?: unknown; startYaw?: unknown }
+    point?: { index?: unknown; hidden?: unknown; startYaw?: unknown; name?: unknown }
     newVersion?: unknown
     stop?: unknown
     update?: unknown
@@ -48,12 +51,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     complete?: unknown
     bake?: unknown
     autoAi?: { views?: unknown; max?: unknown }
+    propose?: unknown
+    confirmPoints?: { views?: unknown; auto?: unknown }
   } | null
   try {
     if (body?.stop === true) return Response.json({ status: await stopTourBuild(id) })
+    // the points before the build (14 Nov): Roomia proposes them on the plan, the person confirms (then the build starts)
+    if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id) })
+    if (body?.confirmPoints) {
+      const views = Array.isArray(body.confirmPoints.views) ? body.confirmPoints.views.map(Number) : []
+      const auto = Array.isArray(body.confirmPoints.auto) ? (body.confirmPoints.auto as { id?: string; name: string; position: number[]; target: number[] }[]) : []
+      const auto2 = body.autoAi
+      const max = Math.min(200, Math.max(0, Math.round(Number(auto2?.max ?? 0)) || 0))
+      await planAutoAi(id, max > 0 ? { max } : null)
+      return Response.json({ status: await confirmTourPoints(id, { views, auto }) })
+    }
     if (body?.point) {
-      const { index, hidden, startYaw } = body.point
+      const { index, hidden, startYaw, name } = body.point
       await editTourPoint(id, Number(index), {
+        name: typeof name === 'string' ? name : undefined,
         hidden: typeof hidden === 'boolean' ? hidden : undefined,
         startYaw: startYaw === null ? null : typeof startYaw === 'number' ? startYaw : undefined,
       })

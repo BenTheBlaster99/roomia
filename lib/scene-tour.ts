@@ -52,7 +52,7 @@ const statusPath = (sceneId: string) => path.join(tourDir(sceneId), 'status.json
 const tourPath = (sceneId: string) => path.join(tourDir(sceneId), 'tour.json')
 
 /** Files the tour route may serve. */
-export const TOUR_FILE = /^(pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json|tex-[a-z0-9-]{1,40}\.jpg|plan(-n\d{1,2})?-3d(-ai)?\.jpg|plan-archi(-rendu|-technique)?\.(png|pdf|json)|splat(-[a-z0-9]{1,8})?(\.(spz|ply|json)|-model\.glb|-probe-\d{1,3}(-ggx)?\.hdr|-(materials|rooms)\.json))$/
+export const TOUR_FILE = /^(proposal-plan(-n\d{1,2})?\.png|pano-\d{1,3}(-ai(-[a-z0-9]{1,12})?(-hd)?)?\.jpg|plan(-n\d{1,2})?(-hd(-traits)?)?\.png|nav\.json|explore(\.glb|\.json|-light\.png)|depth-\d{1,3}\.png|projection\.json|look\.json|tex-[a-z0-9-]{1,40}\.jpg|plan(-n\d{1,2})?-3d(-ai)?\.jpg|plan-archi(-rendu|-technique)?\.(png|pdf|json)|splat(-[a-z0-9]{1,8})?(\.(spz|ply|json)|-model\.glb|-probe-\d{1,3}(-ggx)?\.hdr|-(materials|rooms)\.json))$/
 
 export interface TourViewPoint {
   index: number
@@ -890,6 +890,9 @@ if FULL:
     def level_of(zfloor):
         return min(range(len(LEVELS)), key=lambda n: abs(LEVELS[n]["floor"] - zfloor))
     space_level = {s: n for n, L in enumerate(LEVELS) for s in L["spaces"]}
+    # The designer's views the person took out of the tour (14 Nov, the points chosen before the build): treated like a
+    # camera outside the building, so no 360° is made for them.
+    DROP_VIEWS = set(int(x) for x in spec.get("dropViews", []))
     for i, v in enumerate(views):
         e, t = eyes[i], to_blender(v["target"])
         # SketchUp scenes often hide a wall to look into a room; the export keeps the wall. A camera
@@ -899,7 +902,7 @@ if FULL:
         s = P["view_space"].get(i) if P else None
         meta["views"].append({
             "index": i,
-            "outside": up is None or up.z - e.z > 6,
+            "outside": up is None or up.z - e.z > 6 or i in DROP_VIEWS,
             "facesWall": ahead is not None and (ahead - e).length < 1.2,
             # heading of the saved view in Blender's floor plane; the panorama is centred on it
             "yaw": math.atan2(t.y - e.y, t.x - e.x),
@@ -970,6 +973,9 @@ if FULL:
             return False
         fixed = [j for j, (pe, yaw, keep, approved) in enumerate(prev)
                  if same and ((keep and approved) or (not in_empty_room(pe) and (standing(pe) or (cramped(pe) and standing(pe, 4)) or (indoors_on_level(pe) and standing(pe, 12)))))]
+        # The points the person confirmed (14 Nov): exactly those, where they put them, and no others.
+        if spec.get("autoFixed"):
+            fixed = list(range(len(prev)))
         del cand_by_col
         print("TOUR_INFO previous points: %d of %d stay" % (len(fixed), len(prev)), flush=True)
         inside_saved += [(-1 - j, prev[j][0]) for j in fixed]
@@ -1072,7 +1078,7 @@ if FULL:
         outdoors = any(P["stats"][s]["covered"] < 0.5 for s in P["cells"])
         if used_levels > 1 or outdoors:
             cap = min(int(spec.get("autoMaxSite", 32)), cap + 6 * (used_levels - 1) + (6 if outdoors else 0))
-        free = max(0, cap - len(fixed))
+        free = 0 if spec.get("autoFixed") else max(0, cap - len(fixed))
         picked, rank = [], 0
         while len(picked) < free and any(rank < len(sp) for sp in per_space):
             for sp in per_space:
@@ -3883,7 +3889,11 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   const objectsPath = path.join(dir, 'objects.json')
   const isUpdate = !!before && !same && (await stat(objectsPath).then(() => true, () => false))
   const photos = isUpdate ? await latestPhotos(sceneId, cameras) : []
-  const beforeAuto = (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index)
+  // The points the person confirmed before the build (14 Nov, points.json): exactly those, with their names.
+  const chosen = await readChosenPoints(sceneId)
+  const beforeAuto: TourViewPoint[] = chosen
+    ? chosen.auto.map((p, n) => ({ index: n, id: p.id, name: p.name, pano: null, plan: null, auto: true, position: p.position, target: p.target }))
+    : (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index)
   const scriptPath = path.join(work, 'tour.py')
   const specPath = path.join(work, 'tour.json')
   await writeFile(scriptPath, TOUR_SCRIPT)
@@ -3894,7 +3904,8 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       outDir: work,
       views: cameras.map(c => ({ name: c.name, position: c.position, target: c.target })),
       previousAuto: beforeAuto.map(v => ({ position: v.position, target: v.target, keep: Boolean(v.panoAi), approved: Boolean(v.panoAiApproved) })),
-      previousSame: same || isUpdate,
+      previousSame: same || isUpdate || !!chosen,
+      ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
       ...(isUpdate ? { previousObjects: objectsPath, shiftViews, updatePhotos: photos.map(p => ({ file: p.file, ...p.view })), aiFov: 100 } : {}),
       faceSize: FACE_SIZE,
       planSize: PLAN_SIZE,
@@ -4026,7 +4037,7 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     views.push({
       index: point.index,
       id: old ? idOf(old) : `auto-${++lastId}`,
-      name: `Point ${n + 1}`,
+      name: (chosen && old?.name) || `Point ${n + 1}`,
       pano: panos[meta.views.length + n],
       plan: point.plan,
       auto: true,
@@ -4274,6 +4285,228 @@ export async function startTourBuild(
   return status
 }
 
+
+// ── The points before the build (14 Nov, the user's ask): Roomia proposes, the person keeps, moves, adds or removes ──
+
+export interface ProposalLevel {
+  index: number
+  name: string
+  /** the plan picture of the proposal, in the tour folder */
+  file: string
+  width: number
+  height: number
+  /** what the plan shows, in Blender's floor plane: [x min, y min, x max, y max] */
+  frame: [number, number, number, number]
+  /** the level's floor height (Blender z) */
+  floor: number
+  main: boolean
+}
+
+export interface ProposalPoint {
+  /** "view:<index>" for a SketchUp scene, "auto:<id>" for a point Roomia or the person placed */
+  key: string
+  kind: 'view' | 'auto'
+  /** the SketchUp scene's index (kind view) */
+  view?: number
+  id?: string
+  name: string
+  /** three.js coordinates (y up), like the cameras */
+  position: [number, number, number]
+  target: [number, number, number]
+  level: number
+  plan: { x: number; y: number; angle: number }
+  /** a SketchUp scene the person took out last time: offered again, unticked */
+  off?: boolean
+}
+
+export interface TourProposal {
+  state: 'running' | 'ready' | 'failed'
+  step?: string
+  error?: string
+  at: string
+  pid?: number
+  levels?: ProposalLevel[]
+  points?: ProposalPoint[]
+  /** eye height above the floor, metres */
+  eye?: number
+}
+
+const proposalPath = (sceneId: string) => path.join(tourDir(sceneId), 'proposal.json')
+const chosenPath = (sceneId: string) => path.join(tourDir(sceneId), 'points.json')
+const PROPOSAL_EYE = 1.6
+
+export async function readProposal(sceneId: string): Promise<TourProposal | null> {
+  const p = JSON.parse(await readFile(proposalPath(sceneId), 'utf8').catch(() => 'null')) as TourProposal | null
+  // a placement cut by closing Roomia: nothing runs it any more
+  if (p?.state === 'running' && p.pid !== process.pid) return { state: 'failed', error: 'Le placement des points a été interrompu. Relancez-le.', at: p.at }
+  return p
+}
+const writeProposal = async (sceneId: string, p: TourProposal) => {
+  await mkdir(tourDir(sceneId), { recursive: true })
+  await writeFile(proposalPath(sceneId), JSON.stringify(p))
+}
+
+export interface ChosenPoints {
+  at: string
+  auto: { id: string; name: string; position: [number, number, number]; target: [number, number, number] }[]
+  /** the SketchUp scenes taken out of the tour */
+  dropViews: number[]
+}
+export const readChosenPoints = async (sceneId: string) => JSON.parse(await readFile(chosenPath(sceneId), 'utf8').catch(() => 'null')) as ChosenPoints | null
+
+/** Starts the proposal: Blender opens the file, places the points like a build would, and draws the plan, but renders no 360°. */
+export async function startTourPropose(sceneId: string): Promise<TourProposal> {
+  if ((await readTourStatus(sceneId)).state === 'building') throw new Error('Une préparation est déjà en cours.')
+  const current = await readProposal(sceneId)
+  if (current?.state === 'running') return current
+  const p: TourProposal = { state: 'running', step: 'En attente du processeur graphique…', at: new Date().toISOString(), pid: process.pid }
+  await writeProposal(sceneId, p)
+  void propose(sceneId).catch(async err => {
+    console.error('tour proposal failed', sceneId, err)
+    await writeProposal(sceneId, { state: 'failed', error: err instanceof Error ? err.message : String(err), at: new Date().toISOString() })
+  })
+  return p
+}
+
+async function propose(sceneId: string) {
+  const dir = tourDir(sceneId)
+  const work = path.join(dir, 'propose-work')
+  await clearDir(work)
+  await mkdir(work, { recursive: true })
+  const at = new Date().toISOString()
+  const step = (text: string) => writeProposal(sceneId, { state: 'running', step: text, at, pid: process.pid }).catch(() => undefined)
+  const [cameras, before, chosen, labels] = await Promise.all([readCameras(sceneId), readBuild(sceneId), readChosenPoints(sceneId), readLabels(sceneId)])
+  // the person's last choice comes back as it was; otherwise the last build's points, kept where they still make sense
+  const prevAuto = chosen
+    ? chosen.auto
+    : (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index).map(v => ({ id: v.id ?? `auto-${v.index}`, name: v.name, position: v.position!, target: v.target! }))
+  const scriptPath = path.join(work, 'tour.py')
+  const specPath = path.join(work, 'tour.json')
+  await writeFile(scriptPath, TOUR_SCRIPT)
+  await writeFile(
+    specPath,
+    JSON.stringify({
+      ...(await tourSceneSpec(sceneId)),
+      outDir: work,
+      views: cameras.map(c => ({ name: c.name, position: c.position, target: c.target })),
+      previousAuto: prevAuto.map(v => ({ position: v.position, target: v.target, keep: false, approved: false })),
+      previousSame: true,
+      ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
+      faceSize: FACE_SIZE,
+      planSize: PLAN_SIZE,
+      viewTransform: 'AgX',
+      autoViews: true,
+      autoMax: AUTO_MAX,
+      panoEngine: PANO_ENGINE,
+      placementOnly: true,
+    }),
+  )
+  let finished = false
+  const result = await withBlenderSlot(async () => {
+    await step('Ouverture du fichier…')
+    return run(BLENDER, ['--background', '--python', scriptPath, '--', specPath], line => {
+      if (line.startsWith('TOUR_OK')) finished = true
+      if (line.startsWith('TOUR_TIME scene_ready')) void step('Recherche des pièces et placement des points de vue…')
+      if (line.startsWith('TOUR_TIME placement')) void step('Dessin du plan…')
+    })
+  })
+  if (result.code !== 0 || !finished) throw new Error(`Blender a échoué : ${result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300)}`)
+  const meta = JSON.parse(await readFile(path.join(work, 'tour-blender.json'), 'utf8')) as {
+    plan: { width: number; height: number; mpp: number }
+    levels?: { index: number; suffix: string; main: boolean; width: number; height: number; mpp: number; floor: number; frame?: [number, number, number, number]; outdoor?: boolean }[]
+    views: { index: number; plan: { x: number; y: number; angle: number }; outside?: boolean; level?: number }[]
+    auto?: { index: number; position: [number, number, number]; target: [number, number, number]; plan: { x: number; y: number; angle: number }; previous?: number | null; level?: number }[]
+  }
+  const planLevels = meta.levels ?? []
+  if (!planLevels.length) throw new Error('Aucune pièce trouvée dans ce fichier.')
+  const planScript = path.join(work, 'plan.py')
+  await writeFile(planScript, PLAN_SCRIPT)
+  const levels: ProposalLevel[] = []
+  for (const [n, level] of planLevels.entries()) {
+    const file = `proposal-plan${level.suffix}.png`
+    const planned = await run(PYTHON, [
+      planScript, work, path.join(work, `p-hd${level.suffix}.png`), path.join(work, `p-lines${level.suffix}.png`), path.join(dir, file),
+      String(level.width), String(level.height), String(level.mpp), level.suffix,
+    ])
+    if (planned.code !== 0) throw new Error(`Le plan n’a pas pu être dessiné : ${planned.stderr.split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 200)}`)
+    levels.push({
+      index: level.index,
+      name: planLevels.length > 1 ? (level.outdoor ? 'Extérieur' : `Niveau ${n}`) : 'Plan',
+      file,
+      width: level.width,
+      height: level.height,
+      frame: level.frame ?? [0, 0, 1, 1],
+      floor: level.floor,
+      main: level.main,
+    })
+  }
+  const points: ProposalPoint[] = []
+  for (const v of meta.views) {
+    if (v.outside && !chosen?.dropViews.includes(v.index)) continue
+    const camera = cameras[v.index]
+    // a scene taken out before stays offered, unticked (the editor shows it greyed)
+    points.push({
+      key: `view:${v.index}`,
+      kind: 'view',
+      view: v.index,
+      name: labels[`view:${camera.name}`] ?? camera.name,
+      position: camera.position as [number, number, number],
+      target: camera.target as [number, number, number],
+      level: v.level ?? 0,
+      plan: v.plan,
+      ...(chosen?.dropViews.includes(v.index) ? { off: true } : {}),
+    })
+  }
+  for (const [n, a] of (meta.auto ?? []).entries()) {
+    const old = a.previous != null ? prevAuto[a.previous] : undefined
+    const id = old?.id ?? `auto-p${n + 1}`
+    points.push({
+      key: `auto:${id}`,
+      kind: 'auto',
+      id,
+      name: labels[`auto:${id}`] ?? old?.name ?? `Point ${n + 1}`,
+      position: a.position,
+      target: a.target,
+      level: a.level ?? 0,
+      plan: a.plan,
+    })
+  }
+  await writeProposal(sceneId, { state: 'ready', at: new Date().toISOString(), levels, points, eye: PROPOSAL_EYE })
+  await clearDir(work)
+  await rm(work, { recursive: true, force: true }).catch(() => undefined)
+}
+
+/**
+ * The person confirmed the points: kept SketchUp scenes (by index) and the other points with where they stand and look. They are
+ * kept in points.json (every later build uses them, a new version of the file included), then the build starts.
+ */
+export async function confirmTourPoints(
+  sceneId: string,
+  input: { views: number[]; auto: { id?: string; name: string; position: number[]; target: number[] }[] },
+): Promise<TourStatus> {
+  const cameras = await readCameras(sceneId)
+  const keep = new Set(input.views.filter(i => Number.isInteger(i) && i >= 0 && i < cameras.length))
+  const vec = (v: number[]) => {
+    if (!Array.isArray(v) || v.length !== 3 || !v.every(Number.isFinite)) throw new Error('Point invalide.')
+    return [v[0], v[1], v[2]] as [number, number, number]
+  }
+  let n = 0
+  const auto = input.auto.slice(0, 60).map(p => ({
+    id: typeof p.id === 'string' && /^[a-z0-9-]{1,24}$/.test(p.id) ? p.id : `auto-u${Date.now().toString(36)}${n++}`,
+    name: String(p.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 60) || `Point ${n}`,
+    position: vec(p.position),
+    target: vec(p.target),
+  }))
+  if (!keep.size && !auto.length) throw new Error('Gardez au moins un point.')
+  const chosen: ChosenPoints = { at: new Date().toISOString(), auto, dropViews: cameras.map((_, i) => i).filter(i => !keep.has(i)) }
+  await writeFile(chosenPath(sceneId), JSON.stringify(chosen))
+  // the names typed in the editor are the points' names in the tour too
+  const labels = await readLabels(sceneId)
+  for (const p of auto) labels[`auto:${p.id}`] = p.name
+  await writeFile(labelsPath(sceneId), JSON.stringify(labels))
+  await rm(proposalPath(sceneId), { force: true })
+  return startTourBuild(sceneId)
+}
 
 const readBuild = async (sceneId: string) =>
   JSON.parse(await readFile(tourPath(sceneId), 'utf8').catch(() => 'null')) as TourBuild | null
@@ -5090,10 +5323,22 @@ export async function reviewTourAi(sceneId: string, index: number, approve: bool
 }
 
 /** The operator's edits of a point: remove it from the tour, or set where its 360° starts. */
-export async function editTourPoint(sceneId: string, index: number, edit: { hidden?: boolean; startYaw?: number | null }) {
+/** The names the person gave the points (14 Nov), apart from tour.json so a new build keeps them: "view:<SketchUp scene>" or "auto:<id>". */
+const labelsPath = (sceneId: string) => path.join(tourDir(sceneId), 'labels.json')
+export const readLabels = async (sceneId: string) => JSON.parse(await readFile(labelsPath(sceneId), 'utf8').catch(() => '{}')) as Record<string, string>
+const labelKey = (v: { auto?: boolean; id?: string; index: number; name: string }) => (v.auto ? `auto:${v.id ?? v.index}` : `view:${v.name}`)
+
+export async function editTourPoint(sceneId: string, index: number, edit: { hidden?: boolean; startYaw?: number | null; name?: string }) {
   const built = await readBuild(sceneId)
   const view = built?.views.find(v => v.index === index)
   if (!built || !view) throw new Error('Point introuvable.')
+  if (typeof edit.name === 'string') {
+    const labels = await readLabels(sceneId)
+    const name = edit.name.replace(/\s+/g, ' ').trim().slice(0, 60)
+    if (name && name !== view.name) labels[labelKey(view)] = name
+    else delete labels[labelKey(view)]
+    await writeFile(labelsPath(sceneId), JSON.stringify(labels))
+  }
   if (typeof edit.hidden === 'boolean') view.hidden = edit.hidden
   if (edit.startYaw === null) delete view.startYaw
   else if (typeof edit.startYaw === 'number' && Number.isFinite(edit.startYaw)) view.startYaw = edit.startYaw
@@ -5141,7 +5386,7 @@ export interface TourView {
 
 /** Everything the tour page needs: each saved view with its latest photo and its panorama, and the plan. */
 export async function readTour(sceneId: string, { review = false } = {}) {
-  const [cameras, photos, status] = await Promise.all([readCameras(sceneId), listPhotos(sceneId), readTourStatus(sceneId)])
+  const [cameras, photos, status, labels] = await Promise.all([readCameras(sceneId), listPhotos(sceneId), readTourStatus(sceneId), readLabels(sceneId)])
   const built = await readBuild(sceneId)
   const linksOf = (index: number) => (built?.links ?? []).flatMap(([a, b]) => (a === index ? [b] : b === index ? [a] : []))
   const all: (TourView & { outside: boolean; hidden: boolean })[] = cameras.map((camera, index) => {
@@ -5151,7 +5396,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     const lens = photo?.lens === 'file' || photo?.lens === '35' || photo?.lens === '24' || photo?.lens === '18' ? photo.lens : '24'
     return {
       index,
-      name: camera.name,
+      name: labels[`view:${camera.name}`] ?? camera.name,
       position: camera.position,
       target: camera.target,
       photoHfov: lensHfov(lens, camera),
@@ -5178,7 +5423,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
   for (const point of built?.views.filter(v => v.auto && v.position && v.target) ?? []) {
     all.push({
       index: point.index,
-      name: point.name,
+      name: labels[labelKey(point)] ?? point.name,
       position: point.position!,
       target: point.target!,
       photoHfov: 74,
@@ -5232,5 +5477,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => 'plan-3d.jpg',
     () => null,
   )
-  return { status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360 }
+  // the points before the build (14 Nov): the proposal being made or waiting for the person, and whether points were chosen
+  const [proposal, chosen] = await Promise.all([readProposal(sceneId), readChosenPoints(sceneId)])
+  return { status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360, proposal, chosen: !!chosen }
 }
