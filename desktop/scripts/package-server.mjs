@@ -268,8 +268,16 @@ step('SketchUp extension')
   fs.rmSync(target, { recursive: true, force: true })
   fs.mkdirSync(target, { recursive: true })
   fs.writeFileSync(path.join(target, 'Roomia-Envoyer.rbz'), zipSync(files, { level: 9 }))
+  // 14 Nov: the same files unzipped, which Roomia copies into SketchUp's Plugins folders by itself (main.js)
+  for (const [rel, bytes] of Object.entries(files)) {
+    const out = path.join(target, 'plugin', rel)
+    fs.mkdirSync(path.dirname(out), { recursive: true })
+    fs.writeFileSync(out, bytes)
+  }
   console.log('sketchup', Object.keys(files).join(', '))
 }
+// the window's, shortcuts' and installer's icon (scripts/make-icon.mjs)
+fs.copyFileSync(path.join(DESKTOP, 'build', 'roomia.ico'), path.join(DESKTOP, 'stage', 'roomia.ico'))
 
 // 6. no secrets in what goes to clients
 step('secret check')

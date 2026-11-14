@@ -56,7 +56,8 @@
           "to": ".",
           "filter": [
             "app-server/**/*",
-            "sketchup/**/*"
+            "sketchup/**/*",
+            "roomia.ico"
           ]
         },
         {
@@ -100,7 +101,8 @@
           "to": ".",
           "filter": [
             "app-server/**/*",
-            "sketchup/**/*"
+            "sketchup/**/*",
+            "roomia.ico"
           ]
         },
         {

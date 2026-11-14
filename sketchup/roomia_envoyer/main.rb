@@ -123,7 +123,10 @@ module Roomia
       command.status_bar_text = 'Envoie le modèle et ses scènes à Roomia Desktop (rendus, visite 360°, plans).'
       command.small_icon = File.join(icons, 'roomia-16.png')
       command.large_icon = File.join(icons, 'roomia-24.png')
-      UI.menu('Extensions').add_item(command)
+      # 0.3.0 (14 Nov): a Roomia submenu, with a way to open Roomia (it is the app that installs this extension now)
+      menu = UI.menu('Extensions').add_submenu('Roomia')
+      menu.add_item(command)
+      menu.add_item('Ouvrir Roomia') { UI.openURL('roomia://open') }
       toolbar = UI::Toolbar.new('Roomia')
       toolbar.add_item(command)
       toolbar.restore

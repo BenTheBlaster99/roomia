@@ -62,11 +62,22 @@ function request(url, redirects = 5) {
 }
 
 async function getJson(url) {
-  const res = await request(url)
-  let body = ''
-  res.setEncoding('utf8')
-  for await (const chunk of res) body += chunk
-  return JSON.parse(body)
+  // 14 Nov: some lines in Algeria drop GitHub's API now and then (a connect timeout, then fine a minute later): three tries
+  let last = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await request(url)
+      let body = ''
+      res.setEncoding('utf8')
+      for await (const chunk of res) body += chunk
+      return JSON.parse(body)
+    } catch (err) {
+      last = err
+      if (/^HTTP 4/.test(String(err.message))) break
+      await new Promise(r => setTimeout(r, 4000 * (attempt + 1)))
+    }
+  }
+  throw last
 }
 
 const assetOf = a => ({ name: a.name, url: a.browser_download_url, size: a.size, sha256: /^sha256:([0-9a-f]{64})$/i.exec(a.digest ?? '')?.[1]?.toLowerCase() ?? null })
@@ -239,8 +250,37 @@ $log = Join-Path $p.root 'apply.log'
 function Log($m) { Add-Content -LiteralPath $log -Encoding UTF8 -Value ((Get-Date).ToString('s') + ' ' + $m) }
 function Retry([scriptblock]$Action) { for ($try = 0; $try -lt 40; $try++) { try { & $Action; return } catch { if ($try -eq 39) { throw }; Start-Sleep -Milliseconds 750 } } }
 Log ('apply ' + $p.version + ' to ' + $p.install)
+# A small window while the files are copied (14 Nov, Sarah: see that it is updating, then Roomia opens again by itself)
+$ui = $null
+try {
+  Add-Type -AssemblyName System.Windows.Forms
+  Add-Type -AssemblyName System.Drawing
+  $ui = New-Object System.Windows.Forms.Form
+  $ui.Text = 'Roomia'
+  $ui.FormBorderStyle = 'FixedDialog'
+  $ui.ControlBox = $false
+  $ui.StartPosition = 'CenterScreen'
+  $ui.TopMost = $true
+  $ui.ClientSize = New-Object System.Drawing.Size(420, 110)
+  $label = New-Object System.Windows.Forms.Label
+  $label.Text = $p.textUpdating
+  $label.AutoSize = $false
+  $label.Location = New-Object System.Drawing.Point(20, 18)
+  $label.Size = New-Object System.Drawing.Size(380, 40)
+  $label.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+  $ui.Controls.Add($label)
+  $bar = New-Object System.Windows.Forms.ProgressBar
+  $bar.Location = New-Object System.Drawing.Point(20, 66)
+  $bar.Size = New-Object System.Drawing.Size(380, 18)
+  $bar.Style = 'Marquee'
+  $ui.Controls.Add($bar)
+  $ui.Show()
+  [System.Windows.Forms.Application]::DoEvents()
+} catch { $ui = $null }
+function Pump() { if ($ui) { try { [System.Windows.Forms.Application]::DoEvents() } catch {} } }
 try { Wait-Process -Id $p.pid -Timeout 180 -ErrorAction SilentlyContinue } catch {}
 Start-Sleep -Seconds 2
+if ($ui) { try { $bar.Style = 'Continuous'; $bar.Maximum = [Math]::Max(1, $p.files.Count + $p.removed.Count); $bar.Value = 0; Pump } catch {} }
 $backup = Join-Path $p.root 'backup'
 if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
 $done = New-Object System.Collections.ArrayList
@@ -258,6 +298,7 @@ try {
     [void][System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($dst))
     [void]$done.Add(@($rel, $had))
     Retry { Copy-Item -LiteralPath $src -Destination $dst -Force }
+    if ($ui) { try { $bar.Value = [Math]::Min($bar.Maximum, $bar.Value + 1); Pump } catch {} }
   }
   foreach ($rel in $p.removed) {
     $dst = Join-Path $p.install $rel
@@ -285,6 +326,7 @@ try {
 }
 $result | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $p.root 'result.json') -Encoding UTF8
 Remove-Item -LiteralPath (Join-Path $p.root 'applying') -Force -ErrorAction SilentlyContinue
+if ($ui) { try { $label.Text = $(if ($p.relaunch) { $p.textRestart } else { $p.textDone }); $bar.Value = $bar.Maximum; Pump; Start-Sleep -Milliseconds 900; $ui.Close() } catch {} }
 if ($p.relaunch) { Start-Process -FilePath $p.exe -WorkingDirectory $p.install }
 `
 
@@ -296,7 +338,16 @@ function launchApply(ready, { root, installDir, exe, relaunch }) {
   const script = path.join(root, 'apply.ps1')
   const planFile = path.join(root, 'apply.json')
   ofs.writeFileSync(script, APPLY_PS1)
-  ofs.writeFileSync(planFile, JSON.stringify({ root, pid: process.pid, install: installDir, exe, relaunch: !!relaunch, version: ready.version, staged: ready.staged, files: ready.files, removed: ready.removed }))
+  ofs.writeFileSync(
+    planFile,
+    JSON.stringify({
+      root, pid: process.pid, install: installDir, exe, relaunch: !!relaunch, version: ready.version, staged: ready.staged, files: ready.files, removed: ready.removed,
+      // the words of the progress window (the script itself stays ASCII for Windows PowerShell 5.1)
+      textUpdating: `Mise à jour de Roomia vers la version ${ready.version}…\n${relaunch ? 'Roomia se rouvrira tout seul dans un instant.' : 'Un instant.'}`,
+      textRestart: `Roomia ${ready.version} est installé. Ouverture…`,
+      textDone: `Roomia ${ready.version} est installé.`,
+    }),
+  )
   ofs.writeFileSync(path.join(root, 'applying'), String(Date.now()))
   const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Plan', planFile], { detached: true, stdio: 'ignore', windowsHide: true })
   child.unref()

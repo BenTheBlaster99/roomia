@@ -1,6 +1,7 @@
 ; Roomia Desktop — Windows installer (13 Nov 2026).
 ;
-; A classic setup: welcome, choose the folder, install, finish (with "Lancer Roomia"). Per user (no admin rights asked):
+; One click (14 Nov, the user: "directly install like any regular setup"): it installs at once, then a finish page with
+; "Lancer Roomia" ticked. The folder can still be chosen from the command line (/D=...). Per user (no admin rights asked):
 ; the default folder is %LOCALAPPDATA%\Programs\Roomia, where Roomia's own updater can write (Aide › Rechercher une mise
 ; à jour). Desktop and Start-menu shortcuts, the roomia:// link used by the SketchUp extension, and an entry in
 ; "Ajouter ou supprimer des programmes" with an uninstaller.
@@ -47,19 +48,22 @@ VIAddVersionKey /LANG=1036 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1036 "CompanyName" "Roomia"
 VIAddVersionKey /LANG=1036 "LegalCopyright" "Roomia"
 
+!define ICON "${SRC}\resources\roomia.ico"
+!if /FileExists "${ICON}"
+  !define MUI_ICON "${ICON}"
+  !define MUI_UNICON "${ICON}"
+!endif
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TITLE "Installation de Roomia ${VERSION}"
-!define MUI_WELCOMEPAGE_TEXT "Roomia transforme vos projets SketchUp en visite 360°, plans et photos réalistes, sur votre propre PC.$\r$\n$\r$\nFermez Roomia s'il est ouvert, puis cliquez sur Suivant."
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Roomia sera installé dans ce dossier. Le dossier proposé est recommandé : Roomia peut s'y mettre à jour tout seul.$\r$\n$\r$\nVos projets ne sont pas dans ce dossier : ils restent dans %LOCALAPPDATA%\Roomia."
+!define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "Roomia est installé"
+!define MUI_FINISHPAGE_TITLE "Roomia ${VERSION} est installé"
+!define MUI_FINISHPAGE_TEXT "Un raccourci Roomia est sur votre Bureau et dans le menu Démarrer.$\r$\n$\r$\nL'extension SketchUp « Envoyer à Roomia » s'installe toute seule au premier démarrage de Roomia (redémarrez SketchUp ensuite).$\r$\n$\r$\nVos projets restent dans %LOCALAPPDATA%\Roomia."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Lancer Roomia"
 
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -102,9 +106,10 @@ Section "Roomia" SecMain
   WriteUninstaller "$INSTDIR\${UNINST}"
 
   CreateDirectory "$SMPROGRAMS\Roomia"
-  CreateShortCut "$SMPROGRAMS\Roomia\Roomia.lnk" "$INSTDIR\${EXE}"
+  ; the shortcuts carry Roomia's icon (the .exe keeps Electron's: editing it needs Windows tools)
+  CreateShortCut "$SMPROGRAMS\Roomia\Roomia.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\resources\roomia.ico" 0
   CreateShortCut "$SMPROGRAMS\Roomia\Désinstaller Roomia.lnk" "$INSTDIR\${UNINST}"
-  CreateShortCut "$DESKTOP\Roomia.lnk" "$INSTDIR\${EXE}"
+  CreateShortCut "$DESKTOP\Roomia.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\resources\roomia.ico" 0
 
   ; roomia:// (the SketchUp extension wakes Roomia with it; Roomia also registers it itself at start)
   WriteRegStr HKCU "Software\Classes\roomia" "" "URL:Roomia"
@@ -116,7 +121,7 @@ Section "Roomia" SecMain
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "Roomia"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "Roomia"
-  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${EXE}"
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\resources\roomia.ico"
   WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" '"$INSTDIR\${UNINST}"'
   WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\${UNINST}" /S'

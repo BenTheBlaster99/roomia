@@ -5,7 +5,7 @@ require 'extensions.rb'
 
 module Roomia
   module Envoyer
-    VERSION = '0.2.0'.freeze
+    VERSION = '0.3.0'.freeze
 
     unless file_loaded?(__FILE__)
       ext = SketchupExtension.new('Roomia — Envoyer à Roomia', 'roomia_envoyer/main')

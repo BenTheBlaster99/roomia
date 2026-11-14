@@ -105,6 +105,8 @@ async function start() {
     minHeight: 700,
     show: false,
     title: APP_NAME,
+    // Roomia's own icon in the title bar and the taskbar (the .exe itself keeps Electron's: editing it needs Windows)
+    icon: [path.join(RES, 'roomia.ico'), path.join(__dirname, 'build', 'roomia.ico')].find(f => fs.existsSync(f)),
     backgroundColor: '#f4efe8',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
@@ -119,9 +121,19 @@ async function start() {
   await win.loadURL(`${origin}${await firstPage()}`)
   registerProtocol()
   watchInbox()
+  if (process.platform === 'win32') {
+    // 14 Nov: the SketchUp extension goes into every SketchUp of this PC by itself, and is replaced when Roomia brings a newer one
+    try {
+      installSketchupExtension()
+    } catch (err) {
+      log(`sketchup extension ${err.message ?? err}`)
+    }
+    unblockInstall()
+  }
   void reportUpdate(updateResult)
   setTimeout(() => void checkUpdates(false), 20000)
-  setInterval(() => void checkUpdates(false), 6 * 3600000)
+  // every 3 hours (6 before 14 Nov); a check that could not reach GitHub is tried again sooner (see checkUpdates)
+  setInterval(() => void checkUpdates(false), 3 * 3600000)
 }
 
 /** Mes projets, or the sign-in first when nobody is signed in (offline: the projects, Blender works without the account). */
@@ -229,6 +241,7 @@ const INSTALL_DIR = path.dirname(process.execPath)
 let readyUpdate = null
 let applyOnQuit = null // null, or { relaunch }
 let updating = false
+let checkFailures = 0
 
 function readUpdateState() {
   try {
@@ -285,9 +298,12 @@ async function checkUpdates(asked) {
   let found = null
   try {
     found = await updates.plan(app.getVersion())
+    checkFailures = 0
   } catch (err) {
     log(`update check ${err}`)
     if (asked) await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: 'Impossible de vérifier les mises à jour.', detail: 'Vérifiez la connexion internet.' })
+    // 14 Nov: on a line that drops GitHub now and then, try again in 2, 5, 15, then 30 minutes instead of waiting hours
+    if (!asked) setTimeout(() => void checkUpdates(false), [2, 5, 15, 30][Math.min(3, checkFailures++)] * 60000)
     return
   }
   fs.writeFileSync(UPDATE_FILE, JSON.stringify({ ...state, checkedAt: new Date().toISOString() }))
@@ -335,8 +351,8 @@ async function askRestart() {
     type: 'info',
     title: APP_NAME,
     message: `Roomia ${readyUpdate.version} est prête à être installée`,
-    detail: `${notes ? notes + '\n\n' : ''}Redémarrer maintenant l’installe en quelques secondes ; un rendu en cours serait arrêté. Sinon, elle s’installera quand vous fermerez Roomia.`,
-    buttons: ['Redémarrer maintenant', 'Plus tard'],
+    detail: `${notes ? notes + '\n\n' : ''}« Mettre à jour maintenant » : Roomia se ferme, s’installe en quelques secondes (une petite fenêtre montre l’avancement) et se rouvre tout seul. Un rendu en cours serait arrêté, puis repris.\n\n« Plus tard » : elle s’installera quand vous fermerez Roomia.`,
+    buttons: ['Mettre à jour maintenant', 'Plus tard'],
     defaultId: 0,
     cancelId: 1,
   })
@@ -379,8 +395,86 @@ async function createReport() {
   }
 }
 
-/** Opens the folder with the SketchUp extension and says how to install it. */
+/**
+ * 14 Nov (Sarah: the Windows protection screen before every start): files unzipped from a download keep Windows' "came from the
+ * internet" mark (the Zone.Identifier stream), and SmartScreen asks about Roomia.exe again and again. The installed copy is
+ * unmarked once; the installer (Setup) never marks it at all.
+ */
+function unblockInstall() {
+  if (!app.isPackaged) return
+  try {
+    if (!fs.existsSync(`${process.execPath}:Zone.Identifier`)) return
+  } catch {
+    return
+  }
+  const dir = INSTALL_DIR.replace(/'/g, "''")
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', `Get-ChildItem -LiteralPath '${dir}' -Recurse -File | Unblock-File`], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  child.unref()
+  log('unblock: the internet mark of the install folder removed (no more SmartScreen at start)')
+}
+
+// ── SketchUp "Envoyer à Roomia" (14 Nov): installed by Roomia itself in every SketchUp of this PC ──
+
+/** SketchUp's Plugins folders for this user, one per installed version (%APPDATA%\SketchUp\SketchUp 20xx\SketchUp\Plugins). */
+function sketchupPluginDirs() {
+  const base = path.join(process.env.APPDATA ?? '', 'SketchUp')
+  if (!process.env.APPDATA || !fs.existsSync(base)) return []
+  return fs
+    .readdirSync(base, { withFileTypes: true })
+    .filter(d => d.isDirectory() && /^SketchUp \d{4}$/.test(d.name))
+    .map(d => ({ version: d.name.replace('SketchUp ', ''), dir: path.join(base, d.name, 'SketchUp', 'Plugins') }))
+}
+
+const extensionVersion = file => /VERSION = '([^']+)'/.exec(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '')?.[1] ?? null
+
+/**
+ * Copies the extension into every SketchUp found (new or older copy only). Returns the SketchUp versions it is now in, and
+ * whether a copy changed (SketchUp must be restarted to load it).
+ */
+function installSketchupExtension() {
+  const src = path.join(SKETCHUP_DIR, 'plugin')
+  const ours = extensionVersion(path.join(src, 'roomia_envoyer.rb'))
+  if (!ours) return { versions: [], changed: false, missing: true }
+  const versions = []
+  let changed = false
+  for (const { version, dir } of sketchupPluginDirs()) {
+    try {
+      const there = extensionVersion(path.join(dir, 'roomia_envoyer.rb'))
+      if (there !== ours) {
+        fs.mkdirSync(dir, { recursive: true })
+        fs.cpSync(src, dir, { recursive: true, force: true })
+        changed = true
+        log(`sketchup extension ${ours} installed in SketchUp ${version} (was ${there ?? 'none'})`)
+      }
+      versions.push(version)
+    } catch (err) {
+      log(`sketchup extension SketchUp ${version}: ${err.message ?? err}`)
+    }
+  }
+  return { versions, changed, missing: false }
+}
+
+/** Menu Aide: installs (or repairs) the extension, and says how to use it; without SketchUp found, the manual way. */
 async function sketchupExtension() {
+  const result = installSketchupExtension()
+  const use = [
+    'Dans SketchUp : enregistrez vos scènes (Fenêtre → Scènes → +), ce sont les vues de vos photos.',
+    'Puis cliquez « Envoyer à Roomia » (menu Extensions, ou le bouton maison de la barre d’outils Roomia) : le projet s’ouvre dans Roomia.',
+    'Renvoyer le même modèle propose de mettre à jour le projet existant.',
+  ].join('\n')
+  if (result.versions.length) {
+    await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Extension SketchUp « Envoyer à Roomia »',
+      message: `L’extension est installée dans SketchUp ${result.versions.join(', ')}.`,
+      detail: `${result.changed ? 'Fermez et rouvrez SketchUp pour la charger.\n\n' : ''}${use}`,
+    })
+    return
+  }
   const rbz = path.join(SKETCHUP_DIR, 'Roomia-Envoyer.rbz')
   if (!fs.existsSync(rbz)) {
     await dialog.showMessageBox(win, { type: 'warning', title: APP_NAME, message: "L'extension SketchUp n'est pas dans cette version." })
@@ -390,13 +484,12 @@ async function sketchupExtension() {
   await dialog.showMessageBox(win, {
     type: 'info',
     title: 'Extension SketchUp « Envoyer à Roomia »',
-    message: 'Installer l’extension dans SketchUp',
+    message: 'SketchUp n’a pas été trouvé sur ce PC : installez l’extension à la main',
     detail: [
       '1. Dans SketchUp : Extensions → Extension Manager → Install Extension.',
       '2. Choisissez le fichier Roomia-Envoyer.rbz (le dossier vient de s’ouvrir).',
-      '3. Un bouton « Envoyer à Roomia » apparaît (menu Extensions et barre d’outils Roomia).',
       '',
-      'Ensuite : enregistrez vos scènes SketchUp (les vues), cliquez « Envoyer à Roomia » ; le projet arrive dans Roomia. Renvoyer le même modèle propose de mettre à jour le projet existant.',
+      use,
     ].join('\n'),
   })
 }
