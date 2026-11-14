@@ -653,7 +653,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                 ))}
               </div>
             )}
-            <div className="tour-plan-inner" style={{ aspectRatio: `${plan.width} / ${plan.height}` }}>
+            <div className="tour-plan-inner" style={{ aspectRatio: `${plan.width} / ${plan.height}`, ['--ratio' as string]: plan.width / plan.height }}>
               <img src={`/api/scenes/${sceneId}/tour/${plan.file}?v=${version}`} alt="" aria-hidden="true" />
               {views.map(v =>
                 v.plan && onPlan(v) ? (

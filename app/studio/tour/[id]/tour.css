@@ -90,9 +90,9 @@
 /* The plan, with every viewpoint; the current one shows where it looks. */
 .tour-plan {
   position: absolute; z-index: 4; left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  width: clamp(150px, 22vw, 300px); padding: 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  width: auto; padding: 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
-.tour-plan-inner { position: relative; width: 100%; }
+.tour-plan-inner { position: relative; width: min(clamp(150px, 22vw, 300px), calc(38vh * var(--ratio, 1))); }
 /* A site with several levels: one plan each, the current point's shown. */
 .tour-levels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .tour-levels button { flex: 1 1 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
@@ -247,7 +247,9 @@
 .tour-pill-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--brass); animation: pill-dot 1.2s ease-in-out infinite; }
 @keyframes pill-dot { 50% { opacity: 0.25; } }
 @media (max-width: 640px) { .tour-pill { max-width: calc(100vw - 28px); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
-.tour-hint { bottom: 64px; }
+/* the hint sits at the top, out of the arrows' way, and fades after a few seconds */
+.tour-hint { top: 14px; bottom: auto; animation: hint-fade 0.6s ease 4.5s forwards; }
+@keyframes hint-fade { to { opacity: 0; } }
 
 /* the first screens: before the visit exists, and while it is being made */
 .floating-back { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); }
