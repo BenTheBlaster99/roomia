@@ -47,6 +47,7 @@ export function webVisitHtml(title: string, views: TourView[], panoNames: Map<nu
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>${esc(title)} · Visite 360°</title>
 <style>
 html,body{margin:0;height:100%;background:#0b100e;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#ece6da}
@@ -99,7 +100,7 @@ const DATA = ${data};
   var maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
   var pts = DATA.points, byId = {}; pts.forEach(function (p) { byId[p.i] = p; });
-  var cur = null, yaw = 0, pitch = 0, fov = 75, touched = false, anim = null, ready = false;
+  var cur = null, yaw = 0, pitch = 0, fov = 75, touched = false, anim = null, ready = false, goAfterDraw = false;
   var local = location.protocol === 'file:';
 
   // the picture of a point: the .jpg beside the page, or (opened from the disk) its data URL from visite-data/
@@ -134,7 +135,8 @@ const DATA = ${data};
     picture(p, function (im) {
       upload(im); cur = p; ready = true; load.style.display = 'none';
       yaw = arrivalYaw != null ? arrivalYaw : p.y; pitch = 0;
-      if (through) { anim = { f: { yaw: yaw, pitch: 0, fov: 54 }, t: { yaw: yaw, pitch: 0, fov: 75 }, t0: performance.now(), dur: 650 }; fov = 54; fade.classList.add('go'); }
+      // the snapshot starts fading only once the new point is drawn (a slow phone takes a moment to take a large picture)
+      if (through) { anim = { f: { yaw: yaw, pitch: 0, fov: 54 }, t: { yaw: yaw, pitch: 0, fov: 75 }, t0: performance.now(), dur: 650 }; fov = 54; goAfterDraw = true; }
       rooms.value = String(p.i);
       spotsEl.innerHTML = ''; spotNodes = arrows(p).map(function (s) {
         var b = document.createElement('button'); b.className = 'spot'; b.type = 'button'; b.setAttribute('aria-label', 'Aller à ' + s.q.n);
@@ -197,7 +199,7 @@ const DATA = ${data};
     spotNodes.forEach(function (n) {
       var x = Math.cos(n.s.pitch) * Math.sin(n.s.yaw), y = Math.sin(n.s.pitch), z = Math.cos(n.s.pitch) * Math.cos(n.s.yaw);
       var x1 = x * cy - z * sy, z1 = x * sy + z * cy, y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
-      var sx = x1 / (z2 * th * asp), syy = y2 / (z2 * th), vis = z2 > .05 && Math.abs(sx) < 1.05 && Math.abs(syy) < 1.05;
+      var sx = x1 / (z2 * th * asp), syy = y2 / (z2 * th), vis = z2 > .05 && Math.abs(sx) < .92 && Math.abs(syy) < .9;
       n.el.style.opacity = vis ? '1' : '0'; n.el.style.pointerEvents = vis ? 'auto' : 'none';
       if (vis) n.el.style.transform = 'translate(-50%,-50%) translate(' + ((sx + 1) / 2 * w) + 'px,' + ((1 - syy) / 2 * h) + 'px)';
     });
@@ -211,6 +213,7 @@ const DATA = ${data};
     }
     if (ready && !touched && !reduce) yaw += .0012;
     if (ready) draw();
+    if (goAfterDraw) { goAfterDraw = false; requestAnimationFrame(function () { fade.classList.add('go'); }); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
