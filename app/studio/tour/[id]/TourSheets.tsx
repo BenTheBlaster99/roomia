@@ -97,8 +97,52 @@ export function PlanSheet({ sceneId, plan, version, title }: { sceneId: string; 
   )
 }
 
-export function Plan3dSheet({ sceneId, file, version, title }: { sceneId: string; file: string | null; version: string; title: string }) {
-  if (!file) return <div className="tour-message">Le plan 3D se fait à la prochaine préparation de la visite.</div>
+export function Plan3dSheet({
+  sceneId,
+  file,
+  version,
+  title,
+  state,
+  onMake,
+}: {
+  sceneId: string
+  file: string | null
+  version: string
+  title: string
+  /** how the last 3D plan went (15 Nov): running, done, or failed with its reason */
+  state?: { state: 'running' | 'done' | 'failed'; error?: string } | null
+  /** "Faire le plan 3D maintenant" (the Studio only, not a published tour) */
+  onMake?: () => void
+}) {
+  if (!file) {
+    return (
+      <div className="tour tour-message plan3d-missing">
+        {state?.state === 'running' ? (
+          <>
+            <strong>Plan 3D en cours…</strong>
+            <span>Une à trois minutes sur votre PC. Il s’affiche ici tout seul.</span>
+            <progress />
+          </>
+        ) : (
+          <>
+            <strong>{state?.state === 'failed' ? 'Le plan 3D n’a pas pu être fait' : 'Pas encore de plan 3D'}</strong>
+            {state?.error && <span className="tour-error">{state.error}</span>}
+            {onMake ? (
+              <>
+                <span>Il se fait à partir du plan de la visite, sans refaire les 360°.</span>
+                <button type="button" onClick={onMake}>
+                  Faire le plan 3D maintenant
+                </button>
+                {state?.state === 'failed' && <span className="tour-note">Si cela échoue encore : menu Aide → Créer un rapport, et envoyez-le à Roomia.</span>}
+              </>
+            ) : (
+              <span>Le plan 3D de cette visite n’est pas disponible.</span>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
   const url = `/api/scenes/${sceneId}/tour/${file}?v=${version}`
   return (
     <div className="tour-sheet">

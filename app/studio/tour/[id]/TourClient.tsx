@@ -34,6 +34,8 @@ interface TourData {
   /** The points proposed on the plan before the build (14 Nov), and whether the person chose them. */
   proposal: TourProposal | null
   chosen: boolean
+  /** the 3D plan's last run (15 Nov) */
+  plan3dState?: { state: 'running' | 'done' | 'failed'; error?: string } | null
   /** For the reviewer: what the last new version of the file changed, and what is left to remake. */
   update: {
     at: string
@@ -223,6 +225,14 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     }, 3000)
     return () => clearInterval(timer)
   }, [pipeline, load, loadLook])
+
+  // while the 3D plan is being made on its own, follow it
+  const plan3dRunning = data?.plan3dState?.state === 'running'
+  useEffect(() => {
+    if (!plan3dRunning) return
+    const timer = setInterval(() => load().catch(() => undefined), 4000)
+    return () => clearInterval(timer)
+  }, [plan3dRunning, load])
 
   const order = useMemo(() => visitOrder(views), [views])
   const current = views[order[step]]
@@ -593,7 +603,14 @@ export default function TourClient({ sceneId, title, published = false }: { scen
         {shown === 'plan2d' && data.plan ? (
           <PlanSheet sceneId={sceneId} plan={plan ?? data.plan} version={version} title={title} />
         ) : shown === 'plan3d' ? (
-          <Plan3dSheet sceneId={sceneId} file={data.plan3d ?? null} version={version} title={title} />
+          <Plan3dSheet
+            sceneId={sceneId}
+            file={data.plan3d ?? null}
+            version={version}
+            title={title}
+            state={data.plan3dState}
+            onMake={published ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
+          />
         ) : shown === 'gallery' ? (
           <GallerySheet sceneId={sceneId} title={title} onCreate={() => setMode('photos')} />
         ) : shown === 'photos' ? (

@@ -4063,7 +4063,7 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   await keepPlanSources(work, dir, planLevels.map(l => l.suffix))
   // The 3D plan of each level: its own short Blender run on the kept sources (the cut it makes is destructive).
   await progress('Plan 3D…')
-  await renderPlan3d(sceneId).catch(err => console.error('tour plan 3d failed', sceneId, err))
+  await makePlan3d(sceneId)
   // Named from the bottom up; a level with only outdoor areas is "Extérieur" when it is the only such one.
   const outdoorOnly = planLevels.filter(l => l.outdoor).length === 1
   const levels: TourLevel[] | undefined =
@@ -4478,6 +4478,46 @@ async function propose(sceneId: string, fresh = false) {
   await writeProposal(sceneId, { state: 'ready', at: new Date().toISOString(), levels, points, eye: PROPOSAL_EYE })
   await clearDir(work)
   await rm(work, { recursive: true, force: true }).catch(() => undefined)
+}
+
+// ── The 3D plan on its own (15 Nov, Sarah: no 3D plan in her project): a failure is kept with its reason, and it can be made again ──
+
+const plan3dStatePath = (sceneId: string) => path.join(tourDir(sceneId), 'plan3d-state.json')
+export interface Plan3dState {
+  state: 'running' | 'done' | 'failed'
+  error?: string
+  at: string
+  pid?: number
+}
+export async function readPlan3dState(sceneId: string): Promise<Plan3dState | null> {
+  const s = JSON.parse(await readFile(plan3dStatePath(sceneId), 'utf8').catch(() => 'null')) as Plan3dState | null
+  if (s?.state === 'running' && s.pid !== process.pid) return { state: 'failed', error: 'Interrompu (Roomia a été fermé).', at: s.at }
+  return s
+}
+
+/** Makes the 3D plan and remembers how it went (the build calls it; so does "Faire le plan 3D maintenant"). Never throws. */
+async function makePlan3d(sceneId: string) {
+  const at = new Date().toISOString()
+  await writeFile(plan3dStatePath(sceneId), JSON.stringify({ state: 'running', at, pid: process.pid })).catch(() => undefined)
+  try {
+    const made = await renderPlan3d(sceneId)
+    if (!made.length) throw new Error('Blender n’a produit aucune image.')
+    await writeFile(plan3dStatePath(sceneId), JSON.stringify({ state: 'done', at: new Date().toISOString() }))
+  } catch (err) {
+    console.error('tour plan 3d failed', sceneId, err)
+    const error = (err instanceof Error ? err.message : String(err)).slice(0, 400)
+    await writeFile(plan3dStatePath(sceneId), JSON.stringify({ state: 'failed', error, at: new Date().toISOString() })).catch(() => undefined)
+  }
+}
+
+/** "Faire le plan 3D maintenant": the 3D plan alone, in the background (a few minutes), from the plan sources the build kept. */
+export async function startPlan3d(sceneId: string): Promise<Plan3dState> {
+  if ((await readTourStatus(sceneId)).state === 'building') throw new Error('Une préparation est en cours : le plan 3D se fera avec elle.')
+  const current = await readPlan3dState(sceneId)
+  if (current?.state === 'running') return current
+  if (!(await readBuild(sceneId))) throw new Error('Créez d’abord la visite 360° : le plan 3D part de son plan.')
+  void makePlan3d(sceneId)
+  return { state: 'running', at: new Date().toISOString(), pid: process.pid }
 }
 
 /** "Annuler : garder la visite actuelle": the proposal waiting in the editor is dropped (a running one is left to finish). */
@@ -5488,6 +5528,6 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     () => null,
   )
   // the points before the build (14 Nov): the proposal being made or waiting for the person, and whether points were chosen
-  const [proposal, chosen] = await Promise.all([readProposal(sceneId), readChosenPoints(sceneId)])
-  return { status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360, proposal, chosen: !!chosen }
+  const [proposal, chosen, plan3dState] = await Promise.all([readProposal(sceneId), readChosenPoints(sceneId), readPlan3dState(sceneId)])
+  return { plan3dState, status, plan: built?.plan ?? null, plan3d, levels: built?.levels ?? null, builtAt: built?.builtAt ?? null, walk, preview, autoLook: AUTO_LOOK, views, update, ai360: AI_360, proposal, chosen: !!chosen }
 }

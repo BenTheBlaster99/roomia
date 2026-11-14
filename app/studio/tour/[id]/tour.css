@@ -302,3 +302,4 @@
 .tour.tour-message button.tour-stop, .tour.tour-message button.tour-secondary { background: none; color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
 .tour.tour-message button.tour-stop:hover { background: rgba(217, 80, 80, 0.85); color: #fff; border-color: transparent; }
 .tour-download { cursor: pointer; } .tour-download:disabled { opacity: 0.5; cursor: wait; }
+.tour.tour-message.plan3d-missing { position: absolute; inset: 0; }
