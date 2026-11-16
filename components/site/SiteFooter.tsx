@@ -49,9 +49,11 @@ export default function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="site-wrap site-footer-base">
-        <span>{t.rights}</span>
-        <span>room-ia.com</span>
+      <div className="site-wrap">
+        <div className="site-footer-base">
+          <span>{t.rights}</span>
+          <span>room-ia.com</span>
+        </div>
       </div>
     </footer>
   )

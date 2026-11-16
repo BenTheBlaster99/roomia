@@ -58,7 +58,7 @@ export default function SiteHeader({ trailing }: { trailing?: ReactNode }) {
 
         <div className="site-header-end">
           <LocaleSwitch label={t.language} />
-          {trailing}
+          {trailing && <span className="site-header-trailing">{trailing}</span>}
           <a className="site-btn site-btn--primary site-header-demo" href={DEMO_WHATSAPP} target="_blank" rel="noopener noreferrer">
             <span className="site-only-wide">{t.demo}</span>
             <span className="site-only-narrow">{t.demoShort}</span>
@@ -88,6 +88,7 @@ export default function SiteHeader({ trailing }: { trailing?: ReactNode }) {
             {t.home}
           </a>
           {links}
+          {trailing && <div className="site-header-panel-extra">{trailing}</div>}
         </div>
       </nav>
     </header>

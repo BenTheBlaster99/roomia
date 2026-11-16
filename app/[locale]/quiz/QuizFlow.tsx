@@ -121,7 +121,7 @@ export default function QuizFlow() {
           <button
             type="button"
             onClick={back}
-            className="flex h-10 w-10 items-center justify-center text-[#f4efe4]"
+            className="flex h-10 w-10 items-center justify-center text-[var(--brand-white)]"
             aria-label={t('back')}
           >
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden>
@@ -134,18 +134,18 @@ export default function QuizFlow() {
 
         {result ? (
           <div className="mx-auto flex w-full max-w-xl flex-1 flex-col px-1 pt-6">
-            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d4b483]">
+            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--brand-gold-light)]">
               {t('resultEyebrow')}
             </p>
             <h2 className="rm-quiz-question">{t('resultTitle')}</h2>
-            <p className="mx-auto mt-2 max-w-md text-center text-sm leading-relaxed text-[#f4efe4]/75">
+            <p className="mx-auto mt-2 max-w-md text-center text-sm leading-relaxed text-[var(--brand-white)]/75">
               {t('resultSub')}
             </p>
 
             {hero ? (
-              <div className="mt-6 overflow-hidden rounded-[1.4rem] bg-[#e7ddd1]">
+              <div className="mt-6 overflow-hidden rounded-[1.4rem] bg-[var(--brand-paper)]">
                 <img src={hero} alt="" className="aspect-[4/3] w-full object-cover" />
-                <div className="px-5 py-4 text-[#1a2f26]">
+                <div className="px-5 py-4 text-[var(--brand-blue-deep)]">
                   <p className="font-[family-name:var(--font-display)] text-2xl font-bold">
                     {tHome(`styleName.${result.primary}`)}
                   </p>
@@ -155,14 +155,14 @@ export default function QuizFlow() {
             ) : null}
 
             {result.runnerUp && runnerHero ? (
-              <p className="mt-4 text-center text-sm text-[#f4efe4]/70">
+              <p className="mt-4 text-center text-sm text-[var(--brand-white)]/70">
                 {t('alsoClose')}{' '}
                 {isStyleId(result.runnerUp) ? (
-                  <Link href={`/styles/${result.runnerUp}?from=quiz`} className="font-semibold text-[#f4efe4] underline">
+                  <Link href={`/styles/${result.runnerUp}?from=quiz`} className="font-semibold text-[var(--brand-white)] underline">
                     {tHome(`styleName.${result.runnerUp}`)}
                   </Link>
                 ) : (
-                  <span className="font-semibold text-[#f4efe4]">{tHome(`styleName.${result.runnerUp}`)}</span>
+                  <span className="font-semibold text-[var(--brand-white)]">{tHome(`styleName.${result.runnerUp}`)}</span>
                 )}
               </p>
             ) : null}

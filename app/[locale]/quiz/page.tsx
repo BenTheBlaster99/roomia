@@ -1,5 +1,9 @@
-import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { setRequestLocale } from 'next-intl/server'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
 import QuizFlow from './QuizFlow'
+
+// 16 Nov: restyled to the brand but not linked: a consumer style quiz from the earlier product.
 
 export default async function QuizPage({
   params,
@@ -10,8 +14,12 @@ export default async function QuizPage({
   setRequestLocale(locale)
 
   return (
-    <div className="min-h-svh bg-[#1a2f26] text-[#f4efe4]">
-      <QuizFlow />
+    <div className="site-page">
+      <SiteHeader />
+      <main>
+        <QuizFlow />
+      </main>
+      <SiteFooter />
     </div>
   )
 }

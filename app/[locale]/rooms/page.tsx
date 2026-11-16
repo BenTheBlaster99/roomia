@@ -1,11 +1,14 @@
+import NextLink from 'next/link'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { Link } from '@/i18n/navigation'
 import { supabase } from '@/lib/supabase'
 import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import type { RoomPresetRow } from '@/types/room-preset'
-import SiteNav from '@/components/marketing/SiteNav'
-import SiteFooter from '@/components/marketing/SiteFooter'
-import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
+import PageHero from '@/components/site/PageHero'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
+
+// 16 Nov: restyled to the brand but not linked: room presets for the earlier 3D configurator.
+const FALLBACK_COLORS = { main: 'var(--brand-paper)', accent: 'var(--brand-blue-line)' }
 
 export default async function RoomsPage({
   params,
@@ -15,7 +18,6 @@ export default async function RoomsPage({
   const { locale } = await params
   setRequestLocale(locale)
   const t = await getTranslations('rooms')
-  const tNav = await getTranslations('nav')
 
   const { data: presets, error } = await supabase
     .from('room_presets')
@@ -25,13 +27,19 @@ export default async function RoomsPage({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[var(--rm-bg)] px-6 py-16 text-[var(--rm-text)]">
-        <SiteNav />
-        <div className="mx-auto max-w-2xl text-center pt-16">
-          <h1 className="rm-display text-2xl font-bold mb-4">{t('title')}</h1>
-          <p className="text-[var(--rm-muted)] mb-6">{t('error')}</p>
-          <p className="text-sm text-red-700">{error.message}</p>
-        </div>
+      <div className="site-page">
+        <SiteHeader />
+        <main>
+          <PageHero title={t('title')} lead={t('error')} />
+          <section className="site-section">
+            <div className="site-wrap">
+              <p className="site-text" style={{ color: 'var(--brand-danger)' }}>
+                {error.message}
+              </p>
+            </div>
+          </section>
+        </main>
+        <SiteFooter />
       </div>
     )
   }
@@ -42,67 +50,59 @@ export default async function RoomsPage({
   >[]
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav ctaHref="/studio?create=1" ctaLabel={tNav('ctaCustom')} />
+    <div className="site-page">
+      <SiteHeader />
 
-      <section className="relative overflow-hidden border-b border-[var(--rm-text)]/8">
-        <HaikeiBackdrop variant="band" />
-        <div className="rm-page relative py-14">
-          <h1 className="rm-display text-4xl font-bold tracking-tight md:text-5xl">{t('title')}</h1>
-          <p className="mt-3 max-w-xl text-[var(--rm-muted)]">{t('sub')}</p>
-          <div className="mt-6">
-            <a href="/studio?create=1" className="rm-btn-primary text-sm">
-              {t('custom')}
-            </a>
-          </div>
-        </div>
-      </section>
+      <main>
+        <PageHero title={t('title')} lead={t('sub')}>
+          <NextLink href="/studio?create=1" className="site-btn site-btn--gold site-btn--lg">
+            {t('custom')}
+          </NextLink>
+        </PageHero>
 
-      <main className="rm-page py-12">
-        {rows.length === 0 ? (
-          <div className="rm-panel border-dashed p-12 text-center">
-            <p className="text-[var(--rm-muted)]">{t('empty')}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {rows.map(preset => {
-              const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? {
-                main: '#E8E4E0',
-                accent: '#9CA3AF',
-              }
-              const wall = preset.room_config?.wallColor ?? colors.main
+        <section className="site-section is-paper">
+          <div className="site-wrap">
+            {rows.length === 0 ? (
+              <div className="site-card">
+                <p className="site-text">{t('empty')}</p>
+              </div>
+            ) : (
+              <div className="site-grid site-grid--4">
+                {rows.map(preset => {
+                  const colors = STYLE_CARD_COLORS[preset.style_id ?? ''] ?? FALLBACK_COLORS
+                  const wall = preset.room_config?.wallColor ?? colors.main
 
-              return (
-                <a
-                  key={preset.id}
-                  href={`/studio?preset=${preset.id}`}
-                  className="group rm-panel block overflow-hidden transition-transform hover:-translate-y-1"
-                >
-                  <div
-                    className="relative aspect-[4/3] flex items-end p-4"
-                    style={{
-                      background: preset.thumbnail_url
-                        ? `url(${preset.thumbnail_url}) center/cover`
-                        : `linear-gradient(145deg, ${wall} 0%, ${colors.accent}88 100%)`,
-                    }}
-                  >
-                    <span className="relative text-[10px] font-bold uppercase tracking-wider text-[var(--rm-ink)] bg-[var(--rm-surface)]/90 px-2 py-1 rounded">
-                      {preset.room_type}
-                    </span>
-                  </div>
-                  <div className="p-4">
-                    <h2 className="rm-display text-lg font-bold group-hover:text-[var(--rm-primary)] transition-colors">
-                      {preset.name}
-                    </h2>
-                    <p className="text-sm text-[var(--rm-muted)] mt-1 capitalize">
-                      {preset.budget_tier} · {t('open')}
-                    </p>
-                  </div>
-                </a>
-              )
-            })}
+                  return (
+                    <NextLink key={preset.id} href={`/studio?preset=${preset.id}`} className="site-card" style={{ padding: 0, overflow: 'hidden', gap: 0 }}>
+                      <div
+                        style={{
+                          position: 'relative',
+                          aspectRatio: '4 / 3',
+                          display: 'flex',
+                          alignItems: 'flex-end',
+                          padding: 16,
+                          background: preset.thumbnail_url
+                            ? `url(${preset.thumbnail_url}) center/cover`
+                            : `linear-gradient(145deg, ${wall} 0%, color-mix(in srgb, ${colors.accent} 53%, transparent) 100%)`,
+                        }}
+                      >
+                        <span className="site-eyebrow" style={{ padding: '4px 8px', borderRadius: 6, background: 'var(--brand-white)', color: 'var(--brand-blue-deep)' }}>
+                          {preset.room_type}
+                        </span>
+                      </div>
+                      <div style={{ padding: 18, display: 'grid', gap: 4 }}>
+                        <h2 className="site-h3">{preset.name}</h2>
+                        <p className="site-text" style={{ fontSize: 14, textTransform: 'capitalize' }}>
+                          {preset.budget_tier} · {t('open')}
+                        </p>
+                      </div>
+                    </NextLink>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </section>
       </main>
 
       <SiteFooter />

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
-import SiteNav from '@/components/marketing/SiteNav'
-import SiteFooter from '@/components/marketing/SiteFooter'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
 import StyleDetail from '@/components/marketing/StyleDetail'
 import {
   isStyleId,
@@ -42,8 +42,8 @@ export default async function StyleDetailPage({ params, searchParams }: PageProp
   const visual = STYLE_VISUALS[id]
 
   return (
-    <div className="min-h-screen bg-white text-[var(--rm-text)]">
-      <SiteNav />
+    <div className="site-page">
+      <SiteHeader />
       <StyleDetail
         styleId={id}
         name={tHome(`styleName.${id}`)}

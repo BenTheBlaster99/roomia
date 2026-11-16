@@ -84,6 +84,12 @@
 .site-header-panel a { padding-block: 14px; border-bottom: 1px solid var(--brand-line); color: var(--brand-ink); font-size: 17px; text-decoration: none; }
 .site-header-panel a[aria-current='page'] { color: var(--brand-blue); font-weight: 600; }
 .site-only-narrow { display: none; }
+.site-header-trailing { display: contents; }
+.site-header-panel-extra { display: none; padding-top: 16px; }
+@media (max-width: 639px) {
+  .site-header-trailing { display: none; }
+  .site-header-panel-extra { display: block; }
+}
 @media (max-width: 959px) {
   .site-header-links { display: none; }
   .site-header-menu { display: inline-grid; }

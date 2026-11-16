@@ -1,9 +1,11 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
-import SiteNav from '@/components/marketing/SiteNav'
-import SiteFooter from '@/components/marketing/SiteFooter'
-import HaikeiBackdrop from '@/components/marketing/HaikeiBackdrop'
+import PageHero from '@/components/site/PageHero'
+import RevealOnScroll from '@/components/site/RevealOnScroll'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
 
+// 16 Nov: restyled to the brand but not linked from the navbar: the text still describes the earlier consumer configurator.
 export default async function AboutPage({
   params,
 }: {
@@ -14,83 +16,65 @@ export default async function AboutPage({
   const t = await getTranslations('about')
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav />
+    <div className="site-page">
+      <SiteHeader />
 
-      <section className="relative overflow-hidden">
-        <HaikeiBackdrop variant="hero" />
-        <div className="rm-page relative pb-20 pt-20 md:pt-28">
-          <p className="rm-rise text-xs font-semibold uppercase tracking-[0.2em] text-[var(--rm-accent)]">
-            {t('eyebrow')}
-          </p>
-          <h1 className="rm-rise rm-rise-delay-1 rm-display mt-4 text-5xl font-bold tracking-tight text-[var(--rm-primary)] md:text-6xl">
-            {t('title')}
-          </h1>
-          <p className="rm-rise rm-rise-delay-2 mt-6 text-xl leading-relaxed text-[var(--rm-ink)] md:text-2xl">
-            {t('lead')}
-          </p>
-        </div>
-      </section>
+      <main>
+        <PageHero eyebrow={t('eyebrow')} title={t('title')} lead={t('lead')} />
 
-      <section className="border-t border-[var(--rm-text)]/8 bg-[var(--rm-surface)] py-16">
-        <div className="rm-page">
-          <div className="max-w-2xl space-y-6 text-base leading-relaxed text-[var(--rm-muted)]">
-            <p>{t('p1')}</p>
-            <p>{t('p2')}</p>
+        <section className="site-section">
+          <div className="site-wrap">
+            <div className="site-stack site-lead">
+              <p>{t('p1')}</p>
+              <p>{t('p2')}</p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="py-20">
-        <div className="rm-page">
-          <h2 className="rm-display text-2xl font-bold tracking-tight md:text-3xl">{t('team')}</h2>
-          <div className="mt-10 grid gap-8 sm:grid-cols-2">
-            {[
-              { name: 'Sarah', role: t('sarahRole'), desc: t('sarahDesc'), tone: 'var(--rm-accent)' },
-              { name: 'Aimen', role: t('aimenRole'), desc: t('aimenDesc'), tone: 'var(--rm-primary)' },
-            ].map(({ role, name, desc, tone }) => (
-              <div key={name} className="border-t-2 pt-6" style={{ borderColor: tone }}>
-                <div className="rm-display text-2xl font-bold">{name}</div>
-                <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--rm-muted)]">
-                  {role}
-                </div>
-                <p className="mt-4 text-sm leading-relaxed text-[var(--rm-muted)]">{desc}</p>
-              </div>
-            ))}
+        <section className="site-section is-paper">
+          <div className="site-wrap">
+            <h2 className="site-h2" data-reveal="">
+              {t('team')}
+            </h2>
+            <div className="site-grid site-grid--2">
+              {[
+                { name: 'Sarah', role: t('sarahRole'), desc: t('sarahDesc') },
+                { name: 'Aimen', role: t('aimenRole'), desc: t('aimenDesc') },
+              ].map(({ role, name, desc }, i) => (
+                <article key={name} className="site-card" data-reveal={String(i + 1)}>
+                  <p className="site-eyebrow">{role}</p>
+                  <h3 className="site-h2">{name}</h3>
+                  <p className="site-text">{desc}</p>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="relative overflow-hidden border-t border-[var(--rm-text)]/8 py-20">
-        <HaikeiBackdrop variant="band" />
-        <div className="rm-page relative">
-          <h2 className="rm-display text-2xl font-bold tracking-tight md:text-3xl">{t('why')}</h2>
-          <p className="mt-5 max-w-2xl text-base leading-relaxed text-[var(--rm-muted)]">
-            {t('whyBody')}
-          </p>
-
-          <div className="mt-12 rm-panel p-8">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--rm-muted)]">
-              {t('contact')}
-            </h3>
-            <p className="mt-3 text-sm text-[var(--rm-muted)]">{t('contactBody')}</p>
-            <a
-              href="mailto:contact@roomia.dz"
-              className="mt-4 inline-block text-sm font-bold text-[var(--rm-primary)] hover:underline"
-            >
-              contact@roomia.dz →
-            </a>
+        <section className="site-section">
+          <div className="site-wrap">
+            <div className="site-stack" data-reveal="">
+              <h2 className="site-h2">{t('why')}</h2>
+              <p className="site-lead">{t('whyBody')}</p>
+            </div>
+            <div className="site-card" data-reveal="1">
+              <p className="site-eyebrow">{t('contact')}</p>
+              <p className="site-text">{t('contactBody')}</p>
+              <a href="mailto:contact@roomia.dz" className="site-link">
+                contact@roomia.dz
+              </a>
+            </div>
+            <div>
+              <Link href="/generateur" className="site-btn site-btn--primary site-btn--lg">
+                {t('try')}
+              </Link>
+            </div>
           </div>
-
-          <div className="mt-10">
-            <Link href="/generateur" className="rm-btn-primary px-10 py-3.5">
-              {t('try')}
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       <SiteFooter />
+      <RevealOnScroll />
     </div>
   )
 }

@@ -1,9 +1,11 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
-import SiteNav from '@/components/marketing/SiteNav'
-import SiteFooter from '@/components/marketing/SiteFooter'
+import PageHero from '@/components/site/PageHero'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
 import { STYLE_IDS, StyleChip } from '@/components/marketing/StyleChip'
 
+// 16 Nov: restyled to the brand but not linked: a consumer style library that leads to the style quiz.
 export default async function StylesPage({
   params,
 }: {
@@ -14,28 +16,30 @@ export default async function StylesPage({
   const t = await getTranslations('home')
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav />
+    <div className="site-page">
+      <SiteHeader />
 
-      <main className="rm-page py-16 md:py-24">
-        <h1 className="rm-display mx-auto max-w-4xl text-center text-3xl font-bold tracking-tight text-[var(--rm-ink)] md:text-5xl">
-          {t('stylesExpandedTitle')}
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-[var(--rm-muted)] md:text-base">
-          {t.rich('stylesExpandedSub', {
-            quiz: chunks => <em className="not-italic font-semibold tracking-wide">{chunks}</em>,
+      <main>
+        <PageHero
+          title={t('stylesExpandedTitle')}
+          lead={t.rich('stylesExpandedSub', {
+            quiz: chunks => <em style={{ fontStyle: 'normal', fontWeight: 600, letterSpacing: '0.04em' }}>{chunks}</em>,
           })}
-        </p>
-        <div className="mt-8 flex justify-center">
-          <Link href="/quiz" className="rm-btn-primary px-12 py-3.5 text-base">
+        >
+          <Link href="/quiz" className="site-btn site-btn--gold site-btn--lg">
             {t('stylesTakeQuiz')}
           </Link>
-        </div>
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-5">
-          {STYLE_IDS.map(id => (
-            <StyleChip key={id} id={id} label={t(`styleName.${id}`)} />
-          ))}
-        </div>
+        </PageHero>
+
+        <section className="site-section is-paper">
+          <div className="site-wrap">
+            <div className="site-grid site-grid--4">
+              {STYLE_IDS.map(id => (
+                <StyleChip key={id} id={id} label={t(`styleName.${id}`)} />
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
 
       <SiteFooter />

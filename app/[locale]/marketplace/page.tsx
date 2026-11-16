@@ -6,8 +6,8 @@ import { useStudioStore } from '@/store/useStudioStore'
 import { MOCK_CATALOG, type CatalogItem } from '@/lib/mock-catalog'
 import { CATEGORIES_BY_ROOM, CATEGORY_COLORS } from '@/lib/studio-constants'
 import CartDrawer from '@/components/CartDrawer'
-import SiteNav from '@/components/marketing/SiteNav'
-import SiteFooter from '@/components/marketing/SiteFooter'
+import SiteFooter from '@/components/site/SiteFooter'
+import SiteHeader from '@/components/site/SiteHeader'
 import { useTranslations } from 'next-intl'
 
 const ROOM_FILTERS = ['All', 'Living Room', 'Bedroom']
@@ -39,7 +39,6 @@ function getCategoryEmoji(cat: string) {
 
 export default function MarketplacePage() {
   const t = useTranslations('marketplace')
-  const tNav = useTranslations('nav')
   const router = useRouter()
   const addItemFromCatalog = useStudioStore(s => s.addItemFromCatalog)
   const addToCart = useStudioStore(s => s.addToCart)
@@ -85,14 +84,13 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)] text-[var(--rm-text)]">
-      <SiteNav
-        ctaHref="/studio"
-        ctaLabel={tNav('ctaStudio')}
+    <div className="site-page" style={{ background: 'var(--brand-paper)' }}>
+      <SiteHeader
         trailing={
           <button
             onClick={toggleCart}
-            className="rm-btn-secondary text-xs"
+            className="site-btn site-btn--ghost"
+            style={{ minHeight: 40 }}
           >
             {t('cart')}{cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
@@ -157,25 +155,25 @@ export default function MarketplacePage() {
             ))}
           </FilterGroup>
 
-          <label className="flex items-center gap-2 text-xs text-zinc-600 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-[var(--brand-ink-soft)] cursor-pointer">
             <input
               type="checkbox"
               checked={inStockOnly}
               onChange={e => setInStockOnly(e.target.checked)}
-              className="accent-amber-500"
+              className="accent-[var(--brand-blue)]"
             />
             In stock only
           </label>
         </aside>
 
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 p-3 z-20">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[var(--brand-white)] border-t border-[var(--brand-line)] p-3 z-20">
           <select
             value={room}
             onChange={e => {
               setRoom(e.target.value)
               setCategory(null)
             }}
-            className="w-full bg-stone-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900"
+            className="w-full bg-[var(--brand-white)] border border-[var(--brand-line)] rounded-lg px-3 py-2 text-sm text-[var(--brand-ink)]"
           >
             {ROOM_FILTERS.map(r => (
               <option key={r} value={r}>
@@ -187,7 +185,7 @@ export default function MarketplacePage() {
 
         <div className="flex-1">
           {filtered.length === 0 ? (
-            <div className="text-center py-20 text-zinc-500 text-sm">
+            <div className="text-center py-20 text-[var(--brand-muted)] text-sm">
               No furniture matches your filters
             </div>
           ) : (
@@ -262,7 +260,7 @@ function ProductCard({
   onAddToStudio: () => void
 }) {
   const tier = getBudgetTier(item.price)
-  const color = CATEGORY_COLORS[item.category] ?? '#888'
+  const color = CATEGORY_COLORS[item.category] ?? 'var(--brand-muted)'
 
   return (
     <div
@@ -290,7 +288,7 @@ function ProductCard({
             {item.category} · {item.style}
           </div>
         </div>
-        <div className="text-sm font-bold text-[var(--rm-accent)]">{item.price.toLocaleString()} DZD</div>
+        <div className="text-sm font-bold text-[var(--brand-gold-text)]">{item.price.toLocaleString()} DZD</div>
         {item.notes && <p className="text-xs text-[var(--rm-muted)] line-clamp-2">{item.notes}</p>}
 
         <div className="flex gap-2 pt-1">
