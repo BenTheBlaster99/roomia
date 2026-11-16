@@ -1,30 +1,25 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DesktopProject } from '@/lib/desktop-projects'
 import DesktopNav from '../components/DesktopNav'
-import { BACKEND, isCpuOnly, PROFILE, useDesktopEngine } from '../components/DesktopRenderNotice'
+import { isCpuOnly, useDesktopEngine } from '../components/DesktopRenderNotice'
+import Icon, { type IconName } from '../components/Icon'
 
 const size = (bytes: number) =>
   bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1).replace('.', ',')} Go` : `${Math.max(1, Math.round(bytes / 1024 ** 2))} Mo`
-const when = (ms: number) => new Date(ms).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
-
-const button = 'rounded-lg border border-[var(--rm-text)]/15 px-3 py-1.5 text-sm text-[var(--rm-text)] hover:bg-[var(--rm-text)]/5 disabled:opacity-50'
-const primary = 'rounded-lg bg-[var(--rm-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--rm-surface)] hover:brightness-110'
-
-const TOUR_LABEL: Record<DesktopProject['tour'], string> = {
-  none: 'À préparer : visite 360°, plans, vidéo',
-  building: 'Préparation Blender en cours…',
-  done: 'Prêt : visite 360°, plan 2D et 3D',
-  failed: 'Préparation interrompue',
-}
+const day = (ms: number) => new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
 async function readProjects(): Promise<{ projects: DesktopProject[]; freeBytes: number | null } | null> {
   const res = await fetch('/api/projects', { cache: 'no-store' }).catch(() => null)
   return res?.ok ? res.json() : null
 }
 
+/**
+ * Mes projets (16 Nov redesign): one card per project with its image, what is ready, and one action: open it. The rest
+ * (3D view, rename, client link, delete) is in the card's ⋯ menu. The SketchUp guide is the empty state, then a small help.
+ */
 export default function ProjectsClient() {
   const [data, setData] = useState<{ projects: DesktopProject[]; freeBytes: number | null } | null>(null)
   const [error, setError] = useState('')
@@ -84,152 +79,313 @@ export default function ProjectsClient() {
   }
 
   const total = data?.projects.reduce((n, p) => n + p.bytes, 0) ?? 0
+  const empty = data && data.projects.length === 0
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)]">
+    <div className="min-h-screen bg-[var(--brand-paper)]">
       <DesktopNav current="projets" />
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+      <main className="mx-auto max-w-6xl px-5 pb-16 pt-10 sm:px-8">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-[var(--rm-text)]">Mes projets</h1>
-            <p className="text-sm text-[var(--rm-muted)]">
+            <h1 className="ui-title text-[32px]">Mes projets</h1>
+            <p className="mt-1 text-[15px] text-[var(--brand-muted)]">
               {data ? `${data.projects.length} projet${data.projects.length > 1 ? 's' : ''} · ${size(total)} sur ce PC` : 'Chargement…'}
-              {data?.freeBytes != null && ` · ${size(data.freeBytes)} libres`}
             </p>
           </div>
-          <button type="button" className={button} onClick={() => window.roomiaDesktop?.openProjects?.()}>
-            Ouvrir le dossier des projets
-          </button>
         </div>
-        {engine && (
-          <p className="mb-4 rounded-lg border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] px-3 py-2 text-xs text-[var(--rm-muted)]">
-            Moteur de rendu :{' '}
-            {isCpuOnly(engine) ? 'processeur (aucune carte graphique utilisable, rendus lents)' : `${engine.gpu || 'carte graphique'} · ${BACKEND[engine.backend] ?? engine.backend} · profil ${PROFILE[engine.profile] ?? engine.profile}`}
-          </p>
-        )}
-        {data?.freeBytes != null && data.freeBytes < 5 * 1024 ** 3 && (
-          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Moins de 5 Go libres sur ce disque : une visite peut prendre plusieurs centaines de Mo. Supprimez d’anciens projets ou libérez de la place.
-          </p>
-        )}
-        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        {/* 14 Nov: how a project arrives from SketchUp (Roomia installs the extension itself; the button repairs it) */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] px-4 py-3">
-          <div className="min-w-0 flex-1 text-sm">
-            <p className="font-medium text-[var(--rm-text)]">Depuis SketchUp</p>
-            <p className="text-[var(--rm-muted)]">
-              Enregistrez vos scènes (Fenêtre → Scènes → +), puis menu <b>Extensions → Roomia → Envoyer à Roomia</b> (ou le bouton maison) : le projet
-              s’ouvre ici. Roomia installe l’extension tout seul ; redémarrez SketchUp si vous ne la voyez pas.
+
+        <div className="mb-6 grid gap-3 empty:hidden">
+          {error && (
+            <p className="ui-notice ui-notice--danger">
+              <Icon name="warn" size={17} />
+              {error}
             </p>
-          </div>
-          {/* this page only exists in Roomia Desktop: the bridge is there */}
-          <button type="button" className={button} onClick={() => void window.roomiaDesktop?.installSketchup?.()}>
-            Installer l’extension SketchUp
-          </button>
+          )}
+          {data?.freeBytes != null && data.freeBytes < 5 * 1024 ** 3 && (
+            <p className="ui-notice ui-notice--warn">
+              <Icon name="warn" size={17} />
+              <span>
+                Il reste {size(data.freeBytes)} sur ce disque. Une visite prend plusieurs centaines de Mo : supprimez un ancien projet avant d’en préparer un nouveau.
+              </span>
+            </p>
+          )}
+          {engine && isCpuOnly(engine) && (
+            <p className="ui-notice ui-notice--warn">
+              <Icon name="cpu" size={17} />
+              Aucune carte graphique utilisable sur ce PC : les rendus marchent, mais lentement.
+            </p>
+          )}
         </div>
-        {data && data.projects.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[var(--rm-text)]/20 bg-[var(--rm-surface)] p-8 text-center">
-            <p className="mb-1 font-medium text-[var(--rm-text)]">Aucun projet pour l’instant</p>
-            <p className="mb-4 text-sm text-[var(--rm-muted)]">
-              Importez un fichier SketchUp (.glb conseillé), ou cliquez « Envoyer à Roomia » dans SketchUp.
-            </p>
-            <Link className={primary} href="/studio">
-              Importer un projet
-            </Link>
-          </div>
-        )}
-        <ul className="grid gap-3">
+
+        {empty && <SketchupGuide first />}
+
+        <ul className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
           {data?.projects.map(p => (
-            <li key={p.id} className="rounded-2xl border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] p-4">
+            <li key={p.id} className="flex flex-col">
               {p.versionOf && p.status === 'ready' && (
-                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--rm-secondary)] px-3 py-2 text-sm text-[var(--rm-text)]">
-                  <span className="mr-auto">
+                <div className="ui-notice mb-3 flex-col">
+                  <span>
                     Nouvelle version de <strong>« {p.versionOf.name} »</strong>, envoyée depuis SketchUp.
                     {!p.versionOf.tour && ' Créez d’abord la visite de l’ancienne version pour la mettre à jour.'}
                   </span>
-                  {p.versionOf.tour && (
-                    <button type="button" className={primary} onClick={() => void applyVersion(p)}>
-                      Mettre à jour « {p.versionOf.name} »
+                  <span className="mt-2 flex flex-wrap gap-2">
+                    {p.versionOf.tour && (
+                      <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => void applyVersion(p)}>
+                        Mettre à jour « {p.versionOf.name} »
+                      </button>
+                    )}
+                    <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => void keepSeparate(p)}>
+                      Garder comme projet séparé
                     </button>
-                  )}
-                  <button type="button" className={button} onClick={() => void keepSeparate(p)}>
-                    Garder comme projet séparé
-                  </button>
+                  </span>
                 </div>
               )}
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  {renaming?.id === p.id ? (
-                    <form
-                      className="flex gap-2"
-                      onSubmit={e => {
-                        e.preventDefault()
-                        void rename()
-                      }}
-                    >
-                      <input
-                        autoFocus
-                        className="rounded-lg border border-[var(--rm-text)]/15 bg-[var(--rm-bg)] px-2 py-1 text-sm"
-                        value={renaming.name}
-                        onChange={e => setRenaming({ id: p.id, name: e.target.value })}
-                        maxLength={120}
-                      />
-                      <button type="submit" className={primary}>
-                        OK
-                      </button>
-                      <button type="button" className={button} onClick={() => setRenaming(null)}>
-                        Annuler
-                      </button>
-                    </form>
-                  ) : (
-                    <p className="truncate font-semibold text-[var(--rm-text)]">{p.name}</p>
-                  )}
-                  <p className="mt-0.5 text-xs text-[var(--rm-muted)]">
-                    {when(p.updatedAt)} · {size(p.bytes)} · {p.views} vue{p.views > 1 ? 's' : ''} SketchUp · {p.photos} photo{p.photos > 1 ? 's' : ''}
-                  </p>
-                  <p className="mt-1 text-xs">
-                    {p.status === 'processing' ? (
-                      <span className="text-[var(--rm-muted)]">Import en cours…</span>
-                    ) : p.status === 'failed' ? (
-                      <span className="text-red-700">Import échoué{p.error ? ` : ${p.error}` : ''}</span>
-                    ) : (
-                      <span className={p.tour === 'failed' ? 'text-amber-800' : 'text-[var(--rm-muted)]'}>{TOUR_LABEL[p.tour]}</span>
-                    )}
-                    {p.published && (
-                      <>
-                        {' · '}
-                        <a className="font-medium text-[var(--rm-primary)] underline underline-offset-2" href={p.published.url} target="_blank" rel="noreferrer">
-                          lien client publié
-                        </a>
-                      </>
-                    )}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {p.status === 'ready' && (
-                    <>
-                      {/* 11 Nov makeover: the project page (360°, plans, video, photos) is the main door; the 3D view is for the views */}
-                      <a className={primary} href={`/studio/tour/${p.id}`}>
-                        {p.tour === 'done' ? 'Ouvrir le projet' : p.tour === 'building' ? 'Voir la préparation' : 'Préparer le projet'}
-                      </a>
-                      <a className={button} href={`/studio?scene=${p.id}`}>
-                        Vue 3D
-                      </a>
-                      {/* Visite libre: taken out for now (15 Nov, the user) */}
-                    </>
-                  )}
-                  <button type="button" className={button} onClick={() => setRenaming({ id: p.id, name: p.name })}>
-                    Renommer
-                  </button>
-                  <button type="button" className={`${button} text-red-700`} onClick={() => void remove(p)} disabled={p.tour === 'building'}>
-                    Supprimer
-                  </button>
-                </div>
-              </div>
+              <ProjectCard
+                project={p}
+                renaming={renaming?.id === p.id ? renaming.name : null}
+                onRenameStart={() => setRenaming({ id: p.id, name: p.name })}
+                onRenameChange={name => setRenaming({ id: p.id, name })}
+                onRenameDone={() => void rename()}
+                onRenameCancel={() => setRenaming(null)}
+                onDelete={() => void remove(p)}
+              />
             </li>
           ))}
         </ul>
+
+        {data && !empty && <SketchupGuide />}
       </main>
     </div>
+  )
+}
+
+function ProjectCard({
+  project: p,
+  renaming,
+  onRenameStart,
+  onRenameChange,
+  onRenameDone,
+  onRenameCancel,
+  onDelete,
+}: {
+  project: DesktopProject
+  renaming: string | null
+  onRenameStart: () => void
+  onRenameChange: (name: string) => void
+  onRenameDone: () => void
+  onRenameCancel: () => void
+  onDelete: () => void
+}) {
+  const ready = p.status === 'ready'
+  const open = `/studio/tour/${p.id}`
+  const action = p.tour === 'done' ? 'Ouvrir le projet' : p.tour === 'building' ? 'Voir la préparation' : 'Préparer la visite'
+  const cover = p.cover ? `${p.cover.url}${p.cover.kind === 'photo' ? '?w=720' : ''}` : null
+
+  const marks: { icon: IconName; label: string; gold?: boolean; off?: boolean }[] = []
+  if (p.tour === 'done') marks.push({ icon: 'pano', label: 'Visite 360°' }, { icon: 'plan', label: 'Plan 2D' })
+  else if (p.tour === 'none' && ready) marks.push({ icon: 'pano', label: 'Visite à préparer', off: true })
+  if (p.plan3d) marks.push({ icon: 'plan3d', label: 'Plan 3D' })
+  if (p.photos) marks.push({ icon: 'photo', label: `${p.photos} photo${p.photos > 1 ? 's' : ''}` })
+  if (p.video) marks.push({ icon: 'video', label: 'Vidéo' })
+  if (p.published) marks.push({ icon: 'link', label: 'Lien client', gold: true })
+
+  return (
+    <article className="ui-card group flex flex-1 flex-col overflow-hidden transition-shadow hover:shadow-[var(--brand-shadow-lg)]">
+      <a href={ready ? open : undefined} className="relative block aspect-[16/10] overflow-hidden bg-[var(--brand-blue-tint)]" tabIndex={-1} aria-hidden="true">
+        {cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+        ) : (
+          <span className="flex h-full flex-col items-center justify-center gap-2 text-[var(--brand-blue)]/60">
+            <Icon name="cube" size={34} strokeWidth={1.4} />
+            <span className="text-sm">Pas encore d’image</span>
+          </span>
+        )}
+        {(p.status !== 'ready' || p.tour === 'building' || p.tour === 'failed') && (
+          <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-[13px] font-semibold text-[var(--brand-ink)] shadow">
+            {p.status === 'processing' || p.tour === 'building' ? <span className="ui-spinner !h-3.5 !w-3.5" /> : <Icon name="warn" size={14} />}
+            {p.status === 'processing' ? 'Import en cours' : p.status === 'failed' ? 'Import échoué' : p.tour === 'building' ? 'Préparation en cours' : 'Préparation interrompue'}
+          </span>
+        )}
+      </a>
+
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="min-w-0">
+          {renaming !== null ? (
+            <form
+              className="flex gap-2"
+              onSubmit={e => {
+                e.preventDefault()
+                onRenameDone()
+              }}
+            >
+              <input autoFocus className="ui-field !min-h-9" value={renaming} onChange={e => onRenameChange(e.target.value)} maxLength={120} aria-label="Nom du projet" />
+              <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm">
+                OK
+              </button>
+              <button type="button" className="ui-btn ui-btn--quiet ui-btn--sm" onClick={onRenameCancel}>
+                Annuler
+              </button>
+            </form>
+          ) : (
+            <h2 className="truncate text-[18px] font-bold text-[var(--brand-ink)]" title={p.name}>
+              {p.name}
+            </h2>
+          )}
+          <p className="mt-0.5 text-[13px] text-[var(--brand-muted)]">
+            {day(p.updatedAt)} · {size(p.bytes)}
+          </p>
+          {p.status === 'failed' && p.error && <p className="mt-2 text-[13px] text-[var(--brand-danger)]">{p.error}</p>}
+        </div>
+
+        {marks.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5">
+            {marks.map(m => (
+              <li key={m.label} className={`ui-chip ${m.gold ? 'ui-chip--gold' : m.off ? 'ui-chip--off' : ''}`}>
+                <Icon name={m.icon} />
+                {m.label}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-auto flex items-center gap-2 pt-1">
+          {ready ? (
+            <a className="ui-btn ui-btn--primary flex-1" href={open}>
+              {action}
+              <Icon name="arrow" size={16} />
+            </a>
+          ) : (
+            <span className="flex-1 text-[13px] text-[var(--brand-muted)]">{p.status === 'processing' ? 'Le projet s’ouvrira à la fin de l’import.' : ''}</span>
+          )}
+          <MoreMenu
+            items={[
+              ...(ready ? [{ icon: 'cube' as const, label: 'Vue 3D', href: `/studio?scene=${p.id}` }] : []),
+              { icon: 'edit' as const, label: 'Renommer', run: onRenameStart },
+              ...(p.published
+                ? [
+                    { icon: 'eye' as const, label: 'Ouvrir le lien client', run: () => openLink(p.published!.url) },
+                    { icon: 'link' as const, label: 'Copier le lien client', run: () => void navigator.clipboard?.writeText(p.published!.url) },
+                  ]
+                : []),
+              { icon: 'trash' as const, label: 'Supprimer', run: onDelete, danger: true, disabled: p.tour === 'building' },
+            ]}
+          />
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function openLink(url: string) {
+  if (window.roomiaDesktop?.openExternal) window.roomiaDesktop.openExternal(url)
+  else window.open(url, '_blank', 'noopener')
+}
+
+type MenuItem = { icon: IconName; label: string; href?: string; run?: () => void; danger?: boolean; disabled?: boolean }
+
+function MoreMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  return (
+    <div className="relative" ref={box}>
+      <button type="button" className="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Plus d’actions" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <Icon name="more" size={20} strokeWidth={2.6} />
+      </button>
+      {open && (
+        <div className="ui-menu bottom-12 right-0" role="menu">
+          {items.map(it =>
+            it.href ? (
+              <a key={it.label} role="menuitem" href={it.href}>
+                <Icon name={it.icon} size={17} />
+                {it.label}
+              </a>
+            ) : (
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                disabled={it.disabled}
+                className={`${it.danger ? 'danger' : ''} disabled:opacity-40`}
+                onClick={() => {
+                  setOpen(false)
+                  it.run?.()
+                }}
+              >
+                <Icon name={it.icon} size={17} />
+                {it.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const STEPS: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'camera', title: 'Vos vues', text: 'Dans SketchUp, enregistrez chaque vue que vous voulez en photo : Fenêtre → Scènes → +.' },
+  { icon: 'sketchup', title: 'Envoyer à Roomia', text: 'Menu Extensions → Roomia → Envoyer à Roomia, ou le bouton maison de la barre d’outils.' },
+  { icon: 'sparkle', title: 'Le projet s’ouvre ici', text: 'Roomia prépare la visite 360°, les plans et les photos. Vous n’avez rien à régler.' },
+]
+
+/** How a project arrives: the whole first screen when there is none, a small help under the projects after. */
+function SketchupGuide({ first = false }: { first?: boolean }) {
+  const content = (
+    <>
+      <ol className="grid gap-4 sm:grid-cols-3">
+        {STEPS.map((s, i) => (
+          <li key={s.title} className="rounded-[var(--brand-radius)] bg-[var(--brand-paper)] p-5">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--brand-blue)] text-white">
+              <Icon name={s.icon} size={21} />
+            </span>
+            <p className="ui-label mb-1">Étape {i + 1}</p>
+            <p className="mb-1 font-bold text-[var(--brand-ink)]">{s.title}</p>
+            <p className="text-[14px] leading-relaxed text-[var(--brand-ink-soft)]">{s.text}</p>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button type="button" className="ui-btn ui-btn--ghost" onClick={() => void window.roomiaDesktop?.installSketchup?.()}>
+          <Icon name="sketchup" size={17} />
+          Installer l’extension SketchUp
+        </button>
+        <Link className="ui-btn ui-btn--quiet" href="/studio">
+          ou importer un fichier .glb
+        </Link>
+      </div>
+      <p className="mt-3 text-[13px] text-[var(--brand-muted)]">Roomia installe l’extension tout seul. Si vous ne la voyez pas, redémarrez SketchUp une fois.</p>
+    </>
+  )
+  if (first)
+    return (
+      <section className="ui-card p-8 sm:p-10">
+        <h2 className="ui-title mb-2 text-[26px]">
+          Votre premier projet, <em>depuis SketchUp</em>
+        </h2>
+        <p className="mb-6 max-w-2xl text-[15px] text-[var(--brand-ink-soft)]">Trois gestes, puis Roomia fait le reste.</p>
+        {content}
+      </section>
+    )
+  return (
+    <details className="group mt-12 rounded-[var(--brand-radius-lg)] border border-[var(--brand-line)] bg-white px-6 py-4 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-[15px] font-semibold text-[var(--brand-blue)]">
+        <Icon name="help" size={18} />
+        Envoyer un nouveau projet depuis SketchUp
+        <Icon name="arrow" size={16} className="ml-auto transition-transform group-open:rotate-90" />
+      </summary>
+      <div className="pb-2 pt-5">{content}</div>
+    </details>
   )
 }

@@ -11,6 +11,8 @@ interface RoomiaDesktopBridge {
   openExternal?: (url: string) => void
   /** Installs (or repairs) the SketchUp extension « Envoyer à Roomia » in every SketchUp of this PC. */
   installSketchup?: () => Promise<void>
+  /** The hidden native menu's entries (16 Nov): resolves to the app version for 'version', else nothing. */
+  action?: (name: 'check-updates' | 'engine' | 'retest' | 'open-logs' | 'guide' | 'version') => Promise<string | null | undefined>
 }
 
 interface Window {

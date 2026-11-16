@@ -1,0 +1,200 @@
+/* Roomia app components (16 Nov redesign). White ground, blue actions, gold for the special: one primary (blue) button per
+   screen; gold marks the active item, the selected card, a finished state. Tokens in app/globals.css (:root --brand-*). */
+
+.studio-theme {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.studio-theme ::selection { background: var(--brand-gold-tint); color: var(--brand-ink); }
+.studio-theme :focus-visible { outline: none; box-shadow: var(--brand-focus); }
+
+/* ── type ── */
+.ui-wordmark {
+  font-family: var(--font-display), 'Arial Narrow', sans-serif;
+  font-weight: 900;
+  font-variation-settings: 'wdth' 125;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--brand-blue);
+  text-decoration: none;
+  line-height: 1;
+}
+.ui-wordmark span { color: var(--brand-gold); }
+.ui-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-variation-settings: 'wdth' 108;
+  letter-spacing: -0.01em;
+  color: var(--brand-ink);
+  line-height: 1.15;
+}
+.ui-title em { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-weight: 400; font-variation-settings: normal; color: var(--brand-gold-text); }
+.ui-label {
+  font-family: var(--font-label), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-muted);
+}
+.ui-muted { color: var(--brand-muted); }
+
+/* ── buttons ── */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.ui-btn:active:not(:disabled) { transform: translateY(1px); }
+.ui-btn:disabled, .ui-btn[aria-disabled='true'] { cursor: not-allowed; opacity: 0.45; }
+.ui-btn svg { flex: none; }
+.ui-btn--primary { background: var(--brand-blue); color: #fff; }
+.ui-btn--primary:hover:not(:disabled) { background: var(--brand-blue-deep); }
+.ui-btn--gold { background: var(--brand-gold-gradient); color: var(--brand-blue-night); }
+.ui-btn--gold:hover:not(:disabled) { background: var(--brand-gold-dark); }
+.ui-btn--ghost { background: #fff; color: var(--brand-ink); border-color: var(--brand-line-strong); }
+.ui-btn--ghost:hover:not(:disabled) { border-color: var(--brand-blue); color: var(--brand-blue); }
+.ui-btn--quiet { background: transparent; color: var(--brand-ink-soft); padding: 0 10px; }
+.ui-btn--quiet:hover:not(:disabled) { background: var(--brand-blue-tint); color: var(--brand-blue); }
+.ui-btn--danger { background: #fff; color: var(--brand-danger); border-color: #e9c3ba; }
+.ui-btn--danger:hover:not(:disabled) { background: var(--brand-danger-tint); }
+.ui-btn--lg { min-height: 48px; padding: 0 22px; font-size: 15px; }
+.ui-btn--sm { min-height: 32px; padding: 0 12px; font-size: 13px; }
+.ui-btn--block { width: 100%; }
+.ui-btn--icon { width: 40px; padding: 0; }
+.ui-btn--icon.ui-btn--sm { width: 32px; }
+
+/* on the dark stage (360°, photo, video): glass controls */
+.ui-btn--glass { background: rgba(8, 36, 46, 0.62); color: #fff; border-color: rgba(255, 255, 255, 0.16); backdrop-filter: blur(10px); }
+.ui-btn--glass:hover:not(:disabled) { background: rgba(8, 36, 46, 0.82); border-color: rgba(214, 170, 103, 0.7); }
+
+/* ── surfaces ── */
+.ui-card {
+  background: #fff;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--brand-radius-lg);
+  box-shadow: var(--brand-shadow);
+}
+.ui-panel { background: #fff; border: 1px solid var(--brand-line); border-radius: var(--brand-radius); }
+.ui-divider { height: 1px; background: var(--brand-line); border: 0; margin: 0; }
+
+/* ── chips (what is ready, small states) ── */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--brand-blue-tint);
+  color: var(--brand-blue);
+  white-space: nowrap;
+}
+.ui-chip--gold { background: var(--brand-gold-tint); color: var(--brand-gold-text); }
+.ui-chip--off { background: var(--brand-paper); color: var(--brand-muted); border: 1px dashed var(--brand-line-strong); }
+.ui-chip svg { width: 13px; height: 13px; }
+
+/* ── notices: one per screen at most, only when the user must act ── */
+.ui-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--brand-radius);
+  font-size: 14px;
+  line-height: 1.45;
+  background: var(--brand-blue-tint);
+  color: var(--brand-blue-deep);
+}
+.ui-notice--warn { background: var(--brand-warning-tint); color: #6b4a14; }
+.ui-notice--danger { background: var(--brand-danger-tint); color: #7d2a1c; }
+.ui-notice--ok { background: var(--brand-success-tint); color: #1f5a3d; }
+.ui-notice svg { flex: none; margin-top: 2px; }
+
+/* ── fields ── */
+.studio-theme input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.studio-theme select,
+.studio-theme textarea {
+  color: var(--brand-ink);
+  background-color: #fff;
+}
+.ui-field {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--brand-line-strong);
+  border-radius: var(--brand-radius-sm);
+  font: inherit;
+  font-size: 15px;
+  background: #fff;
+  color: var(--brand-ink);
+}
+.ui-field:focus { outline: none; border-color: var(--brand-blue); box-shadow: var(--brand-focus); }
+
+/* ── menu (the "more" menu of a card) ── */
+.ui-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--brand-radius);
+  box-shadow: var(--brand-shadow-lg);
+}
+.ui-menu button, .ui-menu a {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--brand-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--brand-ink);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ui-menu button:hover, .ui-menu a:hover { background: var(--brand-blue-tint); color: var(--brand-blue); }
+.ui-menu .danger { color: var(--brand-danger); }
+.ui-menu .danger:hover { background: var(--brand-danger-tint); color: var(--brand-danger); }
+
+/* ── segmented choice (time of day, lens) ── */
+.ui-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--brand-paper); border: 1px solid var(--brand-line); }
+.ui-seg button { border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--brand-ink-soft); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.ui-seg button[aria-pressed='true'] { background: #fff; color: var(--brand-blue); box-shadow: var(--brand-shadow); }
+
+/* ── the older names still used in places ── */
+.studio-theme .rm-btn-primary { background: var(--brand-blue); color: #fff; }
+.studio-theme .rm-btn-primary:hover { background: var(--brand-blue-deep); }
+
+/* The old light classes some components were written with, aligned to the brand. */
+.studio-theme .bg-amber-500, .studio-theme .bg-amber-400 { background-color: var(--brand-gold); }
+.studio-theme .hover\:bg-amber-400:hover, .studio-theme .hover\:bg-amber-300:hover { background-color: var(--brand-gold-dark); }
+.studio-theme .text-amber-400, .studio-theme .text-amber-700 { color: var(--brand-gold-text); }
+.studio-theme .bg-amber-50 { background-color: var(--brand-warning-tint); }
+.studio-theme :is(.border-amber-300, .border-amber-400) { border-color: #e6cfa6; }
+
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+.ui-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--brand-blue-line); border-top-color: var(--brand-blue); animation: ui-spin 0.8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-theme *, .studio-theme *::before, .studio-theme *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -20,6 +20,10 @@ export interface DesktopProject {
   walk: boolean
   photos: number
   published: SceneMeta['publishedAs'] | null
+  /** 16 Nov redesign, for the project card: its newest photo, else its first 360° (an image URL), and what else is ready */
+  cover: { url: string; kind: 'photo' | 'plan' | 'pano' } | null
+  plan3d: boolean
+  video: boolean
   /** Sent again from SketchUp: the project it is a new version of, to update that project's tour instead. */
   versionOf: { id: string; name: string; tour: boolean } | null
 }
@@ -54,8 +58,24 @@ export async function readProject(id: string): Promise<DesktopProject | null> {
     readTourStatus(id).catch(() => ({ state: 'idle' as const })),
     stat(path.join(tourDir(id), 'tour.json')).then(() => true, () => false),
     stat(path.join(tourDir(id), 'nav.json')).then(() => true, () => false),
-    readdir(path.join(sceneDir(id), 'photos')).then(f => f.filter(n => n.endsWith('.jpg') && !n.endsWith('-capture.jpg')).length, () => 0),
+    readdir(path.join(sceneDir(id), 'photos')).then(f => f.filter(n => n.endsWith('.jpg') && !n.endsWith('-capture.jpg')).sort(), () => [] as string[]),
   ])
+  const [plan3dAt, video, pano] = await Promise.all([
+    stat(path.join(tourDir(id), 'plan-3d.jpg')).then(s => Math.round(s.mtimeMs), () => 0),
+    stat(path.join(sceneDir(id), 'video', 'video.json')).then(() => true, () => false),
+    stat(path.join(tourDir(id), 'pano-0.jpg')).then(s => Math.round(s.mtimeMs), () => 0),
+  ])
+  // photo names start with their time: the last one is the newest; without a photo the 3D plan (a whole-flat cutaway) shows the
+  // project better than a slice of a 360°
+  const newest = photos.at(-1)
+  const plan3d = plan3dAt > 0
+  const cover: DesktopProject['cover'] = newest
+    ? { url: `/api/scenes/${id}/photos/${encodeURIComponent(newest)}`, kind: 'photo' }
+    : plan3d
+      ? { url: `/api/scenes/${id}/tour/plan-3d.jpg?v=${plan3dAt}`, kind: 'plan' }
+      : pano
+      ? { url: `/api/scenes/${id}/tour/pano-0.jpg?v=${pano}`, kind: 'pano' }
+      : null
   return {
     id,
     name: meta.fileName.replace(/\.(glb|dae|zip)$/i, ''),
@@ -68,8 +88,11 @@ export async function readProject(id: string): Promise<DesktopProject | null> {
     views: cameras.length,
     tour: status.state === 'building' ? 'building' : status.state === 'failed' ? 'failed' : tourJson ? 'done' : 'none',
     walk: nav,
-    photos,
+    photos: photos.length,
     published: meta.publishedAs ?? null,
+    cover,
+    plan3d,
+    video,
     versionOf: await versionOf(meta),
   }
 }

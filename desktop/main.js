@@ -107,9 +107,13 @@ async function start() {
     title: APP_NAME,
     // Roomia's own icon in the title bar and the taskbar (the .exe itself keeps Electron's: editing it needs Windows)
     icon: [path.join(RES, 'roomia.ico'), path.join(__dirname, 'build', 'roomia.ico')].find(f => fs.existsSync(f)),
-    backgroundColor: '#f4efe8',
+    backgroundColor: '#f6f4ef',
+    // 16 Nov redesign: no grey menu strip above the app (it made it look like a web page in a frame). Alt still shows it, its
+    // shortcuts still work, and its useful entries are in the app's own header (roomia:action below).
+    autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
+  win.setMenuBarVisibility(false)
   win.once('ready-to-show', () => win.show())
   win.on('closed', () => (win = null))
   // 14 Nov: a download (a 360°, the whole project's zip) asks where to save as usual, then shows the file in its folder
@@ -791,43 +795,55 @@ ipcMain.handle('roomia:open-projects', event => {
 })
 ipcMain.handle('roomia:report', event => (fromUs(event) ? createReport() : null))
 ipcMain.handle('roomia:install-sketchup', event => (fromUs(event) ? sketchupExtension() : null))
+// 16 Nov redesign: what the hidden menu did, from the app's own header (a fixed list, nothing else)
+ipcMain.handle('roomia:action', (event, name) => {
+  if (!fromUs(event)) return null
+  if (name === 'check-updates') return void checkUpdates(true)
+  if (name === 'engine') return void engineDialog()
+  if (name === 'retest') return void retest()
+  if (name === 'open-logs') return void shell.openPath(DIRS.logs)
+  if (name === 'guide') return void shell.openExternal('https://github.com/BenTheBlaster99/roomia#roomia-desktop')
+  if (name === 'version') return app.getVersion()
+  return null
+})
 // links to Roomia's own sites only (a client tour link, the release page)
 ipcMain.handle('roomia:open-external', (event, url) => {
   if (!fromUs(event) || typeof url !== 'string') return
   if (/^https:\/\/([a-z0-9-]+\.)*(room-ia\.com|github\.com)\//i.test(url)) shell.openExternal(url)
 })
 
+async function engineDialog() {
+  const { engine: e, hardware: hw, error } = engineInfo
+  const gpu = hw?.gpu ? `${hw.gpu.name}${hw.gpu.vramMb ? ` (${Math.round(hw.gpu.vramMb / 1024)} Go)` : ''}` : 'aucune carte utilisable'
+  await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'Moteur de rendu',
+    message: e ? `Blender ${e.version}` : 'Aucun moteur de rendu installé',
+    detail: [
+      `Carte graphique : ${gpu}`,
+      `Rendu sur : ${hw?.backend ?? '—'}  ·  profil : ${hw?.profile ?? '—'}`,
+      `Mémoire : ${hw ? Math.round(hw.ramMb / 1024) + ' Go' : '—'}`,
+      hw?.test?.ok ? `Test de rendu : réussi en ${hw.test.seconds} s` : `Test de rendu : ${hw?.test?.error ?? error ?? 'non fait'}`,
+      `Roomia ${app.getVersion()}`,
+    ].join('\n'),
+  })
+}
+async function retest() {
+  fs.rmSync(ENGINE_FILE, { force: true })
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question',
+    message: 'Refaire le test de la carte graphique ?',
+    detail: "Roomia redémarre pour le faire. Un rendu en cours sera arrêté.",
+    buttons: ['Redémarrer', 'Annuler'],
+    cancelId: 1,
+  })
+  if (response === 0) {
+    app.relaunch()
+    app.quit()
+  }
+}
+
 function menu() {
-  const engineDialog = async () => {
-    const { engine: e, hardware: hw, error } = engineInfo
-    const gpu = hw?.gpu ? `${hw.gpu.name}${hw.gpu.vramMb ? ` (${Math.round(hw.gpu.vramMb / 1024)} Go)` : ''}` : 'aucune carte utilisable'
-    await dialog.showMessageBox(win, {
-      type: 'info',
-      title: 'Moteur de rendu',
-      message: e ? `Blender ${e.version}` : 'Aucun moteur de rendu installé',
-      detail: [
-        `Carte graphique : ${gpu}`,
-        `Rendu sur : ${hw?.backend ?? '—'}  ·  profil : ${hw?.profile ?? '—'}`,
-        `Mémoire : ${hw ? Math.round(hw.ramMb / 1024) + ' Go' : '—'}`,
-        hw?.test?.ok ? `Test de rendu : réussi en ${hw.test.seconds} s` : `Test de rendu : ${hw?.test?.error ?? error ?? 'non fait'}`,
-        `Roomia ${app.getVersion()}`,
-      ].join('\n'),
-    })
-  }
-  const retest = async () => {
-    fs.rmSync(ENGINE_FILE, { force: true })
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'question',
-      message: 'Refaire le test de la carte graphique ?',
-      detail: "Roomia redémarre pour le faire. Un rendu en cours sera arrêté.",
-      buttons: ['Redémarrer', 'Annuler'],
-      cancelId: 1,
-    })
-    if (response === 0) {
-      app.relaunch()
-      app.quit()
-    }
-  }
   return Menu.buildFromTemplate([
     {
       label: 'Fichier',

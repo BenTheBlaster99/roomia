@@ -2,16 +2,49 @@
 @source "../app";
 @source "../components";
 
-/* Roomia marketing system — structured like Realtime Colors, Maghreb-modern palette */
+/* Roomia brand (16 Nov redesign): petrol blue, gold and white, sampled from the business card. Every colour of the site and the
+   app comes from here; components never carry their own hex values. Gold is never body text on white (2.9:1): use it as a
+   fill, a border or an icon there, or --brand-gold-text (4.6:1) when a gold word is needed. */
 :root {
-  --rm-text: #14201c;
-  --rm-bg: #e8efe9;
-  --rm-primary: #1f4d3d;
-  --rm-secondary: #d5e3da;
-  --rm-accent: #b8893d;
-  --rm-ink: #0e1714;
-  --rm-surface: #f4f8f5;
-  --rm-muted: #5a6b63;
+  --brand-blue: #124c5e;
+  --brand-blue-deep: #0c3644;
+  --brand-blue-night: #08242e;
+  --brand-blue-tint: #e8f0f2;
+  --brand-blue-line: #c9dbe0;
+  --brand-gold: #c0904d;
+  --brand-gold-light: #d6aa67;
+  --brand-gold-dark: #b68444;
+  --brand-gold-text: #8c6428;
+  --brand-gold-tint: #f6eddf;
+  --brand-white: #ffffff;
+  --brand-paper: #f6f4ef;
+  --brand-ink: #13232b;
+  --brand-ink-soft: #3c4a50;
+  --brand-muted: #6b6a64;
+  --brand-line: #e4e0d7;
+  --brand-line-strong: #d3cdc0;
+  --brand-danger: #b3412e;
+  --brand-danger-tint: #fbece8;
+  --brand-success: #2f7a55;
+  --brand-success-tint: #e7f3ec;
+  --brand-warning-tint: #fbf3e4;
+  --brand-gold-gradient: linear-gradient(135deg, #d6aa67 0%, #c0904d 55%, #b68444 100%);
+  --brand-radius: 12px;
+  --brand-radius-sm: 8px;
+  --brand-radius-lg: 18px;
+  --brand-shadow: 0 1px 2px rgba(19, 35, 43, 0.06), 0 4px 16px rgba(19, 35, 43, 0.06);
+  --brand-shadow-lg: 0 2px 6px rgba(19, 35, 43, 0.08), 0 18px 48px rgba(19, 35, 43, 0.12);
+  --brand-focus: 0 0 0 3px rgba(18, 76, 94, 0.28);
+
+  /* the site's older names, mapped onto the brand */
+  --rm-text: var(--brand-ink);
+  --rm-bg: var(--brand-paper);
+  --rm-primary: var(--brand-blue);
+  --rm-secondary: var(--brand-blue-tint);
+  --rm-accent: var(--brand-gold);
+  --rm-ink: var(--brand-blue-deep);
+  --rm-surface: var(--brand-white);
+  --rm-muted: var(--brand-muted);
   --rm-nav-h: 4.5rem;
   --rm-page: 120rem;
 
@@ -23,7 +56,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-mono: var(--font-label), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
@@ -1714,34 +1747,22 @@ button.rm-style-photo-open:focus-visible::after {
   }
 }
 
-/* Studio · Graphite (11 Nov makeover). Same token names as the site, so every Studio screen follows; the site keeps :root. */
+/* The app (Studio, projects, project page, account): white overall, blue for actions, gold for what is special (16 Nov
+   redesign, replaces the 11 Nov "Graphite"). The components are in app/studio/app.css. */
 .studio-theme {
-  --rm-text: #ece9e3;
-  --rm-bg: #111314;
-  --rm-primary: #d9a65c;
-  --rm-secondary: #23272b;
-  --rm-accent: #d9a65c;
-  --rm-ink: #0b0d0e;
-  --rm-surface: #1a1d1f;
-  --rm-muted: #a3aaaf;
+  --rm-text: var(--brand-ink);
+  --rm-bg: var(--brand-paper);
+  --rm-primary: var(--brand-blue);
+  --rm-secondary: var(--brand-blue-tint);
+  --rm-accent: var(--brand-gold);
+  --rm-ink: var(--brand-blue-deep);
+  --rm-surface: var(--brand-white);
+  --rm-muted: var(--brand-muted);
   --background: var(--rm-bg);
   --foreground: var(--rm-text);
   min-height: 100vh;
   background: var(--rm-bg);
   color: var(--rm-text);
-  color-scheme: dark;
+  color-scheme: light;
+  font-size: 15px;
 }
-/* the few alert colours written for a light page, made readable on graphite */
-.studio-theme :is(.bg-amber-50) { background-color: rgba(217, 166, 92, 0.13); }
-.studio-theme :is(.text-amber-800, .text-amber-900) { color: #ecc893; }
-.studio-theme :is(.border-amber-300, .border-amber-400) { border-color: rgba(217, 166, 92, 0.45); }
-.studio-theme :is(.bg-red-50) { background-color: rgba(241, 140, 120, 0.13); }
-.studio-theme :is(.text-red-700, .text-red-800) { color: #f3a493; }
-.studio-theme :is(.border-red-200, .border-red-300) { border-color: rgba(241, 140, 120, 0.45); }
-.studio-theme .text-emerald-700 { color: #8fd3aa; }
-.studio-theme :is(.bg-white, .bg-white\/95) { background-color: var(--rm-surface); }
-.studio-theme .hover\:bg-red-50:hover { background-color: rgba(241, 140, 120, 0.13); }
-.studio-theme .hover\:text-red-700:hover { color: #f3a493; }
-.studio-theme input, .studio-theme select, .studio-theme textarea { color: var(--rm-text); background-color: var(--rm-bg); }
-.studio-theme .rm-btn-primary { color: #1a1406; }
-.studio-theme .rm-btn-primary:hover { background: #e4b674; }
