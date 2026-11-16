@@ -5,12 +5,14 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
     <title>Roomia</title>
     <style>
+      /* 16 Nov redesign: the brand's deep blue, the wordmark in white with its gold full stop, a gold bar. No web fonts here
+         (the splash shows before the server): a heavy system face, widened to echo Archivo's extra-wide wordmark. */
       html,
       body {
         margin: 0;
         height: 100%;
-        background: #f4efe8;
-        color: #2b2420;
+        background: radial-gradient(120% 90% at 50% 0%, #124c5e 0%, #0c3644 55%, #08242e 100%);
+        color: #f4f1ea;
         font: 15px/1.5 'Segoe UI', system-ui, sans-serif;
       }
       main {
@@ -19,29 +21,34 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 18px;
+        gap: 26px;
       }
       h1 {
         margin: 0;
-        font-size: 34px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
+        font: 900 40px/1 'Arial Black', 'Segoe UI Black', 'Segoe UI', system-ui, sans-serif;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        transform: scaleX(1.18);
+      }
+      h1 span {
+        color: #d6aa67;
       }
       #text {
         min-height: 1.5em;
-        color: #6b5d52;
+        color: rgba(244, 241, 234, 0.7);
       }
       .bar {
-        width: 320px;
-        height: 4px;
-        border-radius: 2px;
-        background: #e3d9cd;
+        width: 300px;
+        height: 3px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.14);
         overflow: hidden;
       }
       .fill {
         height: 100%;
         width: 30%;
-        background: #8a6a52;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #d6aa67, #c0904d);
         animation: slide 1.4s ease-in-out infinite;
       }
       .fill.known {
@@ -60,7 +67,7 @@
   </head>
   <body>
     <main>
-      <h1>Roomia</h1>
+      <h1>Roomia<span>.</span></h1>
       <div class="bar"><div class="fill" id="fill"></div></div>
       <div id="text">Démarrage…</div>
     </main>
