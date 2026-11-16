@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Roomia Render · De votre 3D à la photo',
     description: 'Le rendu qui prenait 2 heures par vue sort en quelques minutes, directement depuis votre fichier SketchUp.',
-    images: [{ url: '/landing/hero-photo.jpg', width: 1600, height: 1067 }],
+    images: [{ url: '/landing/f5-salon-photo.jpg', width: 1600, height: 1067 }],
     locale: 'fr_DZ',
     type: 'website',
   },
@@ -32,10 +32,10 @@ const TOOLS = ['D5 Render', 'Enscape', '3ds Max', 'V-Ray', 'Corona']
 const DEMO_TEXT ='Bonjour, je souhaite une démo de Roomia Render.'
 
 const RESULTS = [
-  { name: 'suite-sejour', caption: 'Suite, séjour ouvert sur la chambre' },
-  { name: 'restaurant', caption: 'Restaurant, banquettes et claustras' },
-  { name: 'ecolodge-piscine', caption: 'Écolodge, piscine intérieure' },
-  { name: 'ecolodge-salon', caption: 'Écolodge, salon' },
+  { name: 'f5-salle-a-manger', caption: 'Appartement F5, salle à manger en fin de journée' },
+  { name: 'f2-cuisine', caption: 'Appartement F2, cuisine ouverte sur le séjour' },
+  { name: 'duplex-chambre', caption: 'Duplex, chambre parentale en marbre' },
+  { name: 'f2-chambre', caption: 'Appartement F2, chambre' },
 ]
 
 const KEEPS = [
@@ -113,10 +113,10 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           <section className="wipe-band band" aria-label="Avant et après">
             <div className="wrap">
               <BeforeAfter
-                before="/landing/hero-3d.jpg"
-                after="/landing/hero-photo.jpg"
-                beforeAlt="Capture de la scène 3D SketchUp du salon d’une suite, sans éclairage réaliste"
-                afterAlt="Le même salon rendu en photo réaliste par Roomia, lumière de fin de journée"
+                before="/landing/f5-salon-3d.jpg"
+                after="/landing/f5-salon-photo.jpg"
+                beforeAlt="Capture de la scène 3D SketchUp du séjour d’un F5, sans éclairage réaliste"
+                afterAlt="Le même séjour rendu en photo réaliste par Roomia, lumière de fin de journée"
               />
             </div>
           </section>
@@ -157,7 +157,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
                 <h2>
                   Le même projet, <em>en vrai</em>
                 </h2>
-                <p className="lede">Des projets réels : suite, restaurant, écolodge. Passez la souris sur une photo, ou touchez « Voir la 3D », pour retrouver la scène d’origine.</p>
+                <p className="lede">Des projets réels : appartements F2 et F5, duplex. Passez la souris sur une photo, ou touchez « Voir la 3D », pour retrouver la scène d’origine.</p>
               </div>
               <div className="gallery">
                 {RESULTS.map((r, i) => (

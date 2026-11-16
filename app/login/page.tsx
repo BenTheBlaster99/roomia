@@ -42,7 +42,7 @@ export default function LoginPage() {
     <main className="grid min-h-screen bg-white lg:grid-cols-[1.1fr_1fr]">
       <aside className="relative hidden overflow-hidden bg-[var(--brand-blue-night)] lg:block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/landing/suite-sejour-photo.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
+        <img src="/landing/f5-salon-photo.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
         <div className="absolute inset-0 bg-[linear-gradient(160deg,rgba(8,36,46,0.92)_0%,rgba(18,76,94,0.55)_45%,rgba(8,36,46,0.85)_100%)]" />
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
           <span className="font-[family-name:var(--font-display)] text-[26px] font-black uppercase leading-none tracking-[0.02em] [font-variation-settings:'wdth'_125]">
