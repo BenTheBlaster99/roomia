@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ForfaitItem } from '@/lib/forfait'
 import type { CloudDrive } from '@/lib/roomia-cloud'
 import DesktopNav from '../components/DesktopNav'
+import Icon from '../components/Icon'
 
 const KIND_LABELS: Record<string, string> = {
   reserve: 'Photo en cours',
@@ -29,36 +30,38 @@ const FORFAIT_KIND_LABELS: Record<string, string> = {
   adjust: 'Correction',
 }
 
-function ForfaitLine({ item }: { item: ForfaitItem }) {
+/** One part of the package: what is left, large, over what it was (16 Nov redesign). */
+function ForfaitTile({ item }: { item: ForfaitItem }) {
   if (item.included) {
     return (
-      <li className="flex items-center justify-between gap-3 rounded-xl bg-[var(--rm-bg)] px-3 py-2">
-        <span className="text-sm font-medium text-[var(--rm-text)]">{item.label}</span>
-        <span className="text-sm text-[var(--rm-primary)]">Inclus ✓</span>
+      <li className="flex flex-col justify-between gap-3 rounded-[14px] border border-[var(--brand-line)] bg-white p-4">
+        <span className="text-[14px] font-semibold text-[var(--brand-ink-soft)]">{item.label}</span>
+        <span className="ui-chip ui-chip--gold self-start">
+          <Icon name="check" />
+          Inclus
+        </span>
       </li>
     )
   }
   const left = Math.max(0, item.total - item.used)
   return (
-    <li className="rounded-xl bg-[var(--rm-bg)] px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-[var(--rm-text)]">{item.label}</span>
-        <span className="text-sm text-[var(--rm-text)]">
-          <b className={left === 0 ? 'text-amber-700' : 'text-[var(--rm-primary)]'}>{left}</b>
-          <span className="text-[var(--rm-muted)]"> restante{left > 1 ? 's' : ''} sur {item.total}</span>
-        </span>
-      </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--rm-text)]/10" aria-hidden>
-        <div className="h-full rounded-full bg-[var(--rm-primary)]" style={{ width: `${item.total ? (left / item.total) * 100 : 0}%` }} />
-      </div>
+    <li className="flex flex-col gap-2 rounded-[14px] border border-[var(--brand-line)] bg-white p-4">
+      <span className="text-[14px] font-semibold text-[var(--brand-ink-soft)]">{item.label}</span>
+      <span className="flex items-baseline gap-1.5">
+        <b className={`font-[family-name:var(--font-display)] text-[34px] font-extrabold leading-none ${left === 0 ? 'text-[var(--brand-gold-text)]' : 'text-[var(--brand-blue)]'}`}>{left}</b>
+        <span className="text-[13px] text-[var(--brand-muted)]">restante{left > 1 ? 's' : ''} sur {item.total}</span>
+      </span>
+      <span className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--brand-blue-tint)]" aria-hidden>
+        <span className="block h-full rounded-full bg-[var(--brand-gold)]" style={{ width: `${item.total ? (left / item.total) * 100 : 0}%` }} />
+      </span>
     </li>
   )
 }
 
 const when = (ms: number) => new Date(ms).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
 const size = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1).replace('.', ',')} Go` : `${Math.max(1, Math.round(bytes / 1024 ** 2))} Mo`)
-const button = 'rounded-lg border border-[var(--rm-text)]/15 px-3 py-1.5 text-sm text-[var(--rm-text)] hover:bg-[var(--rm-text)]/5 disabled:opacity-50'
-const card = 'rounded-2xl border border-[var(--rm-text)]/10 bg-[var(--rm-surface)] p-4'
+const button = 'ui-btn ui-btn--ghost ui-btn--sm'
+const card = 'ui-card p-6'
 
 async function readAccount(): Promise<{ data: CloudDrive } | { error: { text: string; status: number } }> {
   const res = await fetch('/api/account', { cache: 'no-store' }).catch(() => null)
@@ -107,66 +110,93 @@ export default function AccountClient() {
   const labels = forfait ? FORFAIT_KIND_LABELS : KIND_LABELS
 
   return (
-    <div className="min-h-screen bg-[var(--rm-bg)]">
+    <div className="min-h-screen bg-[var(--brand-paper)]">
       <DesktopNav current="compte" />
-      <main className="mx-auto grid max-w-5xl gap-4 px-4 py-6 sm:px-6">
+      <main className="mx-auto grid max-w-6xl gap-6 px-5 pb-16 pt-10 sm:px-8">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--rm-text)]">Mon espace Roomia</h1>
-          <p className="text-sm text-[var(--rm-muted)]">
-            Vos photos IA et vos visites publiées sont gardées sur le serveur Roomia : vous les retrouvez depuis n’importe quel PC, en vous connectant.
+          <h1 className="ui-title text-[32px]">Mon espace</h1>
+          <p className="mt-1 max-w-2xl text-[15px] text-[var(--brand-muted)]">
+            Vos photos et vos visites publiées sont gardées sur le serveur Roomia : vous les retrouvez depuis n’importe quel PC, en vous connectant.
           </p>
         </div>
 
-        {error && (
-          <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {error.text}{' '}
-            {error.status === 401 ? (
-              <Link className="font-semibold underline underline-offset-2" href="/login?next=%2Fstudio%2Fcompte">
+        {error &&
+          (error.status === 401 ? (
+            <section className="ui-card flex flex-wrap items-center gap-5 p-7">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-blue)] text-white">
+                <Icon name="user" size={22} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[18px] font-bold text-[var(--brand-ink)]">Connectez-vous à votre compte Roomia</h2>
+                <p className="mt-1 text-[14px] text-[var(--brand-ink-soft)]">Avec l’identifiant et le mot de passe que Roomia vous a donnés : vos photos, votre forfait et vos liens clients.</p>
+              </div>
+              <Link className="ui-btn ui-btn--primary ui-btn--lg" href="/login?next=%2Fstudio%2Fcompte">
                 Se connecter
               </Link>
-            ) : (
-              <button type="button" className="font-semibold underline underline-offset-2" onClick={() => void load()}>
-                Réessayer
-              </button>
-            )}
-          </div>
-        )}
+            </section>
+          ) : (
+            <p className="ui-notice ui-notice--warn">
+              <Icon name="warn" size={17} />
+              <span>
+                {error.text}{' '}
+                <button type="button" className="font-semibold underline underline-offset-2" onClick={() => void load()}>
+                  Réessayer
+                </button>
+              </span>
+            </p>
+          ))}
 
-        {!data && !error && <p className="text-sm text-[var(--rm-muted)]">Chargement…</p>}
+        {!data && !error && (
+          <p className="flex items-center gap-3 text-[15px] text-[var(--brand-muted)]">
+            <span className="ui-spinner" /> Chargement…
+          </p>
+        )}
 
         {data && (
           <>
-            <section className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-              <div>
-                <p className="text-sm text-[var(--rm-muted)]">Compte</p>
-                <p className="font-semibold text-[var(--rm-text)]">
-                  {data.user.name} <span className="font-normal text-[var(--rm-muted)]">({data.user.login})</span>
-                </p>
+            <section className={`${card} flex flex-wrap items-center justify-between gap-4`}>
+              <div className="flex items-center gap-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-blue)] font-[family-name:var(--font-display)] text-[20px] font-extrabold text-white">
+                  {data.user.name.slice(0, 1).toUpperCase()}
+                </span>
+                <div>
+                  <p className="text-[18px] font-bold text-[var(--brand-ink)]">{data.user.name}</p>
+                  <p className="text-[13px] text-[var(--brand-muted)]">Identifiant : {data.user.login}</p>
+                </div>
               </div>
-              {forfait ? (
-                <div className="text-right">
-                  <p className="text-sm text-[var(--rm-muted)]">Votre forfait</p>
-                  <p className="text-lg font-semibold text-[var(--rm-primary)]">{forfait.label}</p>
-                </div>
-              ) : (
-                <div className="text-right">
-                  <p className="text-sm text-[var(--rm-muted)]">Crédits</p>
-                  <p className="text-2xl font-semibold text-[var(--rm-primary)]">{data.user.credits}</p>
-                  <p className="text-xs text-[var(--rm-muted)]">1 crédit par photo IA livrée · les rendus Blender sont gratuits</p>
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {forfait ? (
+                  <span className="ui-chip ui-chip--gold !h-8 !px-4 !text-[13px]">{forfait.label}</span>
+                ) : (
+                  <span className="text-right">
+                    <span className="block text-[13px] text-[var(--brand-muted)]">Crédits</span>
+                    <span className="block font-[family-name:var(--font-display)] text-[26px] font-extrabold text-[var(--brand-blue)]">{data.user.credits}</span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ui-btn ui-btn--quiet ui-btn--sm"
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
+                    window.location.assign('/login?next=%2Fstudio%2Fcompte')
+                  }}
+                >
+                  <Icon name="logout" size={16} />
+                  Se déconnecter
+                </button>
+              </div>
             </section>
 
             {forfait && (
-              <section className={card}>
-                <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Mon forfait · {forfait.label}</h2>
-                <ul className="grid gap-2 sm:grid-cols-2">
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold text-[var(--brand-ink)]">Mon forfait</h2>
+                <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]">
                   {forfait.items.map(item => (
-                    <ForfaitLine key={item.key} item={item} />
+                    <ForfaitTile key={item.key} item={item} />
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-[var(--rm-muted)]">
-                  Une photo ou une vue 360° n’est décomptée qu’une fois livrée : rien si elle échoue. Une mise à jour = une nouvelle version du projet envoyée
+                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-[var(--brand-muted)]">
+                  Une photo ou une vue 360° n’est décomptée qu’une fois livrée : rien si elle échoue. Une mise à jour est une nouvelle version du projet envoyée
                   depuis SketchUp ; les plans et la visite 360° sont refaits.{' '}
                   {forfait.items.some(i => !i.included && i.used >= i.total) ? 'Pour étendre votre forfait, contactez Roomia.' : ''}
                 </p>
@@ -174,29 +204,38 @@ export default function AccountClient() {
             )}
 
             <section className={card}>
-              <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Visites publiées · {data.tours.length}</h2>
+              <h2 className="mb-4 text-[18px] font-bold text-[var(--brand-ink)]">
+                Visites publiées <span className="font-normal text-[var(--brand-muted)]">· {data.tours.length}</span>
+              </h2>
               {data.tours.length === 0 ? (
-                <p className="text-sm text-[var(--rm-muted)]">
-                  Aucune pour l’instant. Ouvrez la visite 360° d’un projet et cliquez « Publier pour mes clients » : vous obtenez un lien à leur envoyer.
+                <p className="text-[14px] text-[var(--brand-ink-soft)]">
+                  Aucune pour l’instant. Dans la page d’un projet, cliquez « Partager » : vous obtenez un lien à envoyer à vos clients.
                 </p>
               ) : (
                 <ul className="grid gap-2">
                   {data.tours.map(t => (
-                    <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--rm-bg)] px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-[var(--rm-text)]">{t.title}</p>
-                        <p className="text-xs text-[var(--rm-muted)]">
-                          Publiée le {when(t.at)} · {size(t.bytes)}
-                        </p>
+                    <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[var(--brand-line)] px-4 py-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[var(--brand-gold-tint)] text-[var(--brand-gold-dark)]">
+                          <Icon name="link" size={18} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[var(--brand-ink)]">{t.title}</p>
+                          <p className="text-[13px] text-[var(--brand-muted)]">
+                            Publiée le {when(t.at)} · {size(t.bytes)}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" className={button} onClick={() => void copy(t.url)}>
-                          {copied === t.url ? 'Lien copié ✓' : 'Copier le lien'}
+                          <Icon name={copied === t.url ? 'check' : 'link'} size={15} />
+                          {copied === t.url ? 'Lien copié' : 'Copier le lien'}
                         </button>
                         <a className={button} href={t.url} target="_blank" rel="noreferrer">
+                          <Icon name="eye" size={15} />
                           Ouvrir
                         </a>
-                        <button type="button" className={`${button} text-red-700`} onClick={() => void unpublish(t.id, t.title)}>
+                        <button type="button" className="ui-btn ui-btn--quiet ui-btn--sm !text-[var(--brand-danger)]" onClick={() => void unpublish(t.id, t.title)}>
                           Retirer
                         </button>
                       </div>
@@ -207,27 +246,30 @@ export default function AccountClient() {
             </section>
 
             <section className={card}>
-              <h2 className="mb-2 font-semibold text-[var(--rm-text)]">Photos IA · {data.photos.length}</h2>
+              <h2 className="mb-4 text-[18px] font-bold text-[var(--brand-ink)]">
+                Mes photos <span className="font-normal text-[var(--brand-muted)]">· {data.photos.length}</span>
+              </h2>
               {data.photos.length === 0 ? (
-                <p className="text-sm text-[var(--rm-muted)]">Les photos IA que vous générez apparaîtront ici.</p>
+                <p className="text-[14px] text-[var(--brand-ink-soft)]">Les photos que vous faites apparaîtront ici.</p>
               ) : (
                 <>
-                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {photos.map(p => (
-                      <li key={p.job} className="overflow-hidden rounded-xl bg-[var(--rm-bg)]">
-                        <a href={`/api/account/photos/${p.job}`} target="_blank" rel="noreferrer">
+                      <li key={p.job} className="group overflow-hidden rounded-[12px] border border-[var(--brand-line)] bg-white">
+                        <a href={`/api/account/photos/${p.job}`} target="_blank" rel="noreferrer" className="block overflow-hidden">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={`/api/account/photos/${p.job}`} alt={p.view} loading="lazy" className="aspect-[3/2] w-full object-cover" />
+                          <img src={`/api/account/photos/${p.job}`} alt={p.view} loading="lazy" className="aspect-[3/2] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                         </a>
-                        <div className="px-2 py-1.5">
-                          <p className="truncate text-xs font-medium text-[var(--rm-text)]">{p.project}</p>
-                          <p className="truncate text-xs text-[var(--rm-muted)]">
+                        <div className="px-3 py-2.5">
+                          <p className="truncate text-[13px] font-semibold text-[var(--brand-ink)]">{p.project}</p>
+                          <p className="truncate text-[12px] text-[var(--brand-muted)]">
                             {p.view} · {new Date(p.at).toLocaleDateString('fr-FR')}
                           </p>
                           <a
-                            className="text-xs font-medium text-[var(--rm-primary)] underline underline-offset-2"
+                            className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--brand-blue)]"
                             href={`/api/account/photos/${p.job}?download=1&name=${encodeURIComponent(`${p.project} - ${p.view}`)}`}
                           >
+                            <Icon name="download" size={13} />
                             Télécharger
                           </a>
                         </div>
@@ -235,7 +277,7 @@ export default function AccountClient() {
                     ))}
                   </ul>
                   {data.photos.length > 12 && (
-                    <button type="button" className={`${button} mt-3`} onClick={() => setShowAll(v => !v)}>
+                    <button type="button" className={`${button} mt-4`} onClick={() => setShowAll(v => !v)}>
                       {showAll ? 'Voir moins' : `Voir les ${data.photos.length} photos`}
                     </button>
                   )}
@@ -243,42 +285,46 @@ export default function AccountClient() {
               )}
             </section>
 
-            <section className={card}>
-              <h2 className="mb-2 font-semibold text-[var(--rm-text)]">{forfait ? 'Historique' : 'Historique des crédits'}</h2>
+            <details className={`${card} group [&_summary::-webkit-details-marker]:hidden`}>
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[16px] font-bold text-[var(--brand-ink)]">
+                Historique
+                <span className="font-normal text-[var(--brand-muted)]">· {data.ledger.length}</span>
+                <Icon name="arrow" size={16} className="ml-auto text-[var(--brand-muted)] transition-transform group-open:rotate-90" />
+              </summary>
               {data.ledger.length === 0 ? (
-                <p className="text-sm text-[var(--rm-muted)]">Aucun mouvement pour l’instant.</p>
+                <p className="mt-3 text-[14px] text-[var(--brand-muted)]">Aucun mouvement pour l’instant.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="text-xs text-[var(--rm-muted)]">
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-[14px]">
+                    <thead className="text-[12px] text-[var(--brand-muted)]">
                       <tr>
-                        <th className="py-1 pr-3 font-medium">Date</th>
-                        <th className="py-1 pr-3 font-medium">Mouvement</th>
-                        {!forfait && <th className="py-1 pr-3 text-right font-medium">Crédits</th>}
-                        {!forfait && <th className="py-1 text-right font-medium">Solde</th>}
+                        <th className="py-1.5 pr-3 font-semibold">Date</th>
+                        <th className="py-1.5 pr-3 font-semibold">Mouvement</th>
+                        {!forfait && <th className="py-1.5 pr-3 text-right font-semibold">Crédits</th>}
+                        {!forfait && <th className="py-1.5 text-right font-semibold">Solde</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {data.ledger.map((l, i) => (
-                        <tr key={i} className="border-t border-[var(--rm-text)]/5">
-                          <td className="py-1.5 pr-3 whitespace-nowrap text-[var(--rm-muted)]">{when(l.at)}</td>
-                          <td className="py-1.5 pr-3 text-[var(--rm-text)]">
+                        <tr key={i} className="border-t border-[var(--brand-line)]">
+                          <td className="whitespace-nowrap py-2 pr-3 text-[var(--brand-muted)]">{when(l.at)}</td>
+                          <td className="py-2 pr-3 text-[var(--brand-ink)]">
                             {labels[l.kind] ?? l.kind}
-                            {l.detail && l.kind !== 'reserve' && l.kind !== 'consume' ? <span className="text-[var(--rm-muted)]"> · {l.detail}</span> : null}
+                            {l.detail && l.kind !== 'reserve' && l.kind !== 'consume' ? <span className="text-[var(--brand-muted)]"> · {l.detail}</span> : null}
                           </td>
                           {!forfait && (
-                            <td className={`py-1.5 pr-3 text-right tabular-nums ${l.delta > 0 ? 'text-[var(--rm-primary)]' : 'text-[var(--rm-text)]'}`}>
+                            <td className={`py-2 pr-3 text-right tabular-nums ${l.delta > 0 ? 'text-[var(--brand-blue)]' : 'text-[var(--brand-ink)]'}`}>
                               {l.delta > 0 ? `+${l.delta}` : l.delta}
                             </td>
                           )}
-                          {!forfait && <td className="py-1.5 text-right tabular-nums text-[var(--rm-muted)]">{l.balance_after}</td>}
+                          {!forfait && <td className="py-2 text-right tabular-nums text-[var(--brand-muted)]">{l.balance_after}</td>}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </section>
+            </details>
           </>
         )}
       </main>
