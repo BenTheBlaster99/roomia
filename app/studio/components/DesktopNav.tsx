@@ -26,6 +26,7 @@ export default function DesktopNav({ current }: { current?: 'projets' | 'compte'
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <HelpMenu />
+          <AccountMenu />
           <Link className="ui-btn ui-btn--primary" href="/studio">
             <Icon name="plus" size={17} />
             Nouveau projet
@@ -48,6 +49,105 @@ function NavTab({ href, active, children }: { href: string; active: boolean; chi
       {children}
       {active && <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t bg-[var(--brand-gold)]" />}
     </Link>
+  )
+}
+
+type Me = { state: 'loading' } | { state: 'in'; name: string; login?: string } | { state: 'out' } | { state: 'offline' }
+
+const LOGIN = `/login?next=${encodeURIComponent('/studio/projets')}`
+
+/** Who is signed in, with Mon espace, change account and sign out (16 Nov: the native menu that had them is hidden). */
+function AccountMenu() {
+  const [me, setMe] = useState<Me>({ state: 'loading' })
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(async res => {
+        const data = (await res.json().catch(() => null)) as { user?: { name?: string; login?: string } } | null
+        if (cancelled) return
+        if (res.ok && data?.user) setMe({ state: 'in', name: data.user.name || data.user.login || 'Mon compte', login: data.user.login })
+        else setMe(res.status === 401 ? { state: 'out' } : { state: 'offline' })
+      })
+      .catch(() => !cancelled && setMe({ state: 'offline' }))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+
+  if (me.state === 'loading') return <span className="h-9 w-9" aria-hidden />
+  if (me.state === 'out')
+    return (
+      <Link className="ui-btn ui-btn--ghost" href={LOGIN}>
+        <Icon name="user" size={17} />
+        Se connecter
+      </Link>
+    )
+
+  const initials =
+    me.state === 'in'
+      ? me.name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map(w => w[0]!.toUpperCase())
+          .join('')
+      : '?'
+  return (
+    <div className="relative" ref={box}>
+      <button
+        type="button"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-gold-tint)] text-[13px] font-bold text-[var(--brand-gold-text)] ring-1 ring-[var(--brand-gold-light)] transition hover:ring-2"
+        aria-label="Mon compte"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+      >
+        {me.state === 'in' ? initials : <Icon name="user" size={17} />}
+      </button>
+      {open && (
+        <div className="ui-menu right-0 top-12 min-w-[230px]" role="menu">
+          <div className="px-2.5 pb-2 pt-1.5">
+            {me.state === 'in' ? (
+              <>
+                <p className="text-[15px] font-semibold text-[var(--brand-ink)]">{me.name}</p>
+                {me.login && me.login !== me.name && <p className="text-xs text-[var(--brand-muted)]">{me.login}</p>}
+              </>
+            ) : (
+              <p className="text-[13px] text-[var(--brand-muted)]">Serveur Roomia injoignable. Vos projets restent disponibles.</p>
+            )}
+          </div>
+          <hr className="ui-divider my-1" />
+          <Link role="menuitem" href="/studio/compte" onClick={() => setOpen(false)}>
+            <Icon name="user" size={17} />
+            Mon espace
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
+              window.location.assign(LOGIN)
+            }}
+          >
+            <Icon name="logout" size={17} />
+            Se déconnecter
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
