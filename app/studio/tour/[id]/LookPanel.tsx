@@ -33,7 +33,17 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   const { forfait, signedIn, credits, refresh: refreshForfait } = useForfait()
   const panoLeft = forfaitLeft(forfait, 'pano')
 
-  const load = useCallback(() => read(sceneId).then(s => s && setState(s)), [sceneId])
+  // the time read with each state, so the minutes shown are computed outside the render
+  const [readAt, setReadAt] = useState(0)
+  const load = useCallback(
+    () =>
+      read(sceneId).then(s => {
+        if (!s) return
+        setState(s)
+        setReadAt(Date.now())
+      }),
+    [sceneId],
+  )
   const running = state?.stage === 'running'
   const paused = Boolean(state?.thermal?.userPaused)
 
@@ -70,8 +80,8 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   }
 
   const stage = state?.stage ?? 'idle'
-  const label = running ? 'Qualité finale en cours…' : stage === 'done' ? 'Qualité finale ✓' : stage === 'ready' ? 'Qualité finale prête' : 'Qualité finale (plein jour)'
-  const minutes = state?.startedAt ? Math.max(0, Math.round((Date.now() - state.startedAt) / 60000)) : 0
+  const label = running ? 'Qualité finale en cours…' : stage === 'done' ? 'Qualité finale' : stage === 'ready' ? 'Qualité finale prête' : 'Qualité finale (plein jour)'
+  const minutes = state?.startedAt && readAt ? Math.max(0, Math.round((readAt - state.startedAt) / 60000)) : 0
 
   return (
     <div className="tour-publish look-panel">
@@ -157,7 +167,7 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                 <>
                   <strong>Finition IA</strong>
                   <span>
-                    L’IA donne à chaque vue sa lumière du jour et ses lampes allumées ; Blender garde chaque objet et chaque texture.
+                    L’IA donne à chaque vue sa qualité photo finale : lumière du jour, lampes allumées.
                     {aiCount < state.suggestions.length ? ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.` : ''}
                   </span>
                   <button type="button" onClick={() => void start({ action: 'ai', points: allPoints, ring: [], maxCost: allPoints.length * DA_PER_IMAGE })}>

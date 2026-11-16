@@ -255,9 +255,9 @@ export default function PointsEditor({
               {kept.length} <span>{kept.length > 1 ? 'points 360°' : 'point 360°'}</span>
             </p>
             {!signedIn ? (
-              <p className="tour-note">Connectez-vous à votre compte Roomia pour la finition IA : sans compte, la visite reste en rendu Blender.</p>
+              <p className="tour-note">Connectez-vous à votre compte Roomia (Mon espace) pour la qualité photo finale de chaque point.</p>
             ) : aiMax < 1 ? (
-              <p className="tour-note">{panoLeft !== null ? 'Plus de vues 360° dans votre forfait' : 'Plus de crédits'} : la visite sera en rendu Blender. Contactez Roomia pour l’étendre.</p>
+              <p className="tour-note">Plus de vues 360° dans votre forfait : contactez Roomia pour l’étendre avant de lancer la visite.</p>
             ) : kept.length > aiMax ? (
               <p className="tour-note">
                 Votre {panoLeft !== null ? 'forfait' : 'compte'} permet {plural(aiMax, 'vue finie', 'vues finies')} par l’IA : les {aiMax} premiers points auront la qualité finale,

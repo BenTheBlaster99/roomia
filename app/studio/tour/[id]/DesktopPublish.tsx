@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { PublishProgress } from '@/lib/roomia-cloud'
+import Icon from '../../components/Icon'
 
 interface State {
   progress: PublishProgress | null
@@ -66,8 +67,9 @@ export default function DesktopPublish({ sceneId }: { sceneId: string }) {
   const link = p?.state === 'done' && p.url ? p.url : state?.published?.url
   return (
     <div className="tour-publish">
-      <button type="button" className="tour-publish-toggle" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-        {sending ? `Envoi… ${p && p.total ? Math.round((p.sent / p.total) * 100) : 0} %` : link ? 'Lien client ✓' : 'Publier pour mes clients'}
+      <button type="button" className={`tour-publish-toggle${link && !sending ? ' done' : ''}`} onClick={() => setOpen(v => !v)} aria-expanded={open}>
+        <Icon name={link && !sending ? 'check' : 'share'} size={16} />
+        {sending ? `Envoi… ${p && p.total ? Math.round((p.sent / p.total) * 100) : 0} %` : link ? 'Lien client' : 'Partager'}
       </button>
       {open && (
         <div className="tour-publish-panel" role="dialog" aria-label="Publier la visite">
@@ -85,13 +87,13 @@ export default function DesktopPublish({ sceneId }: { sceneId: string }) {
               <span>
                 {link
                   ? 'Envoyez ce lien à vos clients : ils visitent sans compte ni installation, sur ordinateur ou téléphone.'
-                  : 'La visite (360°, photos et plan) est envoyée sur le serveur Roomia et reçoit un lien à envoyer à vos clients. Gratuit, aucun crédit.'}
+                  : 'La visite (360°, photos et plan) est envoyée sur le serveur Roomia et reçoit un lien à envoyer à vos clients. C’est gratuit.'}
               </span>
               {link && (
                 <div className="tour-publish-link">
                   <input readOnly value={link} onFocus={e => e.currentTarget.select()} />
                   <button type="button" onClick={() => void copy(link)}>
-                    {copied ? 'Copié ✓' : 'Copier'}
+                    {copied ? 'Copié' : 'Copier'}
                   </button>
                 </div>
               )}

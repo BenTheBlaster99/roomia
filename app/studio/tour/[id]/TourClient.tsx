@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PANO_REJECT_REASONS, REJECT_LABELS, type PanoRejectReason } from '@/lib/pano-review'
 import type { PanoAiCheck } from '@/lib/pano-ai'
 import type { TourLevel, TourStatus, TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { sendSceneFile } from '@/lib/studio-import/server-prep'
+import Icon, { type IconName } from '../../components/Icon'
 import DesktopPublish from './DesktopPublish'
 import LookPanel from './LookPanel'
 import PanoViewer, { SpotMark, type PanoSpot } from './PanoViewer'
@@ -501,92 +503,45 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   const unapprovedAi = views.filter(v => v.panoAiFile && !v.panoAiApproved && !v.panoAiStale).length
   const blenderStops = views.filter(v => v.pano && !v.panoAiFile && !v.hidden).map(v => v.index)
 
+  const inVisit = shown === 'pano' || shown === 'photo'
+  const sections: RailItem[] = [
+    { key: 'visit', icon: 'pano', label: 'Visite 360°', active: inVisit, onClick: () => setMode(current.pano ? 'pano' : 'photo') },
+    { key: 'gallery', icon: 'gallery', label: 'Galerie', active: shown === 'gallery', onClick: () => setMode('gallery') },
+    ...(data.plan ? [{ key: 'plan2d', icon: 'plan' as const, label: 'Plan 2D', active: shown === 'plan2d', onClick: () => setMode('plan2d') }] : []),
+    ...(data.plan3d || !published
+      ? [{ key: 'plan3d', icon: 'plan3d' as const, label: 'Plan 3D', active: shown === 'plan3d', todo: !data.plan3d, onClick: () => setMode('plan3d') }]
+      : []),
+    ...(film?.video || !published
+      ? [{ key: 'video', icon: 'video' as const, label: 'Vidéo', active: shown === 'video', todo: !film?.video, onClick: () => setMode('video') }]
+      : []),
+    ...(!published ? [{ key: 'photos', icon: 'sparkle' as const, label: 'Nouvelles photos', active: shown === 'photos', onClick: () => setMode('photos') }] : []),
+  ]
+  const dark = inVisit || shown === 'video'
+
   return (
-    <div className="tour">
-      <header className="tour-bar">
-        {!published && (
-          <a className="tour-back" href={`/studio?scene=${sceneId}`}>
-            ← Studio
-          </a>
-        )}
-        <div className="tour-title">
-          <strong>{title}</strong>
-          {renaming !== null ? (
-            <form
-              className="tour-rename"
-              onSubmit={e => {
-                e.preventDefault()
-                void editPoint(current.index, { name: renaming })
-                setRenaming(null)
-              }}
-            >
-              <input autoFocus value={renaming} maxLength={60} onChange={e => setRenaming(e.target.value)} onKeyDown={e => e.key === 'Escape' && setRenaming(null)} aria-label="Nom du point" />
-              <button type="submit">OK</button>
-            </form>
-          ) : (
-            <span>
-              {current.name}
-              {!published && (
-                <button type="button" className="tour-pencil" onClick={() => setRenaming(current.name)} aria-label={`Renommer ${current.name}`} title="Renommer ce point">
-                  ✎
-                </button>
-              )}
-              {' · '}
-              {step + 1} / {order.length}
-            </span>
-          )}
-        </div>
-        {!published && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
-        {!published && <DesktopPublish sceneId={sceneId} />}
-        {!published && (
-          <button type="button" className="tour-download" onClick={() => void propose()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
-            Points de vue
-          </button>
-        )}
-        {!published && (
-          <a className="tour-download" href={`/api/scenes/${sceneId}/export`} title="Le projet entier dans un dossier : 360°, photos, plans, vidéo">
-            ⤓ Tout télécharger
-          </a>
-        )}
-        <div className="tour-modes" role="group" aria-label="Mode de visite">
-          <button type="button" aria-pressed={shown === 'photo'} disabled={!current.photo} onClick={() => setMode('photo')}>
-            Photo
-          </button>
-          <button type="button" aria-pressed={shown === 'pano'} disabled={!current.pano} onClick={() => setMode('pano')}>
-            360°
-          </button>
-          {data.plan && (
-            <button type="button" aria-pressed={shown === 'plan2d'} onClick={() => setMode('plan2d')}>
-              Plan 2D
-            </button>
-          )}
-          {(data.plan3d || !published) && (
-            <button type="button" aria-pressed={shown === 'plan3d'} onClick={() => setMode('plan3d')}>
-              Plan 3D
-            </button>
-          )}
-          {(film?.video || !published) && (
-            <button type="button" aria-pressed={shown === 'video'} onClick={() => setMode('video')}>
-              Vidéo
-            </button>
-          )}
-          <button type="button" aria-pressed={shown === 'gallery'} onClick={() => setMode('gallery')}>
-            Galerie
-          </button>
+    <div className={`tour tour-shell${published ? ' is-public' : ''}`}>
+      <ProjectRail items={sections} sceneId={published ? null : sceneId} />
+      <div className="tour-main">
+        <header className="tour-top">
           {!published && (
-            <button type="button" aria-pressed={shown === 'photos'} onClick={() => setMode('photos')}>
-              Nouvelles photos
-            </button>
+            <Link className="ui-btn ui-btn--quiet ui-btn--sm tour-top-back" href="/studio/projets">
+              <Icon name="back" size={16} />
+              Mes projets
+            </Link>
           )}
-          {/* Visite libre: taken out for now (15 Nov, the user); the reviewer still reaches it with ?edit=1 */}
-          {data.walk && editing && (
-            <a href={`/studio/explore/${sceneId}?at=${current.index}&edit=1`}>Visite libre</a>
+          <div className="tour-top-title">
+            <h1>{title}</h1>
+          </div>
+          {!published && (
+            <div className="tour-top-actions">
+              <DesktopPublish sceneId={sceneId} />
+              <DownloadMenu sceneId={sceneId} viewIndex={shown === 'pano' ? current.index : null} />
+            </div>
           )}
-        </div>
-      </header>
+        </header>
 
       <main
-        className="tour-stage"
+        className={`tour-stage${dark ? ' dark' : ' light'}`}
         onPointerDown={e => {
           if (shown === 'photo') swipe.current = { x: e.clientX, y: e.clientY }
         }}
@@ -638,11 +593,6 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               <img className={`pano-fade${fade.going ? ' go' : ''}`} src={fade.src} alt="" aria-hidden="true" onAnimationEnd={() => setFade(null)} />
             )}
             {!panoReady && !fade && <div className="tour-loading">Chargement du 360°…</div>}
-            {!published && (
-              <a className="tour-pano-download" href={`/api/scenes/${sceneId}/export?view=${current.index}`} title="Le 360° de ce point, en image panoramique (Facebook, Google, visionneuses 360°)">
-                ⤓ Ce 360°
-              </a>
-            )}
             <p className="tour-hint">Faites glisser pour regarder autour</p>
           </>
         ) : current.photo ? (
@@ -670,6 +620,63 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           </>
         ) : (
           <div className="tour-message">Pas encore de photo pour {current.name}.</div>
+        )}
+
+        {inVisit && (
+          <div className="tour-visitbar">
+            <div className="tour-point">
+              {renaming !== null ? (
+                <form
+                  className="tour-rename"
+                  onSubmit={e => {
+                    e.preventDefault()
+                    void editPoint(current.index, { name: renaming })
+                    setRenaming(null)
+                  }}
+                >
+                  <input autoFocus value={renaming} maxLength={60} onChange={e => setRenaming(e.target.value)} onKeyDown={e => e.key === 'Escape' && setRenaming(null)} aria-label="Nom du point" />
+                  <button type="submit">OK</button>
+                </form>
+              ) : (
+                <>
+                  <strong>{current.name}</strong>
+                  <span>
+                    {step + 1} / {order.length}
+                  </span>
+                  {!published && (
+                    <button type="button" className="tour-pencil" onClick={() => setRenaming(current.name)} aria-label={`Renommer ${current.name}`} title="Renommer ce point">
+                      <Icon name="edit" size={15} />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="tour-visit-actions">
+              {current.photo && current.pano && (
+                <div className="tour-modes" role="group" aria-label="Affichage du point">
+                  <button type="button" aria-pressed={shown === 'pano'} onClick={() => setMode('pano')}>
+                    360°
+                  </button>
+                  <button type="button" aria-pressed={shown === 'photo'} onClick={() => setMode('photo')}>
+                    Photo
+                  </button>
+                </div>
+              )}
+              {!published && (
+                <button type="button" className="ui-btn ui-btn--glass ui-btn--sm" onClick={() => void propose()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
+                  <Icon name="pin" size={15} />
+                  Points de vue
+                </button>
+              )}
+              {!published && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
+              {/* Visite libre: taken out for now (15 Nov, the user); the reviewer still reaches it with ?edit=1 */}
+              {data.walk && editing && (
+                <a className="ui-btn ui-btn--glass ui-btn--sm" href={`/studio/explore/${sceneId}?at=${current.index}&edit=1`}>
+                  Visite libre
+                </a>
+              )}
+            </div>
+          </div>
         )}
 
         {plan && (shown === 'photo' || shown === 'pano') && (
@@ -721,6 +728,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           </div>
         )}
       </main>
+      </div>
 
       {editing && (
         <aside className="tour-prep">
@@ -958,4 +966,83 @@ function checkWarns(check: PanoAiCheck) {
 
 function photoUrl(sceneId: string, file: string) {
   return `/api/scenes/${sceneId}/photos/${encodeURIComponent(file)}`
+}
+
+type RailItem = { key: string; icon: IconName; label: string; active: boolean; todo?: boolean; onClick: () => void }
+
+/** The project's sections, one under the other (16 Nov redesign): the current one in gold; a bottom bar on a phone. */
+function ProjectRail({ items, sceneId }: { items: RailItem[]; sceneId: string | null }) {
+  return (
+    <nav className="tour-rail" aria-label="Le projet">
+      {sceneId ? (
+        <Link className="tour-rail-mark" href="/studio/projets" aria-label="Roomia, mes projets">
+          R<span>.</span>
+        </Link>
+      ) : (
+        <span className="tour-rail-mark" aria-label="Roomia">
+          R<span>.</span>
+        </span>
+      )}
+      <div className="tour-rail-items">
+        {items.map(it => (
+          <button key={it.key} type="button" className={`tour-rail-item${it.active ? ' on' : ''}`} aria-current={it.active ? 'page' : undefined} onClick={it.onClick}>
+            <Icon name={it.icon} size={22} />
+            <span>{it.label}</span>
+            {it.todo && <i className="tour-rail-todo">à faire</i>}
+          </button>
+        ))}
+      </div>
+      {sceneId && (
+        <a className="tour-rail-item tour-rail-3d" href={`/studio?scene=${sceneId}`} title="La maquette 3D du projet">
+          <Icon name="cube" size={22} />
+          <span>Vue 3D</span>
+        </a>
+      )}
+    </nav>
+  )
+}
+
+/** Télécharger: this 360° (a panorama image with its 360 tags) or the whole project in one folder. */
+function DownloadMenu({ sceneId, viewIndex }: { sceneId: string; viewIndex: number | null }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  return (
+    <div className="relative" ref={box}>
+      <button type="button" className="ui-btn ui-btn--ghost" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <Icon name="download" size={17} />
+        Télécharger
+      </button>
+      {open && (
+        <div className="ui-menu right-0 top-12 w-72" role="menu">
+          {viewIndex !== null && (
+            <a role="menuitem" href={`/api/scenes/${sceneId}/export?view=${viewIndex}`} onClick={() => setOpen(false)}>
+              <Icon name="pano" size={17} />
+              <span>
+                Ce 360°
+                <small className="block text-xs text-[var(--brand-muted)]">Image panoramique, lue par Facebook et Google</small>
+              </span>
+            </a>
+          )}
+          <a role="menuitem" href={`/api/scenes/${sceneId}/export`} onClick={() => setOpen(false)}>
+            <Icon name="folder" size={17} />
+            <span>
+              Tout le projet
+              <small className="block text-xs text-[var(--brand-muted)]">360°, galerie, plans et vidéo, dans un dossier</small>
+            </span>
+          </a>
+        </div>
+      )}
+    </div>
+  )
 }
