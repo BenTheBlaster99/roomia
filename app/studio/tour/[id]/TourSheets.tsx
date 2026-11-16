@@ -133,7 +133,7 @@ export function Plan3dSheet({
                 <button type="button" onClick={onMake}>
                   Faire le plan 3D maintenant
                 </button>
-                {state?.state === 'failed' && <span className="tour-note">Si cela échoue encore : menu Aide → Créer un rapport, et envoyez-le à Roomia.</span>}
+                {state?.state === 'failed' && <span className="tour-note">Si cela échoue encore : bouton Aide (?) de Mes projets → Signaler un problème, et envoyez le fichier à Roomia.</span>}
               </>
             ) : (
               <span>Le plan 3D de cette visite n’est pas disponible.</span>
@@ -377,7 +377,7 @@ interface GalleryPhoto {
 const AMBIANCE_OF: Record<string, string> = { matin: 'Jour', midi: 'Jour', 'apres-midi': 'Jour', soiree: 'Soirée' }
 
 /** Every AI photo of the project (11 Nov): the SketchUp views' photos and the frames picked in the 360°, newest first. */
-export function GallerySheet({ sceneId, title, onCreate }: { sceneId: string; title: string; onCreate: () => void }) {
+export function GallerySheet({ sceneId, title, onCreate }: { sceneId: string; title: string; /** the architect only: not in a published visit */ onCreate?: () => void }) {
   const [photos, setPhotos] = useState<GalleryPhoto[] | null>(null)
   const [open, setOpen] = useState<GalleryPhoto | null>(null)
   useEffect(() => {
@@ -421,12 +421,14 @@ export function GallerySheet({ sceneId, title, onCreate }: { sceneId: string; ti
         <h2>Galerie</h2>
         <p className="tour-big">
           {photos.length}
-          <span> photo{photos.length > 1 ? 's' : ''} IA</span>
+          <span> photo{photos.length > 1 ? 's' : ''}</span>
         </p>
         <p className="tour-note">Toutes les photos réalistes du projet, les plus récentes d’abord. Cliquez sur une photo pour l’ouvrir en grand.</p>
-        <button type="button" className="tour-btn" onClick={onCreate}>
-          Créer de nouvelles photos
-        </button>
+        {onCreate && (
+          <button type="button" className="tour-btn" onClick={onCreate}>
+            Créer de nouvelles photos
+          </button>
+        )}
       </aside>
       {open && (
         <div className="tour-lightbox" role="dialog" aria-label={open.view ?? 'Photo'} onClick={() => setOpen(null)}>

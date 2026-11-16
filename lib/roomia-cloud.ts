@@ -98,7 +98,7 @@ export async function cloudPhoto(
   onPing: () => void,
 ): Promise<CloudPhoto> {
   const token = await readToken()
-  if (!token) throw new CreditError('Connectez-vous à votre compte Roomia pour les photos IA (menu Compte).', 401)
+  if (!token) throw new CreditError('Connectez-vous à votre compte Roomia pour les photos IA (Mon espace).', 401)
   const body = JSON.stringify({
     jobId: args.jobId,
     project: args.project,
@@ -188,7 +188,7 @@ export interface CloudDrive {
 
 async function authed(): Promise<string> {
   const token = await readToken()
-  if (!token) throw new CreditError('Connectez-vous à votre compte Roomia (menu Compte).', 401)
+  if (!token) throw new CreditError('Connectez-vous à votre compte Roomia (Mon espace).', 401)
   return token
 }
 

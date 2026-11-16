@@ -293,7 +293,7 @@ async function reportUpdate(result) {
       type: 'warning',
       title: APP_NAME,
       message: `La mise à jour ${result.version} n’a pas pu s’installer.`,
-      detail: `Roomia ${app.getVersion()} est resté tel quel. ${result.error ?? ''}\n\nVous pouvez télécharger la nouvelle version depuis le menu Aide → Rechercher une mise à jour.`,
+      detail: `Roomia ${app.getVersion()} est resté tel quel. ${result.error ?? ''}\n\nVous pouvez télécharger la nouvelle version depuis le bouton Aide (?) de Mes projets → Rechercher une mise à jour.`,
     })
   }
 }

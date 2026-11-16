@@ -384,7 +384,8 @@
   .tour-top-title h1 { font-size: 17px; }
   .tour-top-actions .ui-btn { padding: 0 12px; }
   .tour-visitbar { top: 10px; left: 10px; right: 10px; }
-  .tour-plan { width: 128px; padding: 6px; left: 10px; bottom: 10px; }
+  .tour-plan { padding: 6px; left: 10px; bottom: 10px; }
+  .tour-plan-inner { width: min(120px, calc(22vh * var(--ratio, 1))); }
   .spot-disc { width: 50px; height: 50px; }
   .spot-label { font-size: 12px; }
   .tour-pill { max-width: calc(100% - 28px); bottom: 150px; }

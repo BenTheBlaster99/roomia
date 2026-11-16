@@ -565,7 +565,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             onMake={published ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
           />
         ) : shown === 'gallery' ? (
-          <GallerySheet sceneId={sceneId} title={title} onCreate={() => setMode('photos')} />
+          <GallerySheet sceneId={sceneId} title={title} onCreate={published ? undefined : () => setMode('photos')} />
         ) : shown === 'photos' ? (
           <PhotosSheet sceneId={sceneId} views={views} version={version} onDone={() => void load().catch(() => undefined)} />
         ) : shown === 'video' ? (

@@ -101,6 +101,7 @@ export const config = {
     '/(fr|en)',
     '/(fr|en)/:path*',
     '/about',
+    '/contact',
     '/partners',
     '/rooms',
     '/styles',
