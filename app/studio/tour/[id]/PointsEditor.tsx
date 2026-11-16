@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useRef, useState } from 'react'
 import { forfaitLeft, plural } from '@/lib/forfait'
 import type { ProposalLevel, ProposalPoint, TourProposal } from '@/lib/scene-tour'
@@ -130,9 +131,9 @@ export default function PointsEditor({
   return (
     <div className="tour points">
       <header className="points-head">
-        <a className="tour-back" href={`/studio?scene=${sceneId}`}>
-          ← Studio
-        </a>
+        <Link className="tour-back" href="/studio/projets">
+          ← Mes projets
+        </Link>
         <div>
           <strong>Les points de vue de votre visite 360°</strong>
           <span>
@@ -243,7 +244,17 @@ export default function PointsEditor({
               )}
             </div>
           ) : (
-            <p className="tour-note">Cliquez un point du plan pour le renommer, le tourner, le déplacer ou le retirer.</p>
+            <>
+              <p className="tour-note">Cliquez un point du plan pour le renommer, le tourner, le déplacer ou le retirer.</p>
+              <ul className="points-legend">
+                <li>
+                  <i className="view" /> Une scène enregistrée dans SketchUp
+                </li>
+                <li>
+                  <i /> Un point proposé par Roomia
+                </li>
+              </ul>
+            </>
           )}
 
           <button type="button" className={`tour-btn secondary${adding ? ' on' : ''}`} onClick={() => setAdding(a => !a)}>
@@ -272,11 +283,11 @@ export default function PointsEditor({
             Lancer la visite 360°
           </button>
           <button type="button" className="tour-btn secondary" disabled={busy} onClick={onRedo}>
-            Replacer les points automatiquement
+            Replacer automatiquement
           </button>
           {onCancel && (
             <button type="button" className="tour-btn secondary" disabled={busy} onClick={onCancel}>
-              Annuler : garder la visite actuelle
+              Garder la visite actuelle
             </button>
           )}
         </aside>

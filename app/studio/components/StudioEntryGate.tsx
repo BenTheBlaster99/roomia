@@ -9,6 +9,9 @@ import { STYLE_CARD_COLORS } from '@/lib/style-room-presentation'
 import { useStudioStore } from '@/store/useStudioStore'
 import type { RoomPresetRow } from '@/types/room-preset'
 import StudioRoomImport from './StudioRoomImport'
+import DesktopNav from './DesktopNav'
+import Icon from './Icon'
+import { FURNITURE_TOOLS } from '../studio-flags'
 
 type PresetRow = Pick<
   RoomPresetRow,
@@ -56,7 +59,8 @@ export default function StudioEntryGate({
   const [dismissed, setDismissed] = useState(shouldSkip)
 
   useEffect(() => {
-    setSaved(loadStudioDesign())
+    // the browser's saved design exists only after the first paint (the server cannot read it)
+    queueMicrotask(() => setSaved(loadStudioDesign()))
   }, [])
 
   // Sync gate visibility immediately (avoid TopBar/dims chrome flashing under the gate)
@@ -68,7 +72,7 @@ export default function StudioEntryGate({
   }, [dismissed])
 
   useEffect(() => {
-    if (dismissed) return
+    if (dismissed || !FURNITURE_TOOLS) return
     let cancelled = false
     supabase
       .from('room_presets')
@@ -83,6 +87,71 @@ export default function StudioEntryGate({
   }, [dismissed])
 
   if (dismissed) return null
+
+  const enterImported = () => {
+    setDismissed(true)
+    useStudioStore.getState().setEntryGateOpen(false)
+    onEnterBlank()
+    const url = new URL(window.location.href)
+    url.searchParams.set('create', '1')
+    url.searchParams.delete('saved')
+    url.searchParams.delete('width')
+    url.searchParams.delete('length')
+    url.searchParams.delete('height')
+    window.history.replaceState({}, '', url.toString())
+  }
+
+  // 16 Nov redesign: a new project is the architect's SketchUp model, by the extension or as a file; the furniture-room
+  // starts (empty room, plan scan, presets) only with FURNITURE_TOOLS
+  if (!FURNITURE_TOOLS)
+    return (
+      <div className="absolute inset-0 z-[100] overflow-y-auto bg-[var(--brand-paper)]">
+        <DesktopNav />
+        <main className="mx-auto max-w-5xl px-5 pb-16 pt-12 sm:px-8">
+          <h1 className="ui-title text-[34px]">
+            Nouveau <em>projet</em>
+          </h1>
+          <p className="mt-2 max-w-2xl text-[16px] text-[var(--brand-ink-soft)]">
+            Votre modèle SketchUp devient une visite 360°, des photos réalistes, un plan 2D coté, un plan 3D et une vidéo. Vous n’avez rien à régler.
+          </p>
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <section className="ui-card flex flex-col p-7">
+              <span className="ui-chip ui-chip--gold mb-4 self-start">Conseillé</span>
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-blue)] text-white">
+                <Icon name="sketchup" size={23} />
+              </span>
+              <h2 className="text-[20px] font-bold text-[var(--brand-ink)]">Depuis SketchUp</h2>
+              <ol className="mt-3 grid gap-2 text-[14.5px] leading-relaxed text-[var(--brand-ink-soft)]">
+                <li>1. Enregistrez vos vues : Fenêtre → Scènes → +.</li>
+                <li>
+                  2. Menu <b>Extensions → Roomia → Envoyer à Roomia</b>.
+                </li>
+                <li>3. Le projet s’ouvre ici, avec vos vues.</li>
+              </ol>
+              <div className="mt-auto pt-6">
+                <button type="button" className="ui-btn ui-btn--ghost" onClick={() => void window.roomiaDesktop?.installSketchup?.()}>
+                  <Icon name="sketchup" size={17} />
+                  Installer l’extension SketchUp
+                </button>
+              </div>
+            </section>
+            <section className="ui-card flex flex-col p-7">
+              <span className="mb-4 mt-[42px] flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-blue-tint)] text-[var(--brand-blue)]">
+                <Icon name="folder" size={23} />
+              </span>
+              <h2 className="text-[20px] font-bold text-[var(--brand-ink)]">Ouvrir un fichier 3D</h2>
+              <p className="mt-3 text-[14.5px] leading-relaxed text-[var(--brand-ink-soft)]">
+                Un export <b>.glb</b> de SketchUp (un seul fichier, textures comprises, le plus léger). Un <b>.dae</b> marche aussi jusqu’à 450 Mo ; mettez le .skp
+                dans un .zip avec lui pour garder les textures.
+              </p>
+              <div className="mt-auto pt-6">
+                <StudioRoomImport className="ui-btn ui-btn--primary" label="Choisir un fichier 3D" onImported={enterImported} />
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    )
 
   return (
     <div className="absolute inset-0 z-[100] overflow-y-auto bg-[var(--rm-bg)] text-[var(--rm-text)]">

@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { saveStudioDesign } from '@/lib/studio-design-storage'
 import { useStudioStore } from '@/store/useStudioStore'
 import StudioRoomImport from './StudioRoomImport'
-import { CATALOG_ENABLED } from '../studio-flags'
+import { CATALOG_ENABLED, FURNITURE_TOOLS } from '../studio-flags'
+import BrandMark from './BrandMark'
 
 export default function TopBar() {
   const [saveLabel, setSaveLabel] = useState('Save')
@@ -41,6 +42,22 @@ export default function TopBar() {
     setSaveLabel('Saved')
     window.setTimeout(() => setSaveLabel('Save'), 1500)
   }
+
+  // 16 Nov redesign: the brand bar; the furniture tools only when FURNITURE_TOOLS is on (studio-flags.ts)
+  if (!FURNITURE_TOOLS)
+    return (
+      <div className="z-10 flex h-14 flex-shrink-0 items-center gap-3 border-b border-[var(--brand-line)] bg-white px-5">
+        <Link href="/studio/projets" className="mr-2 no-underline" aria-label="Roomia, mes projets">
+          <BrandMark size={17} />
+        </Link>
+        <Link href="/studio/projets" className="ui-btn ui-btn--quiet ui-btn--sm">
+          Mes projets
+        </Link>
+        <div className="ml-auto">
+          <StudioRoomImport className="ui-btn ui-btn--ghost ui-btn--sm" label={sceneMode ? 'Ouvrir un autre fichier' : 'Ouvrir un fichier 3D'} compact />
+        </div>
+      </div>
+    )
 
   return (
     <div className="h-14 bg-[var(--rm-bg)]/90 backdrop-blur-xl border-b border-[var(--rm-text)]/8 flex items-center justify-between px-4 flex-shrink-0 z-10">

@@ -360,6 +360,10 @@
 .points-name input { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--brand-line-strong); background: #fff; color: var(--brand-ink); font-size: 15px; }
 .points-name input:focus { outline: none; border-color: var(--brand-blue); box-shadow: var(--brand-focus); }
 .points-turn { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.points-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; color: var(--brand-ink-soft); }
+.points-legend li { display: flex; align-items: center; gap: 10px; }
+.points-legend i { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--brand-line-strong); background: var(--brand-gold); }
+.points-legend i.view { background: var(--brand-blue); }
 .points-sum { margin-top: auto; display: grid; gap: 8px; padding-top: 6px; }
 @media (max-width: 860px) { .points-body { flex-direction: column; } .points-side { flex: none; } .points-plan-fit { height: 60vh; } }
 

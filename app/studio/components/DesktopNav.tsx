@@ -9,7 +9,7 @@ import Icon, { type IconName } from './Icon'
  * Roomia Desktop's header (16 Nov redesign): the mark, the two places (Mes projets, Mon espace), help, and one blue action.
  * The native menu strip is hidden (desktop/main.js); everything a user needs from it is in the help menu here.
  */
-export default function DesktopNav({ current }: { current: 'projets' | 'compte' }) {
+export default function DesktopNav({ current }: { current?: 'projets' | 'compte' }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--brand-line)] bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-5 sm:px-8">

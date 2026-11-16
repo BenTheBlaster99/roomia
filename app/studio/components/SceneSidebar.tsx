@@ -11,6 +11,7 @@ import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
 import { forfaitLeft, plural, type Forfait } from '@/lib/forfait'
 import DesktopRenderNotice from './DesktopRenderNotice'
+import Icon from './Icon'
 
 type Phase = 'idle' | 'checking' | 'running' | 'done' | 'error'
 type Step = 'capture' | 'photo' | null
@@ -37,9 +38,6 @@ function toUrl(b64: string, type: string) {
 
 const withLens = (camera: SceneCamera, lens: LensId): SceneCamera => ({ ...camera, hfov: lensHfov(lens, camera) })
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--rm-muted)]">{children}</h3>
-}
 
 /** Right-hand panel for an imported scene: pick a saved view, set the light, generate the photo. */
 export default function SceneSidebar() {
@@ -412,110 +410,174 @@ export default function SceneSidebar() {
   const noCredits = !!account && (photosLeft !== null ? photosLeft < 1 : account.credits < 1)
   const hasView = useCurrent || selected !== null
 
+  // the photo of a saved view, else its 360° (centred on the camera), shown on its card
+  const thumbOf = (name: string, i: number) => {
+    const photo = photos.find(p => p.view === name)
+    return photo ? { src: `/api/scenes/${sceneId}/photos/${photo.file}?w=360`, pano: false } : { src: `/api/scenes/${sceneId}/tour/pano-${i}.jpg`, pano: true }
+  }
+  const ambiance = AMBIANCES.find(a => a.key === ambianceOf(time, sun))
+  // one notice at a time at the foot of the panel, the one the person must act on first
+  const blocker =
+    desktopAccount === 'offline'
+      ? { tone: 'warn', text: 'Pas de connexion au serveur Roomia : la photo attend la connexion. Vérifiez internet.' }
+      : desktopAccount === 'signed-out'
+        ? { tone: 'info', text: 'signed-out' }
+        : noCredits
+          ? { tone: 'warn', text: 'Plus de photos dans votre forfait. Contactez Roomia pour l’étendre.' }
+          : null
+
   return (
-    <aside className="flex h-full w-[22rem] flex-shrink-0 flex-col overflow-y-auto border-l border-[var(--rm-text)]/10 bg-[var(--rm-surface)]">
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--rm-text)]/8 px-5 py-4">
-        <div className="min-w-0">
-          {desktop && (
-            <Link href="/studio/projets" className="mb-1 inline-block text-xs text-[var(--rm-muted)] hover:text-[var(--rm-text)]">
-              ← Mes projets
+    <aside className="flex h-full w-[24rem] flex-shrink-0 flex-col border-l border-[var(--brand-line)] bg-white">
+      {/* the project, and its page */}
+      <div className="border-b border-[var(--brand-line)] px-5 pb-4 pt-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          {desktop ? (
+            <Link href="/studio/projets" className="ui-btn ui-btn--quiet ui-btn--sm -ml-2.5">
+              <Icon name="back" size={15} />
+              Mes projets
             </Link>
+          ) : (
+            <span />
           )}
-          <p className="truncate text-sm font-semibold text-[var(--rm-text)]" title={importedRoom.fileName}>
-            {importedRoom.fileName.replace(/\.zip$/i, '')}
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--rm-muted)]">Scène importée · prête à rendre</p>
-          {account && (
-            <p className="mt-1 text-xs text-[var(--rm-text)]">
-              {account.name} ·{' '}
-              <span className="font-semibold">
-                {photosLeft !== null
-                  ? `${plural(photosLeft, 'photo IA restante', 'photos IA restantes')} (forfait)`
-                  : `${account.credits} crédit${account.credits > 1 ? 's' : ''}`}
-              </span>
-              {' · '}
-              <button
-                type="button"
-                className="text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
-                onClick={async () => {
-                  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
-                  window.location.assign('/login')
-                }}
-              >
-                se déconnecter
-              </button>
-            </p>
-          )}
-          <p className="mt-1 text-xs leading-relaxed text-[var(--rm-muted)]">
-            Aperçu allégé pour naviguer : la photo est faite à partir du fichier complet.
-          </p>
-          {placeholders > 0 && (
-            <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs leading-relaxed text-amber-800">
-              {placeholders === 1 ? '1 texture n’a pas été exportée' : `${placeholders} textures n’ont pas été exportées`} par
-              l’export GLB (remplacées par « invalid Texture »). Ces surfaces gardent leur couleur unie.
-            </p>
-          )}
+          <button type="button" onClick={clearImportedRoom} className="ui-btn ui-btn--quiet ui-btn--sm" title="Fermer cette scène dans le Studio (le projet reste dans Mes projets)">
+            Fermer
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={clearImportedRoom}
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--rm-muted)] transition-colors hover:bg-red-50 hover:text-red-700"
-        >
-          Retirer
-        </button>
+        <h2 className="truncate text-[19px] font-bold text-[var(--brand-ink)]" title={importedRoom.fileName}>
+          {importedRoom.fileName.replace(/\.(zip|glb|dae)$/i, '')}
+        </h2>
+        {account && (
+          <p className="mt-1 text-[13px] text-[var(--brand-muted)]">
+            {account.name} ·{' '}
+            <span className="font-semibold text-[var(--brand-ink-soft)]">
+              {photosLeft !== null ? plural(photosLeft, 'photo restante', 'photos restantes') : `${account.credits} photo${account.credits > 1 ? 's' : ''} possible${account.credits > 1 ? 's' : ''}`}
+            </span>
+            {' · '}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-[var(--brand-blue)]"
+              onClick={async () => {
+                await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
+                window.location.assign('/login')
+              }}
+            >
+              se déconnecter
+            </button>
+          </p>
+        )}
+        <a href={`/studio/tour/${sceneId}`} className="ui-btn ui-btn--ghost ui-btn--block mt-3 !justify-between !rounded-[12px] !border-[#ead8b8] !bg-[var(--brand-gold-tint)] !text-[var(--brand-ink)] hover:!border-[var(--brand-gold)]">
+          <span className="flex items-center gap-2">
+            <Icon name="pano" size={18} className="text-[var(--brand-gold-dark)]" />
+            Page du projet
+            <span className="font-normal text-[var(--brand-muted)]">360°, plans, vidéo</span>
+          </span>
+          <Icon name="arrow" size={16} />
+        </a>
+        {placeholders > 0 && (
+          <p className="ui-notice ui-notice--warn mt-3 !text-[13px]">
+            <Icon name="warn" size={15} />
+            <span>
+              {placeholders === 1 ? '1 texture n’a pas été exportée' : `${placeholders} textures n’ont pas été exportées`} depuis SketchUp : ces surfaces gardent leur
+              couleur unie.
+            </span>
+          </p>
+        )}
+        {importedRoom.warning && (
+          <p className="ui-notice ui-notice--warn mt-3 !text-[13px]">
+            <Icon name="warn" size={15} />
+            <span>{importedRoom.warning}</span>
+          </p>
+        )}
       </div>
 
-      <div className="space-y-6 px-5 py-5">
+      <div className="flex-1 space-y-7 overflow-y-auto px-5 py-5">
+        {/* 1 · the view */}
         <section>
-          <SectionTitle>1 · Choisir la vue</SectionTitle>
-          {cameras.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--rm-text)]/20 px-4 py-5 text-center">
-              <p className="text-xs leading-relaxed text-[var(--rm-muted)]">
-                Aucune vue enregistrée dans ce fichier. Importez le JSON exporté de SketchUp (extension Z5 Camera Transfer).
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {cameras.map((camera, i) => (
-                <button
-                  key={`${camera.name}-${i}`}
-                  type="button"
-                  onClick={() => chooseView(i)}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
-                    selected === i && !useCurrent
-                      ? 'border-[var(--rm-primary)] bg-[var(--rm-primary)] text-[var(--rm-surface)] shadow-sm'
-                      : 'border-[var(--rm-text)]/12 bg-[var(--rm-bg)] text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50'
-                  }`}
-                >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-                      selected === i && !useCurrent ? 'bg-[var(--rm-surface)]/20' : 'bg-[var(--rm-text)]/8'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="truncate">{camera.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <StepTitle n={1}>La vue</StepTitle>
           <button
             type="button"
             onClick={() => setUseCurrent(true)}
-            className={`mt-2 flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
-              useCurrent
-                ? 'border-[var(--rm-primary)] bg-[var(--rm-primary)] text-[var(--rm-surface)] shadow-sm'
-                : 'border-dashed border-[var(--rm-text)]/20 bg-[var(--rm-bg)] text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50'
+            aria-pressed={useCurrent}
+            className={`mb-3 flex w-full items-center gap-3 rounded-[14px] border-2 bg-white px-3.5 py-3 text-left transition-all ${
+              useCurrent ? 'border-[var(--brand-gold)] shadow-[0_0_0_3px_var(--brand-gold-tint)]' : 'border-[var(--brand-line)] hover:border-[var(--brand-blue-line)]'
             }`}
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--rm-text)]/8 text-[13px]">◎</span>
+            <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-full ${useCurrent ? 'bg-[var(--brand-gold)] text-[var(--brand-blue-night)]' : 'bg-[var(--brand-blue-tint)] text-[var(--brand-blue)]'}`}>
+              <Icon name="camera" size={19} />
+            </span>
             <span className="min-w-0">
-              Vue actuelle
-              <span className={`block text-xs ${useCurrent ? 'opacity-80' : 'text-[var(--rm-muted)]'}`}>
-                Cadrez librement dans la 3D, la photo suit l’écran
-              </span>
+              <span className="block text-[15px] font-semibold text-[var(--brand-ink)]">Cadrer librement</span>
+              <span className="block text-[13px] text-[var(--brand-muted)]">La photo reprend ce que montre la 3D</span>
             </span>
           </button>
+
+          {cameras.length === 0 ? (
+            <p className="rounded-[14px] border border-dashed border-[var(--brand-line-strong)] px-4 py-4 text-[13px] leading-relaxed text-[var(--brand-ink-soft)]">
+              Aucune scène SketchUp dans ce fichier. Pour retrouver vos cadrages, enregistrez vos vues dans SketchUp (Fenêtre → Scènes → +), puis renvoyez le
+              projet avec <b>Extensions → Roomia → Envoyer à Roomia</b>.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {cameras.map((camera, i) => {
+                const on = selected === i && !useCurrent
+                const thumb = thumbOf(camera.name, i)
+                return (
+                  <button
+                    key={`${camera.name}-${i}`}
+                    type="button"
+                    onClick={() => chooseView(i)}
+                    aria-pressed={on}
+                    className={`group relative overflow-hidden rounded-[12px] border-2 bg-white text-left transition-all ${
+                      on ? 'border-[var(--brand-gold)] shadow-[0_0_0_3px_var(--brand-gold-tint)]' : 'border-[var(--brand-line)] hover:border-[var(--brand-blue-line)]'
+                    }`}
+                  >
+                    <span className="relative block aspect-[16/10] overflow-hidden bg-[var(--brand-blue-tint)]">
+                      <span className="absolute inset-0 flex items-center justify-center font-[family-name:var(--font-display)] text-[22px] font-extrabold text-[var(--brand-blue)]/35">
+                        {i + 1}
+                      </span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={thumb.src}
+                        alt=""
+                        loading="lazy"
+                        className={`relative h-full w-full object-cover ${thumb.pano ? 'scale-[2.6]' : ''}`}
+                        onError={e => (e.currentTarget.style.display = 'none')}
+                      />
+                      {on && (
+                        <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--brand-gold)] text-[var(--brand-blue-night)]">
+                          <Icon name="check" size={14} strokeWidth={2.4} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="block truncate px-2.5 py-2 text-[13px] font-semibold text-[var(--brand-ink)]">{camera.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {cameras.length > 0 && !useCurrent && (
+            <div className="mt-4">
+              <p className="ui-label mb-2">Objectif</p>
+              <div className="ui-seg w-full" role="group" aria-label="Objectif">
+                {LENSES.map(l => (
+                  <button key={l.id} type="button" className="flex-1" aria-pressed={lens === l.id} onClick={() => chooseLens(l.id)}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[13px] text-[var(--brand-muted)]">
+                {lens === 'file'
+                  ? 'Le cadrage exact enregistré dans SketchUp.'
+                  : lens === '18'
+                    ? 'Très grand angle : toute la pièce, un peu déformé sur les bords.'
+                    : lens === '24'
+                      ? 'Grand angle, le standard des rendus d’intérieur.'
+                      : 'Cadrage serré, proche de l’œil.'}
+              </p>
+            </div>
+          )}
+
           <input
             ref={jsonInput}
             type="file"
@@ -527,50 +589,15 @@ export default function SceneSidebar() {
               void importScenesJson(file)
             }}
           />
-          <button
-            type="button"
-            onClick={() => jsonInput.current?.click()}
-            className="mt-2 text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
-          >
-            {cameras.length ? 'Remplacer les vues (.json)' : 'Importer les vues (.json)'}
+          <button type="button" onClick={() => jsonInput.current?.click()} className="mt-3 text-[12px] text-[var(--brand-muted)] underline underline-offset-2 hover:text-[var(--brand-blue)]">
+            {cameras.length ? 'Remplacer les vues par un fichier .json' : 'Importer des vues depuis un fichier .json'}
           </button>
-
-          {cameras.length > 0 && !useCurrent && (
-            <div className="mt-4">
-              <p className="mb-1.5 text-xs font-medium text-[var(--rm-text)]">Objectif</p>
-              <div className="grid grid-cols-4 gap-1 rounded-xl bg-[var(--rm-text)]/6 p-1">
-                {LENSES.map(l => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => chooseLens(l.id)}
-                    className={`rounded-lg px-1 py-1.5 text-xs transition-all ${
-                      lens === l.id
-                        ? 'bg-[var(--rm-surface)] font-semibold text-[var(--rm-text)] shadow-sm'
-                        : 'text-[var(--rm-muted)] hover:text-[var(--rm-text)]'
-                    }`}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-xs text-[var(--rm-muted)]">
-                {lens === 'file'
-                  ? 'Le cadrage exact enregistré dans SketchUp.'
-                  : lens === '18'
-                    ? 'Très grand angle : toute la pièce, un peu déformé sur les bords.'
-                    : lens === '24'
-                      ? 'Grand angle, le standard des rendus d’intérieur.'
-                      : 'Cadrage serré, proche de l’œil.'}
-              </p>
-            </div>
-          )}
         </section>
 
+        {/* 2 · the light: what each ambiance looks like, not a coloured dot */}
         <section>
-          <SectionTitle>2 · Choisir l’ambiance</SectionTitle>
-          {/* 11 Nov: three ambiances instead of four times of day and two switches. The 360° tour stays in broad daylight. */}
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ambiance de la photo">
+          <StepTitle n={2}>L’ambiance</StepTitle>
+          <div className="grid grid-cols-3 gap-2.5" role="radiogroup" aria-label="Ambiance de la photo">
             {AMBIANCES.map(a => {
               const on = ambianceOf(time, sun) === a.key
               return (
@@ -584,214 +611,83 @@ export default function SceneSidebar() {
                     setSun(a.sun)
                     setInterior(true)
                   }}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-sm transition-all ${
-                    on
-                      ? 'border-[var(--rm-primary)] bg-[var(--rm-primary)]/8 text-[var(--rm-text)] ring-1 ring-[var(--rm-primary)]'
-                      : 'border-[var(--rm-text)]/12 bg-[var(--rm-bg)] text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50'
+                  className={`overflow-hidden rounded-[12px] border-2 bg-white text-left transition-all ${
+                    on ? 'border-[var(--brand-gold)] shadow-[0_0_0_3px_var(--brand-gold-tint)]' : 'border-[var(--brand-line)] hover:border-[var(--brand-blue-line)]'
                   }`}
                 >
-                  <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: a.dot }} />
-                  <span className="font-medium">{a.label}</span>
+                  <AmbianceArt kind={a.key} />
+                  <span className="block px-2.5 py-2 text-[13px] font-semibold text-[var(--brand-ink)]">{a.label}</span>
                 </button>
               )
             })}
           </div>
-          <p className="mt-2 text-xs text-[var(--rm-muted)]">
-            {AMBIANCES.find(a => a.key === ambianceOf(time, sun))?.hint} La visite 360° reste en plein jour.
+          <p className="mt-2 text-[13px] text-[var(--brand-muted)]">
+            {ambiance?.hint} La visite 360° reste en plein jour.
           </p>
         </section>
 
-        <section>
-          <SectionTitle>3 · Générer</SectionTitle>
-          <button
-            type="button"
-            onClick={() => void checkView()}
-            disabled={busy || !hasView}
-            className="mb-2 w-full rounded-xl border border-[var(--rm-text)]/15 bg-[var(--rm-bg)] px-4 py-2.5 text-sm font-medium text-[var(--rm-text)] transition-all hover:border-[var(--rm-primary)]/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {phase === 'checking' ? `Capture de la vue… ${formatClock(elapsed)}` : 'Vérifier la vue · gratuit'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void generate()}
-            disabled={busy || !hasView || noCredits}
-            className="w-full rounded-xl bg-[var(--rm-primary)] px-4 py-3 text-sm font-semibold text-[var(--rm-surface)] shadow-sm transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {running ? 'Génération en cours…' : !hasView ? 'Choisissez une vue' : noCredits ? 'Plus de crédits' : 'Générer la photo'}
-          </button>
-          {!busy && <DesktopRenderNotice kind="view" />}
-          {!busy && (
-            <p className="mt-1.5 text-center text-xs text-[var(--rm-muted)]">
-              {checked ? 'Vue vérifiée : la photo prend environ 1 minute' : 'Compter 2 à 3 minutes'}
-              {account ? (photosLeft !== null ? ' · 1 photo du forfait par photo livrée (rien si elle échoue)' : ' · 1 crédit par photo livrée (rien si elle échoue)') : ''}
-            </p>
-          )}
-          {noCredits && (
-            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              {photosLeft !== null ? 'Plus de photos IA dans votre forfait. Contactez Roomia pour l’étendre.' : 'Plus de crédits sur ce compte. Contactez Roomia pour recharger.'}
-            </p>
-          )}
-          {desktopAccount === 'signed-out' && (
-            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Les photos IA utilisent votre compte Roomia.{' '}
-              <a className="font-semibold underline underline-offset-2" href={`/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/studio' : window.location.pathname + window.location.search)}`}>
-                Se connecter
-              </a>
-            </p>
-          )}
-          {desktopAccount === 'offline' && (
-            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Serveur Roomia injoignable : les rendus Blender marchent, les photos IA attendent la connexion.
-            </p>
-          )}
-
-          {running && (
-            <div className="mt-3 rounded-xl border border-[var(--rm-text)]/10 bg-[var(--rm-bg)] p-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-[var(--rm-text)]">{step === 'photo' ? 'Création de la photo' : 'Capture de la vue'}</span>
-                <span className="tabular-nums text-[var(--rm-muted)]">{formatClock(elapsed)}</span>
-              </div>
-              <div className="mt-2 flex gap-1.5">
-                <span className={`h-1.5 flex-1 rounded-full ${step === 'capture' ? 'animate-pulse bg-[var(--rm-primary)]' : 'bg-[var(--rm-primary)]'}`} />
-                <span className={`h-1.5 flex-1 rounded-full ${step === 'photo' ? 'animate-pulse bg-[var(--rm-primary)]' : 'bg-[var(--rm-text)]/12'}`} />
-              </div>
-              <p className="mt-2 text-xs text-[var(--rm-muted)]">Ne fermez pas cette page.</p>
-            </div>
-          )}
-
-          {choice && (
-            <div className="mt-3 space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-              <p className="font-semibold">
-                {choice.reason === 'slow' ? 'Le serveur d’images est trop lent en ce moment.' : 'Le serveur d’images ne répond pas.'}
-              </p>
-              <p>La capture est gardée : rien n’est perdu et aucune photo n’est relancée sans vous. Que voulez-vous faire ?</p>
-              <button
-                type="button"
-                onClick={() => void generate({ request: lastRequest.current ?? undefined, quality: 'medium' })}
-                className="w-full rounded-lg bg-[var(--rm-primary)] px-3 py-2 text-sm font-semibold text-[var(--rm-surface)]"
-              >
-                {choice.tried === 'high' ? 'Continuer en qualité moyenne (environ 40 s)' : 'Réessayer en qualité moyenne'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void holdPhoto()}
-                className="w-full rounded-lg border border-amber-400 bg-white px-3 py-2 text-sm font-medium text-amber-900"
-              >
-                Mettre en attente, je relance plus tard
-              </button>
-            </div>
-          )}
-          {notice && <p className="mt-3 rounded-lg bg-[var(--rm-text)]/6 px-3 py-2 text-xs leading-relaxed text-[var(--rm-text)]">{notice}</p>}
-          {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">{error}</p>}
-        </section>
-
-        {held.length > 0 && (
-          <section>
-            <SectionTitle>En attente · {held.length}</SectionTitle>
-            <ul className="space-y-1.5">
-              {held.map(item => (
-                <li key={item.id} className="flex items-center gap-2 rounded-lg border border-[var(--rm-text)]/10 bg-[var(--rm-bg)] px-2.5 py-2 text-xs">
-                  <span className="min-w-0 flex-1 truncate text-[var(--rm-text)]" title={item.label}>
-                    {item.label}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void generate({ request: item.request, heldId: item.id })}
-                    className="shrink-0 rounded-md bg-[var(--rm-primary)] px-2.5 py-1.5 font-semibold text-[var(--rm-surface)] disabled:opacity-50"
-                  >
-                    Relancer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void dropHeld(item.id)}
-                    className="shrink-0 px-1 text-[var(--rm-muted)] hover:text-red-700"
-                    aria-label={`Supprimer ${item.label}`}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 text-xs text-[var(--rm-muted)]">La capture est gardée : relancer ne refait que la photo (environ 1 minute).</p>
-          </section>
-        )}
-
+        {/* the result of the last run */}
         {(photoSrc || captureSrc) && (
           <section>
-            <SectionTitle>Résultat</SectionTitle>
+            <p className="ui-label mb-2">{photoSrc ? 'Votre photo' : 'Le cadrage vérifié'}</p>
             {photoSrc ? (
               <>
                 <a href={photoSrc} target="_blank" rel="noreferrer" title="Ouvrir en grand">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photoSrc} alt="Photo de la scène" className="w-full rounded-xl shadow-md" />
+                  <img src={photoSrc} alt="Photo de la scène" className="w-full rounded-[12px] shadow-[var(--brand-shadow)]" />
                 </a>
                 <div className="mt-2 flex gap-2">
                   <a
                     href={photoSrc}
                     download={`roomia-${(useCurrent ? 'vue-actuelle' : (cameras[selected ?? 0]?.name ?? 'scene')).replace(/\s+/g, '-').toLowerCase()}.jpg`}
-                    className="flex-1 rounded-lg border border-[var(--rm-text)]/15 px-3 py-2 text-center text-xs font-medium text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50"
+                    className="ui-btn ui-btn--ghost ui-btn--sm flex-1"
                   >
+                    <Icon name="download" size={15} />
                     Télécharger
                   </a>
-                  <a
-                    href={photoSrc}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 rounded-lg border border-[var(--rm-text)]/15 px-3 py-2 text-center text-xs font-medium text-[var(--rm-text)] hover:border-[var(--rm-primary)]/50"
-                  >
-                    Ouvrir en grand
+                  <a href={photoSrc} target="_blank" rel="noreferrer" className="ui-btn ui-btn--ghost ui-btn--sm flex-1">
+                    <Icon name="fullscreen" size={15} />
+                    En grand
                   </a>
                 </div>
                 {timings && (
-                  <p className="mt-2 text-xs text-[var(--rm-muted)]">
-                    Capture {timings.capture} s · photo {timings.photo} s · total {timings.total} s
-                    {fellBack ? ' · qualité moyenne (le serveur d’images était trop lent en haute qualité)' : ''}
+                  <p className="mt-2 text-[12px] text-[var(--brand-muted)]">
+                    Faite en {timings.total} s{fellBack ? ' · qualité moyenne (le serveur d’images était trop lent en haute qualité)' : ''}
                   </p>
                 )}
                 {lastPhoto && account && !reporting && !reportState?.ok && (
-                  <button
-                    type="button"
-                    onClick={() => setReporting(true)}
-                    className="mt-2 text-left text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
-                  >
+                  <button type="button" onClick={() => setReporting(true)} className="mt-2 text-left text-[12px] text-[var(--brand-muted)] underline underline-offset-2 hover:text-[var(--brand-blue)]">
                     La photo ne respecte pas votre design ? Signaler
                   </button>
                 )}
                 {reporting && (
-                  <div className="mt-2 space-y-1.5">
+                  <div className="mt-2 space-y-2">
                     <textarea
                       value={reportText}
                       onChange={e => setReportText(e.target.value)}
                       rows={3}
                       placeholder="Ce qui a changé par rapport à votre 3D (matériau, objet ajouté ou manquant, couleur…)"
-                      className="w-full rounded-lg border border-[var(--rm-text)]/15 bg-[var(--rm-bg)] px-2.5 py-2 text-xs text-[var(--rm-text)]"
+                      className="w-full rounded-[10px] border border-[var(--brand-line-strong)] bg-white px-3 py-2 text-[13px] text-[var(--brand-ink)]"
                     />
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void sendReport()}
-                        disabled={reportText.trim().length < 5}
-                        className="rounded-lg bg-[var(--rm-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--rm-surface)] disabled:opacity-50"
-                      >
+                      <button type="button" onClick={() => void sendReport()} disabled={reportText.trim().length < 5} className="ui-btn ui-btn--primary ui-btn--sm">
                         Envoyer
                       </button>
-                      <button type="button" onClick={() => setReporting(false)} className="text-xs text-[var(--rm-muted)]">
+                      <button type="button" onClick={() => setReporting(false)} className="ui-btn ui-btn--quiet ui-btn--sm">
                         Annuler
                       </button>
                     </div>
                   </div>
                 )}
-                {reportState && <p className={`mt-2 text-xs ${reportState.ok ? 'text-emerald-700' : 'text-red-700'}`}>{reportState.text}</p>}
+                {reportState && <p className={`mt-2 text-[12px] ${reportState.ok ? 'text-[var(--brand-success)]' : 'text-[var(--brand-danger)]'}`}>{reportState.text}</p>}
               </>
             ) : (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={captureSrc ?? ''} alt="Capture de la scène" className={`w-full rounded-xl ${checked ? '' : 'opacity-80'}`} />
+                <img src={captureSrc ?? ''} alt="Capture de la scène" className={`w-full rounded-[12px] ${checked ? '' : 'opacity-80'}`} />
                 {checked && (
-                  <p className="mt-2 text-xs leading-relaxed text-[var(--rm-muted)]">
-                    Capture de vérification (gratuite), avant l’étape photo. Si le cadrage est bon, cliquez sur « Générer la photo ».
-                    Sinon, changez de vue ou d’objectif, ou cadrez vous-même avec « Vue actuelle ».
+                  <p className="mt-2 text-[13px] leading-relaxed text-[var(--brand-muted)]">
+                    Le cadrage vous convient ? Lancez « Faire la photo ». Sinon, changez de vue ou d’objectif, ou cadrez librement.
                   </p>
                 )}
               </>
@@ -799,9 +695,31 @@ export default function SceneSidebar() {
           </section>
         )}
 
+        {held.length > 0 && (
+          <section>
+            <p className="ui-label mb-2">En attente · {held.length}</p>
+            <ul className="space-y-1.5">
+              {held.map(item => (
+                <li key={item.id} className="flex items-center gap-2 rounded-[10px] border border-[var(--brand-line)] bg-[var(--brand-paper)] px-3 py-2 text-[13px]">
+                  <span className="min-w-0 flex-1 truncate text-[var(--brand-ink)]" title={item.label}>
+                    {item.label}
+                  </span>
+                  <button type="button" disabled={busy} onClick={() => void generate({ request: item.request, heldId: item.id })} className="ui-btn ui-btn--primary ui-btn--sm">
+                    Relancer
+                  </button>
+                  <button type="button" onClick={() => void dropHeld(item.id)} className="ui-btn ui-btn--quiet ui-btn--icon ui-btn--sm" aria-label={`Supprimer ${item.label}`}>
+                    <Icon name="close" size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[12px] text-[var(--brand-muted)]">La capture est gardée : relancer ne refait que la photo (environ 1 minute).</p>
+          </section>
+        )}
+
         {photos.length > 0 && (
           <section>
-            <SectionTitle>Mes photos · {photos.length}</SectionTitle>
+            <p className="ui-label mb-2">Photos de ce projet · {photos.length}</p>
             <div className="grid grid-cols-3 gap-1.5">
               {photos.slice(0, showAllPhotos ? photos.length : 9).map(photo => (
                 <a
@@ -810,42 +728,120 @@ export default function SceneSidebar() {
                   target="_blank"
                   rel="noreferrer"
                   title={[photo.view, photo.time, photo.lens && `${photo.lens} mm`, photo.quality, photo.fellBack && 'qualité moyenne (secours)'].filter(Boolean).join(' · ')}
-                  className="block overflow-hidden rounded-lg border border-[var(--rm-text)]/10"
+                  className="block overflow-hidden rounded-[8px]"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/scenes/${sceneId}/photos/${photo.file}?w=360`} alt={photo.view ?? 'Photo'} loading="lazy" className="aspect-[3/2] w-full object-cover" />
+                  <img src={`/api/scenes/${sceneId}/photos/${photo.file}?w=360`} alt={photo.view ?? 'Photo'} loading="lazy" className="aspect-[3/2] w-full object-cover transition-transform hover:scale-105" />
                 </a>
               ))}
             </div>
             {photos.length > 9 && (
-              <button
-                type="button"
-                onClick={() => setShowAllPhotos(v => !v)}
-                className="mt-2 text-xs text-[var(--rm-muted)] underline underline-offset-2 hover:text-[var(--rm-text)]"
-              >
+              <button type="button" onClick={() => setShowAllPhotos(v => !v)} className="mt-2 text-[12px] text-[var(--brand-muted)] underline underline-offset-2 hover:text-[var(--brand-blue)]">
                 {showAllPhotos ? 'Voir moins' : `Voir les ${photos.length} photos`}
               </button>
             )}
-            <p className="mt-1.5 text-xs text-[var(--rm-muted)]">Toutes les photos de cette scène sont gardées, même si votre connexion coupe.</p>
           </section>
         )}
+      </div>
 
-        {/* Saved views are optional: the tour places its own points in every room. The Studio opens it in review
-            mode, where the photo-quality 360° show before they are approved. */}
-        <a
-          href={`/studio/tour/${sceneId}`}
-          className="block rounded-xl border border-[var(--rm-primary)]/50 bg-[var(--rm-primary)]/10 px-3 py-2.5 text-sm font-semibold text-[var(--rm-text)] hover:border-[var(--rm-primary)]"
-        >
-          Page du projet : visite 360°, plans, vidéo, photos →
-          <span className="mt-0.5 block text-xs font-normal text-[var(--rm-muted)]">
-            Tout l’appartement en plein jour (Blender), plan 2D coté et plan 3D, points de vue placés automatiquement
-            {cameras.length ? ` (+ ${cameras.length} vue${cameras.length > 1 ? 's' : ''} du fichier)` : ''}.
-          </span>
-        </a>
+      {/* 3 · the one action, always in sight */}
+      <div className="border-t border-[var(--brand-line)] bg-white px-5 pb-5 pt-4">
+        {blocker && (
+          <p className={`ui-notice mb-3 !text-[13px] ${blocker.tone === 'warn' ? 'ui-notice--warn' : ''}`}>
+            <Icon name={blocker.tone === 'warn' ? 'warn' : 'user'} size={15} />
+            {blocker.text === 'signed-out' ? (
+              <span>
+                Les photos utilisent votre compte Roomia.{' '}
+                <a className="font-semibold underline underline-offset-2" href={`/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/studio' : window.location.pathname + window.location.search)}`}>
+                  Se connecter
+                </a>
+              </span>
+            ) : (
+              <span>{blocker.text}</span>
+            )}
+          </p>
+        )}
 
-        {/* 14 Nov: "Options avancées" removed (the user: it served no purpose); the import's warning stays visible when there is one */}
-        {importedRoom.warning && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{importedRoom.warning}</p>}
+        {running && (
+          <div className="mb-3 rounded-[12px] bg-[var(--brand-blue-tint)] p-3">
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--brand-blue-deep)]">{step === 'photo' ? 'Création de la photo' : 'Capture de la vue'}</span>
+              <span className="tabular-nums text-[var(--brand-blue)]">{formatClock(elapsed)}</span>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <span className={`h-1.5 flex-1 rounded-full ${step === 'capture' ? 'animate-pulse bg-[var(--brand-blue)]' : 'bg-[var(--brand-blue)]'}`} />
+              <span className={`h-1.5 flex-1 rounded-full ${step === 'photo' ? 'animate-pulse bg-[var(--brand-blue)]' : 'bg-[var(--brand-blue-line)]'}`} />
+            </div>
+            <p className="mt-2 text-[12px] text-[var(--brand-blue-deep)]">Ne fermez pas cette fenêtre.</p>
+          </div>
+        )}
+
+        {choice && (
+          <div className="ui-notice ui-notice--warn mb-3 flex-col !gap-2 !text-[13px]">
+            <p className="font-semibold">{choice.reason === 'slow' ? 'Le serveur d’images est trop lent en ce moment.' : 'Le serveur d’images ne répond pas.'}</p>
+            <p>La capture est gardée : rien n’est perdu et aucune photo n’est relancée sans vous.</p>
+            <button type="button" onClick={() => void generate({ request: lastRequest.current ?? undefined, quality: 'medium' })} className="ui-btn ui-btn--primary ui-btn--sm ui-btn--block">
+              {choice.tried === 'high' ? 'Continuer en qualité moyenne (environ 40 s)' : 'Réessayer en qualité moyenne'}
+            </button>
+            <button type="button" onClick={() => void holdPhoto()} className="ui-btn ui-btn--ghost ui-btn--sm ui-btn--block">
+              Mettre en attente, je relance plus tard
+            </button>
+          </div>
+        )}
+        {notice && <p className="ui-notice mb-3 !text-[13px]">{notice}</p>}
+        {error && (
+          <p className="ui-notice ui-notice--danger mb-3 !text-[13px]">
+            <Icon name="warn" size={15} />
+            <span>{error}</span>
+          </p>
+        )}
+
+        <button type="button" onClick={() => void generate()} disabled={busy || !hasView || noCredits} className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">
+          <Icon name="sparkle" size={18} />
+          {running ? 'Photo en cours…' : 'Faire la photo'}
+        </button>
+        <div className="mt-2 flex items-center justify-between gap-2 text-[12.5px] text-[var(--brand-muted)]">
+          <span>{!hasView ? 'Choisissez une vue ci-dessus.' : checked ? 'Cadrage vérifié · environ 1 minute' : 'Environ 2 à 3 minutes'}</span>
+          <button type="button" onClick={() => void checkView()} disabled={busy || !hasView} className="font-semibold text-[var(--brand-blue)] underline-offset-2 hover:underline disabled:opacity-40 disabled:no-underline">
+            {phase === 'checking' ? `Vérification… ${formatClock(elapsed)}` : 'Vérifier le cadrage'}
+          </button>
+        </div>
+        {!busy && <DesktopRenderNotice kind="view" className="mt-2" />}
       </div>
     </aside>
+  )
+}
+
+function StepTitle({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <h3 className="mb-3 flex items-center gap-2.5 text-[15px] font-bold text-[var(--brand-ink)]">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--brand-blue)] text-[12px] font-bold text-white">{n}</span>
+      {children}
+    </h3>
+  )
+}
+
+/** A small picture of each light, drawn in CSS: the sky through a window, the sun or the moon, the lamps. */
+function AmbianceArt({ kind }: { kind: string }) {
+  const sky =
+    kind === 'jour'
+      ? 'linear-gradient(180deg,#cfe6f2 0%,#eef6f8 55%,#f7f1e3 100%)'
+      : kind === 'soiree'
+        ? 'linear-gradient(180deg,#f2b27a 0%,#f6cf9a 45%,#f3e2c6 100%)'
+        : 'linear-gradient(180deg,#0b2430 0%,#123848 60%,#1c4554 100%)'
+  return (
+    <span className="relative block h-16 overflow-hidden" style={{ background: sky }} aria-hidden="true">
+      {kind === 'jour' && <span className="absolute right-3 top-2.5 h-5 w-5 rounded-full bg-[#fff6d8] shadow-[0_0_18px_6px_rgba(255,240,190,0.9)]" />}
+      {kind === 'soiree' && <span className="absolute bottom-3 left-1/2 h-7 w-7 -translate-x-1/2 rounded-full bg-[#ffd9a0] shadow-[0_0_22px_8px_rgba(255,190,120,0.75)]" />}
+      {kind === 'nuit' && (
+        <>
+          <span className="absolute right-3 top-2.5 h-4 w-4 rounded-full bg-[#e9eef0] shadow-[inset_-4px_-1px_0_0_#123848]" />
+          <span className="absolute left-3 top-3 h-1 w-1 rounded-full bg-white/80" />
+          <span className="absolute left-8 top-6 h-0.5 w-0.5 rounded-full bg-white/70" />
+          <span className="absolute bottom-0 left-1/2 h-8 w-14 -translate-x-1/2 rounded-t-full bg-[radial-gradient(ellipse_at_bottom,rgba(255,196,120,0.75),transparent_70%)]" />
+        </>
+      )}
+      <span className="absolute inset-x-0 bottom-0 h-3 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.08))]" />
+    </span>
   )
 }
