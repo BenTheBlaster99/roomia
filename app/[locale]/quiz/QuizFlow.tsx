@@ -31,18 +31,22 @@ export default function QuizFlow() {
   const advancing = useRef(false)
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(QUIZ_SAVE_KEY)
-      if (raw) {
-        const saved = JSON.parse(raw) as { answers?: QuizAnswers; step?: number }
-        if (saved.answers) setAnswers(saved.answers)
-        if (typeof saved.step === 'number') setStep(saved.step)
+    // the browser's saved answers exist only after the first paint (the server cannot read them)
+    function restore() {
+      try {
+        const raw = sessionStorage.getItem(QUIZ_SAVE_KEY)
+        if (raw) {
+          const saved = JSON.parse(raw) as { answers?: QuizAnswers; step?: number }
+          if (saved.answers) setAnswers(saved.answers)
+          if (typeof saved.step === 'number') setStep(saved.step)
+        }
+      } catch {
+        /* ignore a broken save */
+      } finally {
+        setReady(true)
       }
-    } catch {
-      /* ignore a broken save */
-    } finally {
-      setReady(true)
     }
+    queueMicrotask(restore)
   }, [])
 
   useEffect(() => {
