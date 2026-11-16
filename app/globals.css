@@ -168,7 +168,7 @@ body {
 }
 
 .rm-btn-primary:hover {
-  background: #163b2f;
+  background: var(--brand-blue-deep);
   transform: translateY(-1px);
 }
 
@@ -294,7 +294,7 @@ body {
   position: relative;
   height: auto;
   overflow: visible;
-  background: #1a2f26;
+  background: var(--brand-blue-deep);
 }
 
 .rm-why-spacer {
@@ -311,7 +311,7 @@ body {
   }
 
   .rm-stack-layer {
-    box-shadow: 0 -32px 80px -12px rgba(14, 23, 20, 0.5);
+    box-shadow: 0 -32px 80px -12px color-mix(in srgb, var(--brand-ink) 50%, transparent);
   }
 
   .rm-stack-layer-pin {
@@ -328,7 +328,7 @@ body {
     height: calc(100svh - var(--rm-nav-h));
     overflow: hidden;
     background: var(--rm-primary);
-    box-shadow: 0 -32px 80px -12px rgba(14, 23, 20, 0.5);
+    box-shadow: 0 -32px 80px -12px color-mix(in srgb, var(--brand-ink) 50%, transparent);
   }
 
   .rm-why-spacer {
@@ -340,7 +340,7 @@ body {
 
 .rm-why-frame {
   border-radius: 1.25rem;
-  background: #fff;
+  background: var(--brand-white);
 }
 
 .rm-why-copy {
@@ -366,8 +366,8 @@ body {
   height: 100%;
   overflow: hidden;
   border-radius: 2rem;
-  background: #fff;
-  box-shadow: 0 16px 40px -28px rgba(14, 23, 20, 0.22);
+  background: var(--brand-white);
+  box-shadow: 0 16px 40px -28px color-mix(in srgb, var(--brand-ink) 22%, transparent);
   transition:
     transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -376,7 +376,7 @@ body {
 .rm-path-card:hover,
 .rm-path-card:focus-within {
   transform: translateY(-8px);
-  box-shadow: 0 34px 70px -28px rgba(14, 23, 20, 0.32);
+  box-shadow: 0 34px 70px -28px color-mix(in srgb, var(--brand-ink) 32%, transparent);
 }
 
 .rm-path-stage {
@@ -387,7 +387,7 @@ body {
   overflow: hidden;
   background:
     radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--rm-accent) 12%, transparent), transparent 42%),
-    linear-gradient(180deg, #fff 0%, var(--rm-surface) 100%);
+    linear-gradient(180deg, var(--brand-white) 0%, var(--rm-surface) 100%);
 }
 
 .rm-path-photo,
@@ -415,9 +415,9 @@ body {
   z-index: 0;
   background: linear-gradient(
     180deg,
-    rgba(14, 23, 20, 0.12) 0%,
-    rgba(244, 248, 245, 0.72) 52%,
-    #fff 100%
+    color-mix(in srgb, var(--brand-ink) 12%, transparent) 0%,
+    color-mix(in srgb, var(--brand-white) 72%, transparent) 52%,
+    var(--brand-white) 100%
   );
   opacity: 0;
   transition: opacity 0.4s ease;
@@ -445,8 +445,8 @@ body {
   gap: 0.9rem;
   padding: 0.85rem 1rem;
   border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 14px 32px -14px rgba(14, 23, 20, 0.38);
+  background: var(--brand-white);
+  box-shadow: 0 14px 32px -14px color-mix(in srgb, var(--brand-ink) 38%, transparent);
   opacity: 0;
   transform: translateY(28px);
   transition:
@@ -478,7 +478,7 @@ body {
   gap: 1rem 1.25rem;
   align-items: end;
   padding: 1.5rem 1.75rem 1.75rem;
-  background: #fff;
+  background: var(--brand-white);
 }
 
 .rm-cat-item {
@@ -488,7 +488,7 @@ body {
 }
 
 .rm-cat-photo {
-  filter: drop-shadow(0 14px 18px rgba(14, 23, 20, 0.12));
+  filter: drop-shadow(0 14px 18px color-mix(in srgb, var(--brand-ink) 12%, transparent));
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     filter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
@@ -496,14 +496,14 @@ body {
 
 .rm-cat-item:hover .rm-cat-photo {
   transform: translateY(-12px);
-  filter: drop-shadow(0 28px 24px rgba(14, 23, 20, 0.2));
+  filter: drop-shadow(0 28px 24px color-mix(in srgb, var(--brand-ink) 20%, transparent));
 }
 
 .rm-preset-card {
   overflow: hidden;
   border-radius: 1.35rem;
-  background: #fff;
-  box-shadow: 0 16px 40px -28px rgba(14, 23, 20, 0.22);
+  background: var(--brand-white);
+  box-shadow: 0 16px 40px -28px color-mix(in srgb, var(--brand-ink) 22%, transparent);
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
@@ -537,7 +537,7 @@ body {
   background: color-mix(in srgb, var(--rm-primary) 13%, var(--rm-bg));
   color: var(--rm-ink);
   font-weight: 700;
-  box-shadow: 0 10px 28px -22px rgba(14, 23, 20, 0.35);
+  box-shadow: 0 10px 28px -22px color-mix(in srgb, var(--brand-ink) 35%, transparent);
   transition:
     transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
     background 0.35s ease,
@@ -549,7 +549,7 @@ body {
   transform: translateY(-3px);
   background: color-mix(in srgb, var(--rm-primary) 20%, var(--rm-bg));
   border-color: color-mix(in srgb, var(--rm-primary) 28%, transparent);
-  box-shadow: 0 18px 36px -24px rgba(14, 23, 20, 0.4);
+  box-shadow: 0 18px 36px -24px color-mix(in srgb, var(--brand-ink) 40%, transparent);
 }
 
 .rm-style-chip-arrow {
@@ -562,7 +562,7 @@ body {
 }
 
 .rm-style-detail {
-  background: #fff;
+  background: var(--brand-white);
   color: var(--rm-ink);
 }
 
@@ -721,7 +721,7 @@ body {
   width: 1.7rem;
   height: 1.7rem;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--rm-primary) 12%, #fff);
+  background: color-mix(in srgb, var(--rm-primary) 12%, var(--brand-white));
   color: var(--rm-primary);
 }
 
@@ -750,7 +750,7 @@ body {
 .rm-style-motifs li {
   padding: 0.32rem 0.7rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--rm-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--rm-primary) 10%, var(--brand-white));
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--rm-ink);
@@ -791,14 +791,14 @@ body {
   padding: 0.85rem 1rem;
   border-radius: 0.95rem;
   background: var(--rm-primary);
-  color: #fff;
+  color: var(--brand-white);
   font-size: 0.92rem;
   font-weight: 700;
   text-align: center;
 }
 
 .rm-style-cta:hover {
-  background: #163b2f;
+  background: var(--brand-blue-deep);
 }
 
 .rm-style-photo-open {
@@ -833,8 +833,8 @@ button.rm-style-photo-open::after {
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 999px;
-  background: color-mix(in srgb, #0c0e0d 55%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--brand-blue-night) 55%, transparent);
+  color: var(--brand-white);
   font-size: 0.78rem;
   opacity: 0;
   transition: opacity 0.25s ease;
@@ -853,7 +853,7 @@ button.rm-style-photo-open:focus-visible::after {
   align-items: center;
   justify-content: center;
   padding: 3.6rem 4.4rem 2.6rem;
-  background: rgba(12, 14, 13, 0.94);
+  background: color-mix(in srgb, var(--brand-blue-night) 94%, transparent);
 }
 
 .rm-style-lightbox-frame {
@@ -874,7 +874,7 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-style-lightbox-count {
   margin-top: 0.7rem;
-  color: #fff;
+  color: var(--brand-white);
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -888,8 +888,8 @@ button.rm-style-photo-open:focus-visible::after {
   display: grid;
   place-items: center;
   border: 0;
-  background: color-mix(in srgb, #fff 14%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--brand-white) 14%, transparent);
+  color: var(--brand-white);
   cursor: pointer;
 }
 
@@ -925,7 +925,7 @@ button.rm-style-photo-open:focus-visible::after {
 .rm-style-lightbox-close:hover,
 .rm-style-lightbox-prev:hover,
 .rm-style-lightbox-next:hover {
-  background: color-mix(in srgb, #fff 26%, transparent);
+  background: color-mix(in srgb, var(--brand-white) 26%, transparent);
 }
 
 @media (min-width: 480px) {
@@ -1144,8 +1144,8 @@ button.rm-style-photo-open:focus-visible::after {
   position: relative;
   isolation: isolate;
   min-height: 100svh;
-  background: #1a2f26;
-  color: #f4efe4;
+  background: var(--brand-blue-deep);
+  color: var(--brand-white);
 }
 
 .rm-quiz-kicker {
@@ -1196,10 +1196,10 @@ button.rm-style-photo-open:focus-visible::after {
   padding: 0.75rem 1rem 0.75rem 0.85rem;
   border: 0;
   border-radius: 1.15rem;
-  background: #e7ddd1;
-  color: #1a2f26;
+  background: var(--brand-paper);
+  color: var(--brand-blue-deep);
   text-align: left;
-  box-shadow: 0 10px 24px -20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--brand-blue-night) 45%, transparent);
   cursor: pointer;
   transition:
     transform 0.2s ease,
@@ -1209,8 +1209,8 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-card:hover {
   transform: translateY(-2px);
-  background: #f3ebe2;
-  box-shadow: 0 16px 28px -18px rgba(0, 0, 0, 0.5);
+  background: var(--brand-white);
+  box-shadow: 0 16px 28px -18px color-mix(in srgb, var(--brand-blue-night) 50%, transparent);
 }
 
 .rm-quiz-card:active {
@@ -1218,8 +1218,8 @@ button.rm-style-photo-open:focus-visible::after {
 }
 
 .rm-quiz-card.is-on {
-  background: #d4b483;
-  box-shadow: 0 14px 28px -16px rgba(0, 0, 0, 0.45);
+  background: var(--brand-gold-light);
+  box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--brand-blue-night) 45%, transparent);
 }
 
 .rm-quiz-card-icon {
@@ -1230,8 +1230,8 @@ button.rm-style-photo-open:focus-visible::after {
   width: 3.15rem;
   height: 3.15rem;
   border-radius: 50%;
-  background: #d9cfc3;
-  color: #1a2f26;
+  background: var(--brand-line-strong);
+  color: var(--brand-blue-deep);
 }
 
 .rm-quiz-card-dot {
@@ -1240,18 +1240,18 @@ button.rm-style-photo-open:focus-visible::after {
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, #1a2f26 35%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--brand-blue-deep) 35%, transparent);
   background: transparent;
-  color: #1a2f26;
+  color: var(--brand-blue-deep);
   font-size: 0.72rem;
   font-weight: 800;
   line-height: 1;
 }
 
 .rm-quiz-card-dot.is-on {
-  border-color: #1a2f26;
-  background: #1a2f26;
-  color: #f4efe4;
+  border-color: var(--brand-blue-deep);
+  background: var(--brand-blue-deep);
+  color: var(--brand-white);
 }
 
 .rm-quiz-hint {
@@ -1259,7 +1259,7 @@ button.rm-style-photo-open:focus-visible::after {
   font-size: 0.82rem;
   line-height: 1.4;
   text-align: center;
-  color: color-mix(in srgb, #f4efe4 68%, transparent);
+  color: color-mix(in srgb, var(--brand-white) 68%, transparent);
 }
 
 .rm-quiz-note {
@@ -1268,7 +1268,7 @@ button.rm-style-photo-open:focus-visible::after {
   font-size: 0.82rem;
   line-height: 1.45;
   text-align: center;
-  color: color-mix(in srgb, #f4efe4 72%, transparent);
+  color: color-mix(in srgb, var(--brand-white) 72%, transparent);
 }
 
 .rm-quiz-palette-mosaic {
@@ -1313,7 +1313,7 @@ button.rm-style-photo-open:focus-visible::after {
   width: 1.05rem;
   height: 1.05rem;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(26, 47, 38, 0.12);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-blue-deep) 12%, transparent);
 }
 
 .rm-quiz-next {
@@ -1325,8 +1325,8 @@ button.rm-style-photo-open:focus-visible::after {
   margin: 0 auto 1rem;
   border: 0;
   border-radius: 1.15rem;
-  background: #d4b483;
-  color: #1a2f26;
+  background: var(--brand-gold-light);
+  color: var(--brand-blue-deep);
   font-size: 0.98rem;
   font-weight: 700;
   cursor: pointer;
@@ -1338,7 +1338,7 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-next:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #e0c396;
+  background: var(--brand-gold);
 }
 
 .rm-quiz-next:disabled {
@@ -1382,10 +1382,10 @@ button.rm-style-photo-open:focus-visible::after {
   overflow: hidden;
   border: 0;
   border-radius: 1.4rem;
-  background: #e7ddd1;
-  color: #1a2f26;
+  background: var(--brand-paper);
+  color: var(--brand-blue-deep);
   text-align: left;
-  box-shadow: 0 10px 24px -20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--brand-blue-night) 45%, transparent);
   cursor: pointer;
   transition:
     transform 0.22s ease,
@@ -1394,7 +1394,7 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-visual-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 18px 32px -16px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 18px 32px -16px color-mix(in srgb, var(--brand-blue-night) 55%, transparent);
 }
 
 .rm-quiz-visual-card:hover img {
@@ -1407,8 +1407,8 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-visual-card.is-on {
   box-shadow:
-    0 0 0 3px #d4b483,
-    0 18px 32px -16px rgba(0, 0, 0, 0.5);
+    0 0 0 3px var(--brand-gold-light),
+    0 18px 32px -16px color-mix(in srgb, var(--brand-blue-night) 50%, transparent);
 }
 
 .rm-quiz-visual-card img {
@@ -1417,7 +1417,7 @@ button.rm-style-photo-open:focus-visible::after {
   width: 100%;
   height: 13.5rem;
   object-fit: cover;
-  background: #d9cfc3;
+  background: var(--brand-line-strong);
   transition: transform 0.35s ease;
 }
 
@@ -1439,7 +1439,7 @@ button.rm-style-photo-open:focus-visible::after {
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.35;
-  color: color-mix(in srgb, #1a2f26 68%, transparent);
+  color: color-mix(in srgb, var(--brand-blue-deep) 68%, transparent);
 }
 
 .rm-quiz-check {
@@ -1452,11 +1452,11 @@ button.rm-style-photo-open:focus-visible::after {
   width: 1.7rem;
   height: 1.7rem;
   border-radius: 999px;
-  background: #d4b483;
-  color: #1a2f26;
+  background: var(--brand-gold-light);
+  color: var(--brand-blue-deep);
   font-size: 0.85rem;
   font-weight: 800;
-  box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--brand-blue-night) 60%, transparent);
 }
 
 .rm-quiz-dots {
@@ -1469,13 +1469,13 @@ button.rm-style-photo-open:focus-visible::after {
 
 .rm-quiz-dots span {
   height: 0.42rem;
-  border: 1px solid #f4efe4;
+  border: 1px solid var(--brand-white);
   border-radius: 999px;
   background: transparent;
 }
 
 .rm-quiz-dots span.is-on {
-  background: #f4efe4;
+  background: var(--brand-white);
 }
 
 .rm-quiz-count {
@@ -1490,7 +1490,7 @@ button.rm-style-photo-open:focus-visible::after {
   padding-top: 0.25rem;
   border: 0;
   background: transparent;
-  color: color-mix(in srgb, #f4efe4 70%, transparent);
+  color: color-mix(in srgb, var(--brand-white) 70%, transparent);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -1498,7 +1498,7 @@ button.rm-style-photo-open:focus-visible::after {
 }
 
 .rm-quiz-restart:hover {
-  color: #d4b483;
+  color: var(--brand-gold-light);
 }
 
 /* Mobile homepage: phone scroll, not the desktop stack */
@@ -1510,15 +1510,15 @@ button.rm-style-photo-open:focus-visible::after {
   .rm-home > .rm-stack-layer:first-of-type {
     margin-top: -1.4rem;
     border-radius: 1.6rem 1.6rem 0 0;
-    box-shadow: 0 -18px 40px -18px rgba(14, 23, 20, 0.4);
+    box-shadow: 0 -18px 40px -18px color-mix(in srgb, var(--brand-ink) 40%, transparent);
   }
 
   .rm-home .rm-hero-scrim-side {
     background: linear-gradient(
       180deg,
-      rgba(14, 23, 20, 0.28) 0%,
-      rgba(14, 23, 20, 0.12) 38%,
-      rgba(14, 23, 20, 0.88) 100%
+      color-mix(in srgb, var(--brand-ink) 28%, transparent) 0%,
+      color-mix(in srgb, var(--brand-ink) 12%, transparent) 38%,
+      color-mix(in srgb, var(--brand-ink) 88%, transparent) 100%
     );
   }
 
@@ -1541,7 +1541,7 @@ button.rm-style-photo-open:focus-visible::after {
 
   .rm-home .rm-hero-checks li {
     border-radius: 999px;
-    background: rgba(244, 239, 228, 0.16);
+    background: color-mix(in srgb, var(--brand-white) 16%, transparent);
     padding: 0.4rem 0.75rem;
     font-size: 0.78rem;
   }
@@ -1570,7 +1570,7 @@ button.rm-style-photo-open:focus-visible::after {
 
   .rm-home .rm-path-wash {
     opacity: 1 !important;
-    background: linear-gradient(180deg, transparent 18%, rgba(14, 23, 20, 0.86) 100%);
+    background: linear-gradient(180deg, transparent 18%, color-mix(in srgb, var(--brand-ink) 86%, transparent) 100%);
   }
 
   .rm-home .rm-path-steps {
@@ -1588,19 +1588,19 @@ button.rm-style-photo-open:focus-visible::after {
 
   .rm-home .rm-path-copy span,
   .rm-home .rm-path-copy p {
-    color: rgba(244, 239, 228, 0.82);
+    color: color-mix(in srgb, var(--brand-white) 82%, transparent);
   }
 
   .rm-home .rm-path-copy h3 {
-    color: #f4efe4;
+    color: var(--brand-white);
   }
 
   .rm-home .rm-path-copy .rm-btn-accent {
     align-self: start;
     justify-self: start;
     margin-top: 0.65rem;
-    background: #f4efe4;
-    color: #1a2f26;
+    background: var(--brand-white);
+    color: var(--brand-blue-deep);
   }
 
   .rm-why-facts {
@@ -1615,8 +1615,8 @@ button.rm-style-photo-open:focus-visible::after {
     gap: 0.9rem;
     padding: 1rem 1.05rem;
     border-radius: 1.15rem;
-    background: #f4efe4;
-    color: #1a2f26;
+    background: var(--brand-white);
+    color: var(--brand-blue-deep);
   }
 
   .rm-why-fact-n {
@@ -1637,7 +1637,7 @@ button.rm-style-photo-open:focus-visible::after {
     margin-top: 0.35rem;
     font-size: 0.88rem;
     line-height: 1.5;
-    color: color-mix(in srgb, #1a2f26 70%, transparent);
+    color: color-mix(in srgb, var(--brand-blue-deep) 70%, transparent);
   }
 
   .rm-why-mobile-cta {
@@ -1647,11 +1647,11 @@ button.rm-style-photo-open:focus-visible::after {
     align-items: center;
     justify-content: center;
     border-radius: 0.95rem;
-    background: #f4efe4;
+    background: var(--brand-white);
     padding: 0.95rem 1.25rem;
     font-size: 0.95rem;
     font-weight: 700;
-    color: #1a2f26;
+    color: var(--brand-blue-deep);
   }
 
   .rm-cat-rail,
@@ -1689,8 +1689,8 @@ button.rm-style-photo-open:focus-visible::after {
     margin-top: 1.75rem;
     padding: 1.25rem 1.2rem 1.3rem;
     border-radius: 1.4rem;
-    background: #1a2f26;
-    color: #f4efe4;
+    background: var(--brand-blue-deep);
+    color: var(--brand-white);
   }
 
   .rm-home-quiz-mark {
@@ -1712,8 +1712,8 @@ button.rm-style-photo-open:focus-visible::after {
     min-height: 3.5rem;
     padding: 0.75rem 0.95rem;
     border-radius: 1rem;
-    background: #e7ddd1;
-    color: #1a2f26;
+    background: var(--brand-paper);
+    color: var(--brand-blue-deep);
     font-size: 0.9rem;
     font-weight: 600;
   }
@@ -1723,16 +1723,16 @@ button.rm-style-photo-open:focus-visible::after {
   }
 
   .rm-home-cta {
-    background: #1a2f26;
-    color: #f4efe4;
+    background: var(--brand-blue-deep);
+    color: var(--brand-white);
   }
 
   .rm-home-cta h2 {
-    color: #f4efe4;
+    color: var(--brand-white);
   }
 
   .rm-home-cta p {
-    color: rgba(244, 239, 228, 0.72);
+    color: color-mix(in srgb, var(--brand-white) 72%, transparent);
   }
 
   .rm-home-cta .rm-btn-primary,
@@ -1742,8 +1742,8 @@ button.rm-style-photo-open:focus-visible::after {
   }
 
   .rm-home-cta .rm-btn-primary {
-    background: #f4efe4;
-    color: #1a2f26;
+    background: var(--brand-white);
+    color: var(--brand-blue-deep);
   }
 }
 
