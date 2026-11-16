@@ -92,8 +92,8 @@ export default async function RoomsPage({
                       </div>
                       <div style={{ padding: 18, display: 'grid', gap: 4 }}>
                         <h2 className="site-h3">{preset.name}</h2>
-                        <p className="site-text" style={{ fontSize: 14, textTransform: 'capitalize' }}>
-                          {preset.budget_tier} · {t('open')}
+                        <p className="site-text" style={{ fontSize: 14 }}>
+                          <span style={{ textTransform: 'capitalize' }}>{preset.budget_tier}</span> · {t('open')}
                         </p>
                       </div>
                     </NextLink>

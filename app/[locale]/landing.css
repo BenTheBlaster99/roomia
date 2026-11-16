@@ -245,7 +245,7 @@
 @media (max-width: 860px) { .rl .offers { grid-template-columns: minmax(0, 1fr); } }
 .rl .offers article { min-width: 0; padding: 28px; border-radius: var(--brand-radius-lg); background: var(--panel); border: 1px solid var(--line); display: grid; gap: 12px; align-content: start; box-shadow: var(--brand-shadow); }
 .rl .offers article.main { position: relative; border: 2px solid var(--brand-gold); }
-.rl .offers h3 { font-family: var(--display); font-weight: 800; font-variation-settings: 'wdth' 110; font-size: 26px; text-transform: uppercase; color: var(--head); }
+.rl .offers h3 { font-family: var(--display); font-weight: 800; font-variation-settings: 'wdth' 110; font-size: 26px; line-height: 1.05; text-transform: uppercase; color: var(--head); }
 .rl .offers p { color: var(--muted); font-size: 16px; }
 .rl .offers ul { margin: 4px 0 0; padding-left: 0; list-style: none; color: var(--fg); font-size: 15px; display: grid; gap: 8px; }
 .rl .offers li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: baseline; }
