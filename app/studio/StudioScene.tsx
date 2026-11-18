@@ -5,6 +5,7 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { CameraControls, Grid } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
 const { ACTION } = CameraControlsImpl
 import { useStudioStore } from '@/store/useStudioStore'
@@ -161,12 +162,35 @@ function setToneMapping(renderer: THREE.WebGLRenderer, mode: THREE.ToneMapping) 
   renderer.toneMapping = mode
 }
 
-function ImportedSceneLook() {
+function setLook(renderer: THREE.WebGLRenderer, scene: THREE.Scene, look: { environment: THREE.Texture | null; intensity: number; exposure: number }) {
+  scene.environment = look.environment
+  scene.environmentIntensity = look.intensity
+  renderer.toneMappingExposure = look.exposure
+}
+
+function ImportedSceneLook({ walk }: { walk: boolean }) {
   const gl = useThree(state => state.gl)
+  const scene = useThree(state => state.scene)
   useEffect(() => {
-    setToneMapping(gl, THREE.NoToneMapping)
-    return () => setToneMapping(gl, THREE.ACESFilmicToneMapping)
-  }, [gl])
+    if (!walk) {
+      setToneMapping(gl, THREE.NoToneMapping)
+      return () => setToneMapping(gl, THREE.ACESFilmicToneMapping)
+    }
+    // A project walked through (18 Nov, the owner: "it feels super off", flat and grey): the soft light of a room all around
+    // (three's RoomEnvironment, made here, nothing downloaded) gives the materials their shading and their reflections, and
+    // the Khronos neutral curve keeps the designer's colours (dark ones too, which the film curve crushed) without washing them out.
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    const before = { environment: scene.environment, intensity: scene.environmentIntensity, exposure: gl.toneMappingExposure }
+    setLook(gl, scene, { environment: env, intensity: 0.75, exposure: 1 })
+    setToneMapping(gl, THREE.NeutralToneMapping)
+    return () => {
+      setLook(gl, scene, before)
+      setToneMapping(gl, THREE.ACESFilmicToneMapping)
+      env.dispose()
+      pmrem.dispose()
+    }
+  }, [gl, scene, walk])
   return null
 }
 
@@ -177,6 +201,8 @@ export default function StudioScene() {
   const captureMode = useStudioStore(s => s.captureMode)
   const importedRoom = useStudioStore(s => s.importedRoom)
   const importStatus = useStudioStore(s => s.importStatus)
+  // a project (18 Nov): walked through at eye level by WalkControls (inside ImportedRoom), no orbit and no floor grid
+  const sceneMode = Boolean(importedRoom?.sceneId)
   const { width, length, height } = room
   // 14 Nov: the old empty studio room (a cube) never shows while a project opens, nor in Roomia Desktop at all: there the Studio
   // is only ever a project's page
@@ -203,9 +229,9 @@ export default function StudioScene() {
         <Suspense fallback={null}>
           <color attach="background" args={['#eae6df']} />
 
-          {importedRoom && <ImportedSceneLook />}
-          <ambientLight intensity={importedRoom ? 1.4 : 0.65} />
-          <hemisphereLight args={['#ffffff', '#d4cfc6', 0.5]} />
+          {importedRoom && <ImportedSceneLook walk={sceneMode} />}
+          <ambientLight intensity={sceneMode ? 0.2 : importedRoom ? 1.4 : 0.65} />
+          <hemisphereLight args={['#ffffff', '#d4cfc6', sceneMode ? 0.25 : 0.5]} />
           <directionalLight
             position={[width * 0.8, height * 3, length * 0.8]}
             intensity={1.3}
@@ -224,7 +250,7 @@ export default function StudioScene() {
 
           {importedRoom ? <ImportedRoom /> : defaultRoom ? <Room /> : null}
 
-          {!captureMode && (importedRoom || defaultRoom) && (
+          {!captureMode && !sceneMode && (importedRoom || defaultRoom) && (
             <Grid
               position={[width / 2, 0.002, length / 2]}
               args={[width, length]}
@@ -244,7 +270,7 @@ export default function StudioScene() {
 
           <DragController />
           <RotationCapturePlane />
-          <CameraController />
+          {!sceneMode && <CameraController />}
         </Suspense>
       </Canvas>
     </div>

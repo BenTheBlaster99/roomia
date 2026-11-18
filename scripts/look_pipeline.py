@@ -113,16 +113,43 @@ def ensure_prepared():
     subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/look-prep.mts", args.scene], cwd=ROOT, check=True)
 
 
+def quality():
+    """
+    The final render's quality from the graphics card (18 Nov, the owner: "max everything out, if the card can take it"; Sarah
+    wants the texture of D5 / Enscape even if it takes longer). Roomia Desktop passes the card's memory (ROOMIA_GPU_VRAM_MB,
+    desktop/engine.js). ROOMIA_LOOK_QUALITY=max|balanced|standard forces one; ROOMIA_LOOK_SAMPLES / _NOISE still override.
+      max      (10 GB and more): every texture at its own size, 128 samples, noise 0.01
+      balanced (6 GB and more):  textures up to 4096 px, 64 samples, noise 0.02
+      standard (smaller, CPU):   textures up to 2048 px, 32 samples, noise 0.03 (the 9 Nov speed setting)
+    """
+    tier = os.environ.get("ROOMIA_LOOK_QUALITY", "")
+    if tier not in ("max", "balanced", "standard"):
+        vram = int(os.environ.get("ROOMIA_GPU_VRAM_MB", "0") or 0)
+        backend = os.environ.get("ROOMIA_GPU_BACKEND", "")
+        tier = "standard" if backend in ("", "CPU") and vram == 0 else "max" if vram >= 10000 else "balanced" if vram >= 6000 else "standard"
+    q = {"max": ("OFF", 128, 0.01), "balanced": ("4096", 64, 0.02), "standard": ("2048", 32, 0.03)}[tier]
+    # 18 Nov: the PC's memory too. A 4096 render on the 16 GB F5 PC peaked at 11.5 GB (the light groups put together at the end)
+    # and the system killed it. Under 24 GB: no texture above 4096 px (the F5's 10383 and 7348 px pictures) and 3072 px views.
+    ram = int(os.environ.get("ROOMIA_RAM_MB", "0") or 0)
+    if tier == "max" and 0 < ram < 24000:
+        q = ("4096",) + q[1:]
+    return tier, q
+
+
 def job(extra, views, out_dir, masks):
+    tier, (tex, spp, noise) = quality()
+    print("quality: %s (textures %s, %s samples, noise %s)" % (tier, tex, os.environ.get("ROOMIA_LOOK_SAMPLES", spp), os.environ.get("ROOMIA_LOOK_NOISE", noise)), flush=True)
     j = {"recipe": os.path.join(AUTO, "recipe-auto.json"), "cameras": os.path.join(S, "cameras.json") if os.path.exists(os.path.join(S, "cameras.json")) else os.path.join(AUTO, "no-cameras.json"),
-         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": args.look,
-         # 48 samples at noise 0.03 (9 Nov benchmark, Suite): half the time of 128 / 0.01, the same image to the eye (floor, wall, fabric crops)
-         "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", 32)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", 0.03)), "targetMedian": 0.45}
+         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": args.look, "textureLimit": tex, "quality": tier,
+         "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", spp)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", noise)), "targetMedian": 0.45}
     if not os.path.exists(j["cameras"]):
         json.dump([], open(j["cameras"], "w"))
     if not masks:
         j["noMasks"] = True
-    j["views"] = [{"name": "t%d" % p["index"], "position": p["position"], "yaw": 0, "width": 3072, "height": 1536} for p in views]
+    # 18 Nov: a max card renders at the size the visit shows (4096), no more stretching 3072 up
+    ram = int(os.environ.get("ROOMIA_RAM_MB", "0") or 0)
+    width = int(os.environ.get("ROOMIA_LOOK_WIDTH", 4096 if tier == "max" and ram >= 24000 else 3072))
+    j["views"] = [{"name": "t%d" % p["index"], "position": p["position"], "yaw": 0, "width": width, "height": width // 2} for p in views]
     # an invisible, very soft fill above each point: a room with no fixtures of its own stays readable (5 W is nothing next to real lights)
     j["fills"] = [{"position": [p["position"][0], p["position"][1] + 0.9, p["position"][2]], "power": float(os.environ.get("ROOMIA_LOOK_FILL", 25)), "color": [1.0, 0.9, 0.78]} for p in views]
     j.update(extra)
@@ -132,7 +159,7 @@ def job(extra, views, out_dir, masks):
 def finalize(names):
     lk = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
     e = dict(os.environ, LIFT=os.environ.get("LIFT", str(lk.get("lift", 0.1))), LOOK=args.look)
-    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), "0.5" if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
+    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), os.environ.get("ROOMIA_LOOK_MEDIAN", "0.5") if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
 
 
 def install(width, pairs):
@@ -255,9 +282,13 @@ if args.stage == "render":
     print("points: %d to render, %d skipped (camera): %s" % (len(pts), len(bad), bad), flush=True)
     if args.dry:
         raise SystemExit(0)
-    json.dump(job({}, pts, AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
     print("rendering %d panoramas (about 3 minutes each)..." % len(pts), flush=True)
-    blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+    # 18 Nov: two views per Blender, then a fresh one (4 still reached 8.5 GB with a browser open). One Blender for the F5's 14 views grew to 9.5 GB by the 8th and the
+    # 16 GB PC's kernel stopped it; each new Blender starts from the file again (about 20 s) with its memory back to the start.
+    batch = max(1, int(os.environ.get("ROOMIA_LOOK_BATCH", 2)))
+    for b0 in range(0, len(pts), batch):
+        json.dump(job({}, pts[b0:b0 + batch], AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
+        blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
     names = ["t%d" % p["index"] for p in pts if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
     finalize(names)
     install(4096, [(int(n[1:]), os.path.join(AUTO, n + "-pano.png")) for n in names])

@@ -1,5 +1,7 @@
 export const MAX_IMPORT_BYTES = 40 * 1024 * 1024
 export const MAX_IMPORT_TRIANGLES = 800_000
+/** Roomia Desktop draws the project's full file on the architect's own graphics card (18 Nov). */
+export const DESKTOP_MAX_TRIANGLES = 25_000_000
 export const WARN_IMPORT_TRIANGLES = 250_000
 
 export type LoadableRoomFormat = 'dae' | 'fbx' | 'obj' | 'glb' | 'gltf' | 'stl'

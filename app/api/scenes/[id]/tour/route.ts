@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
-import { confirmTourPoints, dropTourProposal, editTourPoint, startPlan3d, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { confirmTourPoints, dropTourProposal, editTourPoint, openPointsEditor, startPlan3d, readTour, stopTourBuild, stopTourPropose, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { planAutoAi } from '@/lib/look-pipeline'
 import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
 import { readMeta } from '@/lib/scene-store'
@@ -29,6 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * With { mirrors: true }: puts the real mirrors back into AI 360° views not approved yet (free).
  * With { complete: true, light? }: the build, then every stop in photo quality (paid, 1 image per stop).
  * With { propose: true }: Roomia places the points and draws the plan, renders no 360° (free, ~1 min); the page shows them.
+ * With { editPoints: true }: the points editor for a finished visit, made from the visit (instant); Blender only without a visit.
+ * With { stopPropose: true }: stops the placement of the points.
  * With { confirmPoints: { views: [sceneIndex], auto: [{ id?, name, position, target }] }, autoAi?: { max } }: the person's points;
  * the build starts with exactly those, then the Présentation and the AI finish on all of them (at most `max`).
  * With { autoAi: { views?: [{ index, name }], max } } on a plain build: the golden-hour Présentation is followed by the paid AI
@@ -67,6 +69,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return Response.json(await readTour(id))
     }
     if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id, (body as { fresh?: unknown }).fresh === true) })
+    // "Points de vue" on a finished visit (18 Nov): the editor from the visit itself, no Blender (Blender only when it can't)
+    if ((body as { editPoints?: unknown } | null)?.editPoints === true) return Response.json({ proposal: await openPointsEditor(id) })
+    // "Arrêter" while the points are being placed
+    if ((body as { stopPropose?: unknown } | null)?.stopPropose === true) {
+      await stopTourPropose(id)
+      return Response.json(await readTour(id))
+    }
     if (body?.confirmPoints) {
       const views = Array.isArray(body.confirmPoints.views) ? body.confirmPoints.views.map(Number) : []
       const auto = Array.isArray(body.confirmPoints.auto) ? (body.confirmPoints.auto as { id?: string; name: string; position: number[]; target: number[] }[]) : []

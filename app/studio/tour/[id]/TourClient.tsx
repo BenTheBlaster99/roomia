@@ -156,6 +156,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   /** "Voir l'aperçu": the visit while the final quality is still being made */
   const [preview, setPreview] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
+  /** "Points de vue" clicked on this page: only then does the editor show over a visit that exists (18 Nov) */
+  const [pointsOpen, setPointsOpen] = useState(false)
   // ?edit=1: Roomia's own controls (paid upgrades); a client opening the tour never sees them.
   const [editing] = useState(() => !published && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1')
   const swipe = useRef<{ x: number; y: number } | null>(null)
@@ -168,10 +170,17 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     if (res?.ok) setLook((await res.json()) as LookData)
   }, [sceneId, published])
   // "Arrêter": kills Blender for this scene's build now. It does not restart by itself (only a build cut by closing Roomia does).
-  const stopBuild = useCallback(async () => {
-    await fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => undefined)
-    await load()
-  }, [sceneId, load])
+  // 18 Nov: also the placement of the points and the daylight / AI finish (there was no way out of them)
+  const stopBuild = useCallback(
+    async (what: 'build' | 'points' | 'look') => {
+      const url = what === 'look' ? `/api/scenes/${sceneId}/look` : `/api/scenes/${sceneId}/tour`
+      const body = what === 'look' ? { action: 'stop' } : what === 'points' ? { stopPropose: true } : { stop: true }
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => undefined)
+      await load()
+      await loadLook()
+    },
+    [sceneId, load, loadLook],
+  )
   // "Pause after this point": the point in progress finishes, the next waits (the same flag the Présentation uses)
   const pauseBuild = useCallback(
     async (on: boolean) => {
@@ -219,6 +228,16 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     !editing &&
     !!data &&
     (building || proposing || lookRunning || (!!data.autoLook && !!data.preview && hasPano && look?.stage !== 'error') || ((look?.autoAi ?? 0) > 0 && look?.stage !== 'error'))
+
+  // 17 Nov (Sarah: "the visit won't open"): a proposal left on disk (the editor left another way, Roomia closed) no longer takes the
+  // place of the visit. Over a visit, the editor only shows after "Points de vue" on this page; a leftover one is dropped.
+  const leftover = !published && hasPano && !pointsOpen && data?.proposal?.state === 'ready' && !building
+  useEffect(() => {
+    if (!leftover) return
+    void fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dropProposal: true }) })
+      .then(() => load())
+      .catch(() => undefined)
+  }, [leftover, sceneId, load])
 
   // While anything is being made, follow the progress.
   useEffect(() => {
@@ -329,6 +348,18 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     }
   }
 
+  /** "Points de vue" on a finished visit (18 Nov): the editor opens at once, from the visit; no Blender run. */
+  async function openPoints() {
+    setPointsOpen(true)
+    await post({ editPoints: true }, 'Les points de vue n’ont pas pu s’ouvrir.')
+  }
+
+  /** Back to the visit from the editor: the proposal is dropped, nothing is rendered. */
+  async function closePoints() {
+    setPointsOpen(false)
+    await post({ dropProposal: true }, 'Impossible d’annuler.')
+  }
+
   /** Step 1: Roomia places the points and draws the plan (free, about a minute); the person sees them before anything is rendered. */
   async function propose(fresh = false) {
     const engine = await loadDesktopEngine()
@@ -436,15 +467,16 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   if (published && !current) return <div className="tour tour-message">Cette visite n’est pas disponible pour le moment.</div>
 
   // The points proposed on the plan, waiting for the person: the editor, also over a visit that exists already ("Revoir les points")
-  if (!published && data.proposal?.state === 'ready' && !building) {
+  if (!published && data.proposal?.state === 'ready' && !building && (!hasPano || pointsOpen)) {
     return (
       <PointsEditor
         sceneId={sceneId}
         proposal={data.proposal}
         busy={!!busy}
+        error={error}
         onConfirm={(p, max) => void confirmPoints(p, max)}
         onRedo={() => void propose(true)}
-        onCancel={hasPano ? () => void post({ dropProposal: true }, 'Impossible d’annuler.') : undefined}
+        onCancel={hasPano ? () => void closePoints() : undefined}
       />
     )
   }
@@ -458,7 +490,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           title={title}
           data={data}
           look={look}
-          onStop={() => void stopBuild()}
+          onStop={() => void stopBuild(data.proposal?.state === 'running' ? 'points' : building ? 'build' : 'look')}
           onPause={on => void pauseBuild(on)}
           onPreview={hasPano && editing ? () => setPreview(true) : undefined}
         />
@@ -562,7 +594,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             version={version}
             title={title}
             state={data.plan3dState}
-            onMake={published ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
+            onMake={published || data.plan3dState?.state !== 'failed' ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
           />
         ) : shown === 'gallery' ? (
           <GallerySheet sceneId={sceneId} title={title} onCreate={published ? undefined : () => setMode('photos')} />
@@ -663,12 +695,12 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                 </div>
               )}
               {!published && (
-                <button type="button" className="ui-btn ui-btn--glass ui-btn--sm" onClick={() => void propose()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
+                <button type="button" className="ui-btn ui-btn--glass ui-btn--sm" onClick={() => void openPoints()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
                   <Icon name="pin" size={15} />
                   Points de vue
                 </button>
               )}
-              {!published && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
+              {!published && (look?.stage === 'interrupted' || look?.stage === 'error') && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
               {/* Visite libre: taken out for now (15 Nov, the user); the reviewer still reaches it with ?edit=1 */}
               {data.walk && editing && (
                 <a className="ui-btn ui-btn--glass ui-btn--sm" href={`/studio/explore/${sceneId}?at=${current.index}&edit=1`}>
@@ -738,7 +770,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               <span>{data.status.step}</span>
               <ThermalNote t={data.status.thermal} />
               <progress max={data.status.total ?? 1} value={data.status.done ?? 0} />
-              <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
+              <button type="button" className="tour-stop" onClick={() => void stopBuild('build')}>
                 Arrêter
               </button>
             </>

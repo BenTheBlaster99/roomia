@@ -79,6 +79,8 @@ R = {
             # lines x2, the downlights 110 -> 150 W, so a lamp reads as switched on in broad daylight too.
             "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": 1.5, "COVES": 0.45, "COVE_LINES": 2.0, "PENDANTS": 1.5, "PENDANT_GLOW": 4, "SLOT": 10},
             "tints": {"INTERIOR": [1.0, 1.0, 1.0], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
+            # 18 Nov test: a grade fitted to the AI light's broad look (contrast 1.15, saturation 1.1, middle 0.66, warmer whites)
+            # brought Blender's own picture close to the AI's, but the final 360 (AI light on top) came out flat and milky. Kept.
             "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.4, "saturation": 1.2},
             "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 150)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
             "lift": 0.04,
@@ -96,5 +98,19 @@ if small:
 if floor_z is not None:
     R["floors"] = {"z": floor_z, "roughness": 0.1, "coat": 0.3, "minM2": 2.0,
                    "exclude": "rug|carpet|tapis|moquet|fabric|wool|velvet|fur|wood|parquet|bois|oak|walnut|timber|laminate"}
+# 18 Nov: each material's real finish from its family (look_materials.py: name, else picture): gloss, coat, sheen, metal and a
+# relief from its own picture. Glass keeps the rule above; the floors' polish (below in look_apply.py) still has the last word.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import look_materials
+    _scene = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[1]))))
+    _source = os.path.join(_scene, "source.glb")
+    if os.path.exists(_source) and os.environ.get("ROOMIA_LOOK_MATERIALS", "1") != "0":
+        _found, _textured = look_materials.classify(_source, os.path.join(os.path.dirname(os.path.abspath(out)), "materials-classes.json"))
+        _found = look_materials.overlay(_found, _textured, _scene)
+        R["materials"] += look_materials.rules(_found)
+        print("RECIPE materials: %d with their family" % len(_found))
+except Exception as e:
+    print("RECIPE materials skipped: %s" % e)
 json.dump(R, open(out, "w"), indent=1)
 print("RECIPE sun %.0f, downlights %s, glow %s" % (az, small, glow))

@@ -8,6 +8,8 @@ export interface SceneMaterialInfo {
   seeThrough: boolean
   /** How many surfaces (meshes) use it in the preview. */
   meshes: number
+  /** Its surface in the model, m² (the Matières panel lists the biggest first) */
+  area?: number
 }
 
 interface MaterialAccess {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { forfaitLeft, plural } from '@/lib/forfait'
 import type { ProposalLevel, ProposalPoint, TourProposal } from '@/lib/scene-tour'
 import { useForfait } from '../../components/useForfait'
@@ -67,6 +67,7 @@ export default function PointsEditor({
   sceneId,
   proposal,
   busy,
+  error,
   onConfirm,
   onRedo,
   onCancel,
@@ -74,6 +75,8 @@ export default function PointsEditor({
   sceneId: string
   proposal: TourProposal
   busy: boolean
+  /** what the last action answered (shown under the buttons) */
+  error?: string
   onConfirm: (points: ConfirmedPoints, aiMax: number) => void
   onRedo: () => void
   /** back to the visit as it is (when one exists): the proposal is dropped, nothing is rendered */
@@ -82,6 +85,12 @@ export default function PointsEditor({
   const levels = proposal.levels ?? []
   const eye = proposal.eye ?? 1.6
   const [points, setPoints] = useState<Edit[]>(() => (proposal.points ?? []).map(fromProposal))
+  /** the points as they came: over a visit, "Lancer" only once something changed (18 Nov: nothing is made again for nothing) */
+  const [initial] = useState(() => JSON.stringify((proposal.points ?? []).map(fromProposal).map(p => [p.key, p.on, p.name])))
+  /** the points of the visit as it is: only the ones moved, turned, added or put back are made again (18 Nov) */
+  const [inVisit] = useState(() => new Set(proposal.fromBuild ? (proposal.points ?? []).filter(p => !p.off).map(p => p.key) : []))
+  /** the plan picture didn't load (17 Nov, Sarah: a white plan with the points pushed to its edges) */
+  const [planFailed, setPlanFailed] = useState(false)
   const [levelIndex, setLevelIndex] = useState(() => (levels.find(l => l.main) ?? levels[0])?.index ?? 0)
   const [selected, setSelected] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -94,7 +103,15 @@ export default function PointsEditor({
 
   const level = levels.find(l => l.index === levelIndex) ?? levels[0]
   const kept = points.filter(p => p.on)
-  const number = useMemo(() => new Map(kept.map((p, n) => [p.key, n + 1])), [kept])
+  const dirty = points.some(p => p.changed) || JSON.stringify(points.map(p => [p.key, p.on, p.name])) !== initial
+  const toRender = kept.filter(p => p.changed || !inVisit.has(p.key))
+  // the 360 is the AI image itself (15 Nov): never a visit left at the Blender stage, so every point needs its finish
+  const blocked = !signedIn
+    ? 'Connectez-vous à votre compte Roomia (Mon espace) pour lancer la visite : chaque point est fini par l’IA.'
+    : aiMax < toRender.length
+      ? `Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet encore ${plural(aiMax, 'vue 360°', 'vues 360°')} : ${toRender.length} points à faire. Retirez-en ou contactez Roomia pour l’étendre.`
+      : null
+  const number = new Map(kept.map((p, n) => [p.key, n + 1]))
   const sel = points.find(p => p.key === selected) ?? null
 
   const update = (key: string, patch: Partial<Edit>) => setPoints(ps => ps.map(p => (p.key === key ? { ...p, ...patch } : p)))
@@ -131,7 +148,7 @@ export default function PointsEditor({
   return (
     <div className="tour points">
       <header className="points-head">
-        <Link className="tour-back" href="/studio/projets">
+        <Link className="tour-back" href="/studio/projets" onClick={() => onCancel?.()}>
           ← Mes projets
         </Link>
         <div>
@@ -175,11 +192,26 @@ export default function PointsEditor({
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/scenes/${sceneId}/tour/${level.file}?v=${encodeURIComponent(proposal.at)}`} alt="" draggable={false} onPointerDown={e => {
-              if (adding) addAt(e.clientX, e.clientY)
-              else setSelected(null)
-            }} />
-            {points
+            <img
+              src={`/api/scenes/${sceneId}/tour/${level.file}?v=${encodeURIComponent(proposal.at)}`}
+              alt=""
+              draggable={false}
+              onError={() => setPlanFailed(true)}
+              onPointerDown={e => {
+                if (adding) addAt(e.clientX, e.clientY)
+                else setSelected(null)
+              }}
+            />
+            {planFailed && (
+              <div className="points-plan-failed">
+                <strong>Le plan n’a pas pu être affiché.</strong>
+                <span>Roomia peut replacer les points et redessiner le plan.</span>
+                <button type="button" className="tour-btn" disabled={busy} onClick={onRedo}>
+                  Replacer automatiquement
+                </button>
+              </div>
+            )}
+            {!planFailed && points
               .filter(p => p.level === level.index)
               .map(p => (
                 <button
@@ -265,22 +297,23 @@ export default function PointsEditor({
             <p className="tour-big">
               {kept.length} <span>{kept.length > 1 ? 'points 360°' : 'point 360°'}</span>
             </p>
-            {!signedIn ? (
-              <p className="tour-note">Connectez-vous à votre compte Roomia (Mon espace) pour la qualité photo finale de chaque point.</p>
-            ) : aiMax < 1 ? (
-              <p className="tour-note">Plus de vues 360° dans votre forfait : contactez Roomia pour l’étendre avant de lancer la visite.</p>
-            ) : kept.length > aiMax ? (
+            {blocked ? (
+              <p className="tour-note">{blocked}</p>
+            ) : onCancel && !dirty ? (
+              <p className="tour-note">Aucun changement : votre visite reste telle quelle.</p>
+            ) : onCancel ? (
               <p className="tour-note">
-                Votre {panoLeft !== null ? 'forfait' : 'compte'} permet {plural(aiMax, 'vue finie', 'vues finies')} par l’IA : les {aiMax} premiers points auront la qualité finale,
-                les autres le rendu Blender.
+                {toRender.length
+                  ? `${plural(toRender.length, 'point à refaire', 'points à refaire')} (${plural(toRender.length, 'vue 360°', 'vues 360°')} de votre ${panoLeft !== null ? 'forfait' : 'compte'}) ; les autres gardent leur 360° fini. Plans mis à jour.`
+                  : 'Aucun point à refaire : la visite et les plans sont mis à jour, sans nouvelle vue 360°.'}
               </p>
             ) : (
-              <p className="tour-note">Rendu, lumière du jour et finition IA de chaque point, sans autre clic.</p>
+              <p className="tour-note">Rendu, lumière du jour, finition IA de chaque point et plans, en une fois, sans autre clic.</p>
             )}
           </div>
 
-          <button type="button" className="tour-btn" disabled={busy || kept.length === 0} onClick={confirm}>
-            Lancer la visite 360°
+          <button type="button" className="tour-btn" disabled={busy || kept.length === 0 || !!blocked || (!!onCancel && !dirty)} onClick={confirm}>
+            {onCancel ? (toRender.length ? `Refaire ${plural(toRender.length, 'point', 'points')}` : 'Mettre à jour la visite') : 'Lancer la visite 360°'}
           </button>
           <button type="button" className="tour-btn secondary" disabled={busy} onClick={onRedo}>
             Replacer automatiquement
@@ -290,6 +323,7 @@ export default function PointsEditor({
               Garder la visite actuelle
             </button>
           )}
+          {error && <p className="tour-error">{error}</p>}
         </aside>
       </div>
     </div>

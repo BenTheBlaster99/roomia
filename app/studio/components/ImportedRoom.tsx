@@ -10,6 +10,8 @@ import { getImportedSource } from '@/lib/studio-import/imported-room-cache'
 import { registerCameraMover, registerHeavyCapture } from '@/lib/studio-import/heavy-view-camera'
 import { verticalFov } from '@/lib/scene-cameras'
 import { registerMaterialAccess } from '@/lib/studio-import/material-picker'
+import WalkControls from './WalkControls'
+import { clearGlass } from '@/lib/studio-import/walk-glass'
 
 interface LookAtControls {
   setLookAt: (px: number, py: number, pz: number, tx: number, ty: number, tz: number, animate?: boolean) => unknown
@@ -47,6 +49,8 @@ export default function ImportedRoom() {
       return
     }
     const fitted = fitImportedRoom(source, { zUp, unit, maxRoomMeters: sceneId ? 200 : 40 })
+    // a project is walked through: its glass must not veil the view
+    if (sceneId) clearGlass(fitted.object)
     setObject(fitted.object)
     applyImportedRoomDims(fitted.room)
     const current = useStudioStore.getState().importedRoom
@@ -123,15 +127,53 @@ export default function ImportedRoom() {
       }
       lit = []
     }
+    // each material's surface in m² (18 Nov, the Matières panel lists the biggest surfaces first): measured once, when asked
+    let areas: Map<string, number> | null = null
+    const measure = () => {
+      if (areas) return areas
+      const sizes = new Map<string, number>()
+      const a = new THREE.Vector3()
+      const b = new THREE.Vector3()
+      const c = new THREE.Vector3()
+      object.updateWorldMatrix(true, true)
+      object.traverse(node => {
+        const mesh = node as THREE.Mesh
+        const pos = mesh.isMesh ? (mesh.geometry?.attributes?.position as THREE.BufferAttribute | undefined) : undefined
+        if (!pos) return
+        const index = mesh.geometry.index
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        const groups = mesh.geometry.groups.length ? mesh.geometry.groups : [{ start: 0, count: index ? index.count : pos.count, materialIndex: 0 }]
+        for (const g of groups) {
+          const name = mats[g.materialIndex ?? 0]?.name
+          if (!name) continue
+          let sum = 0
+          for (let i = g.start; i + 2 < g.start + g.count; i += 3) {
+            const i0 = index ? index.getX(i) : i
+            const i1 = index ? index.getX(i + 1) : i + 1
+            const i2 = index ? index.getX(i + 2) : i + 2
+            a.fromBufferAttribute(pos, i0).applyMatrix4(mesh.matrixWorld)
+            b.fromBufferAttribute(pos, i1).applyMatrix4(mesh.matrixWorld)
+            c.fromBufferAttribute(pos, i2).applyMatrix4(mesh.matrixWorld)
+            sum += b.sub(a).cross(c.sub(a)).length() / 2
+          }
+          sizes.set(name, (sizes.get(name) ?? 0) + sum)
+        }
+      })
+      areas = sizes
+      return sizes
+    }
     registerMaterialAccess({
-      list: () =>
-        [...byName].map(([name, materials]) => ({
+      list: () => {
+        const sizes = measure()
+        return [...byName].map(([name, materials]) => ({
           name,
           color: materials[0].color ? `#${materials[0].color.getHexString()}` : '#999999',
           textured: Boolean(materials[0].map),
           seeThrough: materials[0].transparent && materials[0].opacity < 0.9,
           meshes: meshes.get(name) ?? 0,
-        })),
+          area: Math.round((sizes.get(name) ?? 0) * 10) / 10,
+        }))
+      },
       highlight: names => {
         restore()
         for (const name of names) {
@@ -214,7 +256,9 @@ export default function ImportedRoom() {
   return (
     <group>
       <primitive object={object} onClick={pickMaterial} />
-      {!captureMode && (
+      {/* a project is walked through at eye level (18 Nov); the measures would float over the walls there */}
+      {sceneId && <WalkControls object={object} />}
+      {!captureMode && !sceneId && (
         <>
           <Html position={[cx, -0.3, length + 0.1]} center>
             <div className="whitespace-nowrap rounded bg-zinc-900/80 px-2 py-0.5 text-xs font-bold text-amber-400">

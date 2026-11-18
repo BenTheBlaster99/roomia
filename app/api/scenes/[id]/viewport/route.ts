@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
-import { readMeta, viewportPath } from '@/lib/scene-store'
+import { readMeta, sourcePath, viewportPath } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 
@@ -28,7 +28,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!meta || meta.status !== 'ready') {
     return Response.json({ detail: 'Scène pas prête' }, { status: 404 })
   }
-  const file = viewportPath(id)
+  // Roomia Desktop (18 Nov, the owner: "now there is no browser, can't we read the real thing?"): the 3D view opens the full
+  // file, every triangle and texture, on this PC. The light copy stays for the web Studio.
+  const full = process.env.ROOMIA_DESKTOP === '1' ? sourcePath(id) : null
+  const file = full && (await stat(full).catch(() => null)) ? full : viewportPath(id)
   const { size } = await stat(file)
 
   const range = parseRange(req.headers.get('range'), size)

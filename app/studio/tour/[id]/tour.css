@@ -338,6 +338,8 @@
 .points-plan { position: relative; width: min(100cqw, calc(100cqh * var(--ratio))); touch-action: none; }
 .points-plan img { width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: auto; -webkit-user-drag: none; }
 .points-plan.adding, .points-plan.adding img { cursor: crosshair; }
+.points-plan-failed { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: var(--brand-blue-tint, #eef4f6); border-radius: 12px; color: var(--brand-ink); }
+.points-plan-failed .tour-btn { width: auto; }
 .points-dot {
   position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; padding: 0; border-radius: 50%; border: 2px solid #fff;
   background: var(--brand-gold); color: var(--brand-blue-night); font-size: 13px; font-weight: 700; cursor: grab; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); z-index: 2;

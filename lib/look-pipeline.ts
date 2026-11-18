@@ -246,10 +246,17 @@ function watchRender(id: string, s: LookState, total: () => number): () => void 
 }
 
 /** Free: analysis, the automatic recipe, every 360 point rendered and installed, then the suggestion of the points for the AI. */
-export async function startLookRender(id: string): Promise<LookState> {
+export async function startLookRender(id: string, only?: number[]): Promise<LookState> {
   if (lookBusy(id)) return active.get(id)!
   const meta = await readMeta(id)
   if (!meta || meta.status !== 'ready') throw new Error('Scène introuvable ou pas encore prête.')
+  // 18 Nov: only the points made again (the others kept their finished 360°); kept on disk so a resume does the same
+  // (an empty list: every point, a whole new visit)
+  if (only?.length) {
+    await mkdir(lookDir(id), { recursive: true })
+    await writeFile(onlyFile(id), JSON.stringify(only))
+  } else if (only) await rm(onlyFile(id), { force: true })
+  const points = only?.length ? only : only ? null : (JSON.parse(await readFile(onlyFile(id), 'utf8').catch(() => 'null')) as number[] | null)
   const s = fresh()
   Object.assign(s, { stage: 'running', job: 'render', step: 'Préparation de la scène…', startedAt: Date.now() })
   await save(id, s)
@@ -266,7 +273,7 @@ export async function startLookRender(id: string): Promise<LookState> {
         s.step = 'Préparation de la scène…'
         await save(id, s)
         await prepareLook(id, line)
-        return pipeline(id, ['render'], l => {
+        return pipeline(id, ['render', ...(points?.length ? ['--points', points.join(',')] : [])], l => {
           const m = /^points: (\d+) to render/.exec(l)
           if (m) planned = Number(m[1])
           line(l)
@@ -284,6 +291,7 @@ export async function startLookRender(id: string): Promise<LookState> {
         if (l.startsWith('SUGGEST ')) out = l.slice(8)
       })
       s.suggestions = out ? (JSON.parse(out) as LookSuggestion[]) : []
+      await rm(onlyFile(id), { force: true }).catch(() => undefined)
       s.stage = 'ready'
       s.step = 'La visite est prête. Vous pouvez demander la finition IA.'
     } catch (err) {
@@ -306,6 +314,14 @@ export async function startLookRender(id: string): Promise<LookState> {
 // ── One click (13 Nov, the user's ask): "Préparer la visite 360°" with the AI finish chosen goes Blender → AI light by itself ──
 
 const autoAiFile = (id: string) => path.join(lookDir(id), 'auto-ai.json')
+const onlyFile = (id: string) => path.join(lookDir(id), 'render-only.json')
+
+/** The AI finish asked for with the points (planAutoAi), kept to the points made again (18 Nov: the others are finished). */
+export async function restrictAutoAi(id: string, views: { index: number; name: string }[]): Promise<void> {
+  const plan = JSON.parse(await readFile(autoAiFile(id), 'utf8').catch(() => 'null')) as AutoAiPlan | null
+  if (!plan) return
+  await writeFile(autoAiFile(id), JSON.stringify({ ...plan, views }))
+}
 
 /** The views the AI finish will take when the Présentation is ready (by name first: the build may renumber them), at most `max`. */
 export interface AutoAiPlan {
@@ -447,7 +463,7 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
       await Promise.all([worker(), worker()])
       s.step = 'Lumière de l’IA sur les vues Blender…'
       await save(id, s)
-      const finish = await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', made.sort((a, b) => a - b).join(','), '--auto', 'auto', '--finish-only'], line, { scene: id })
+      const finish = await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', made.sort((a, b) => a - b).join(','), '--auto', 'auto', '--finish-only', '--transfer'], line, { scene: id })
       if (finish !== 0) throw new Error('L’application de la lumière a échoué (voir le journal).')
       s.stage = 'done'
       s.step = 'Finition IA terminée.'

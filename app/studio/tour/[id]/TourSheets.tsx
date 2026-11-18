@@ -129,14 +129,14 @@ export function Plan3dSheet({
             {state?.error && <span className="tour-error">{state.error}</span>}
             {onMake ? (
               <>
-                <span>Il se fait à partir du plan de la visite, sans refaire les 360°.</span>
+                <span>Il se refait à partir du plan de la visite, sans refaire les 360°.</span>
                 <button type="button" onClick={onMake}>
-                  Faire le plan 3D maintenant
+                  Refaire le plan 3D
                 </button>
                 {state?.state === 'failed' && <span className="tour-note">Si cela échoue encore : bouton Aide (?) de Mes projets → Signaler un problème, et envoyez le fichier à Roomia.</span>}
               </>
             ) : (
-              <span>Le plan 3D de cette visite n’est pas disponible.</span>
+              <span>Le plan 3D se fait avec la visite 360°, en même temps que les plans 2D.</span>
             )}
           </>
         )}

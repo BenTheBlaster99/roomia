@@ -3,6 +3,7 @@ import {
   IMPORT_COPY,
   inspectRoomFile,
   type InspectOk,
+  DESKTOP_MAX_TRIANGLES,
   MAX_IMPORT_TRIANGLES,
   WARN_IMPORT_TRIANGLES,
 } from './formats'
@@ -64,14 +65,16 @@ export async function importRoomFile(
 export async function importSceneById(sceneId: string, options: ImportRoomOptions = {}): Promise<ImportRoomResult> {
   const prepared = await waitForScene(sceneId, options.onPhase ?? (() => {}))
   if (!prepared.ok) return prepared
-  const inspected = inspectRoomFile({ name: 'viewport.glb', size: prepared.viewport.byteLength })
+  // Roomia Desktop receives the project's full file (18 Nov): the browser's size limit doesn't apply, it's already in memory
+  const desktop = typeof window !== 'undefined' && !!window.roomiaDesktop
+  const inspected = inspectRoomFile({ name: 'viewport.glb', size: desktop ? 0 : prepared.viewport.byteLength })
   if (!inspected.ok) return { ok: false, message: inspected.message }
   const local = await importLocal(null, inspected, {
     fileName: prepared.fileName ?? 'scene.glb',
     sceneId,
     buffer: prepared.viewport,
     missingTextures: prepared.missingTextures.length,
-    note: 'Aperçu allégé : le rendu final utilisera votre fichier d’origine, sans rien supprimer.',
+    note: desktop ? undefined : 'Aperçu allégé : le rendu final utilisera votre fichier d’origine, sans rien supprimer.',
   })
   return local.ok ? local : { ok: false, message: local.message }
 }
@@ -80,14 +83,16 @@ async function importViaServer(file: File, options: ImportRoomOptions): Promise<
   const prepared = await prepareOnServer(file, options.onPhase ?? (() => {}))
   if (!prepared.ok) return prepared
 
-  const inspected = inspectRoomFile({ name: 'viewport.glb', size: prepared.viewport.byteLength })
+  // Roomia Desktop receives the project's full file (18 Nov): the browser's size limit doesn't apply, it's already in memory
+  const desktop = typeof window !== 'undefined' && !!window.roomiaDesktop
+  const inspected = inspectRoomFile({ name: 'viewport.glb', size: desktop ? 0 : prepared.viewport.byteLength })
   if (!inspected.ok) return { ok: false, message: inspected.message }
   const local = await importLocal(null, inspected, {
     fileName: file.name,
     sceneId: prepared.sceneId,
     buffer: prepared.viewport,
     missingTextures: prepared.missingTextures.length,
-    note: 'Aperçu allégé : le rendu final utilisera votre fichier d’origine, sans rien supprimer.',
+    note: desktop ? undefined : 'Aperçu allégé : le rendu final utilisera votre fichier d’origine, sans rien supprimer.',
   })
   return local.ok ? local : { ok: false, message: local.message }
 }
@@ -112,7 +117,9 @@ async function importLocal(
       ? await loadRoomObjectFromGlbBuffer(extra.buffer)
       : await loadRoomObject(objectUrl, inspected.format)
     const triangleCount = countTriangles(source)
-    if (triangleCount > MAX_IMPORT_TRIANGLES) {
+    // Roomia Desktop opens the project's full file (18 Nov): the browser's limit doesn't apply there
+    const desktopScene = !!extra.sceneId && typeof window !== 'undefined' && !!window.roomiaDesktop
+    if (triangleCount > (desktopScene ? DESKTOP_MAX_TRIANGLES : MAX_IMPORT_TRIANGLES)) {
       URL.revokeObjectURL(objectUrl)
       return { ok: false, message: IMPORT_COPY.tooHeavyMesh, tooHeavy: true }
     }
@@ -133,7 +140,7 @@ async function importLocal(
       extra.missingTextures ? IMPORT_COPY.missingTextures(extra.missingTextures) : null,
       extra.note ?? null,
     ]
-    if (triangleCount > WARN_IMPORT_TRIANGLES) {
+    if (triangleCount > WARN_IMPORT_TRIANGLES && !desktopScene) {
       warnings.push('Modèle lourd — le studio peut ramer.')
     }
 

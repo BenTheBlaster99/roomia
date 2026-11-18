@@ -73,7 +73,10 @@ for k in views:
     if args.transfer:
         out = os.path.join(D, "pano-%d-light.jpg" % k)
         lin = os.path.join(S, "look", args.auto, "t%d-lin.npy" % k)
-        cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.05", "--gain-max", "20"]
+        # 18 Nov: 0.05..20 pasted the AI's own shadows onto Blender (dark blotches on ceilings, TVs, walls wherever the AI drew a
+        # thing elsewhere). The AI now only moves an area's light between 0.75x and 1.6x, over broad zones (radius 96): its warmth and
+        # brightness, never a spot; every texture stays Blender's (the user: the architect's textures exactly)
+        cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.75", "--gain-max", "1.6", "--radius", "96"]
         if os.path.exists(lin):
             cmd += ["--blender-linear", lin]
         r = subprocess.run(cmd, capture_output=True, text=True)

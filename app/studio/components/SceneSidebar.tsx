@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { applySceneView } from '@/lib/studio-import/heavy-view-camera'
 import { captureHeavyCamera } from '@/lib/studio-import/heavy-view-camera'
 import { type TimeOfDay } from '@/lib/render-lighting'
@@ -9,7 +8,8 @@ import { DEFAULT_LENS, LENSES, lensHfov, type LensId, type SceneCamera } from '@
 import { useStudioStore } from '@/store/useStudioStore'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
-import { forfaitLeft, plural, type Forfait } from '@/lib/forfait'
+import { forfaitLeft, type Forfait } from '@/lib/forfait'
+import MaterialFamiliesPanel from './MaterialFamiliesPanel'
 import DesktopRenderNotice from './DesktopRenderNotice'
 import Icon from './Icon'
 
@@ -67,12 +67,6 @@ export default function SceneSidebar() {
   const [placeholders, setPlaceholders] = useState(0)
   /** Signed-in account and its render credits (null where the Studio has no accounts). */
   const [account, setAccount] = useState<{ name: string; credits: number; forfait?: Forfait | null } | null>(null)
-  // inside Roomia Desktop (its preload): a way back to Mes projets
-  const desktop = useSyncExternalStore(
-    () => () => undefined,
-    () => !!window.roomiaDesktop,
-    () => false,
-  )
   /** Roomia Desktop with nobody signed in (or Roomia's server out of reach): the photo IA needs the account. */
   const [desktopAccount, setDesktopAccount] = useState<'signed-out' | 'offline' | null>(null)
   /** The last delivered photo, so it can be reported if it doesn't respect the design. */
@@ -207,6 +201,19 @@ export default function SceneSidebar() {
     setUseCurrent(false)
     applySceneView(withLens(cameras[index], lens))
   }
+
+  // a scene picked in the 3D view's bottom bar (18 Nov, the walk) is the photo's scene too, with this panel's lens
+  useEffect(() => {
+    const onPick = (e: Event) => {
+      const index = (e as CustomEvent<{ index: number }>).detail?.index
+      if (typeof index !== 'number' || !cameras[index]) return
+      setSelected(index)
+      setUseCurrent(false)
+      applySceneView(withLens(cameras[index], lens))
+    }
+    window.addEventListener('roomia:scene-view', onPick)
+    return () => window.removeEventListener('roomia:scene-view', onPick)
+  }, [cameras, lens])
 
   /** What to photograph: a saved view with its lens, or the camera as it is on screen now. */
   function viewRequest(): Record<string, unknown> | null {
@@ -430,15 +437,7 @@ export default function SceneSidebar() {
     <aside className="flex h-full w-[24rem] flex-shrink-0 flex-col border-l border-[var(--brand-line)] bg-white">
       {/* the project, and its page */}
       <div className="border-b border-[var(--brand-line)] px-5 pb-4 pt-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          {desktop ? (
-            <Link href="/studio/projets" className="ui-btn ui-btn--quiet ui-btn--sm -ml-2.5">
-              <Icon name="back" size={15} />
-              Mes projets
-            </Link>
-          ) : (
-            <span />
-          )}
+        <div className="mb-2 flex items-center justify-end gap-2">
           <button type="button" onClick={clearImportedRoom} className="ui-btn ui-btn--quiet ui-btn--sm" title="Fermer cette scène dans le Studio (le projet reste dans Mes projets)">
             Fermer
           </button>
@@ -446,25 +445,6 @@ export default function SceneSidebar() {
         <h2 className="truncate text-[19px] font-bold text-[var(--brand-ink)]" title={importedRoom.fileName}>
           {importedRoom.fileName.replace(/\.(zip|glb|dae)$/i, '')}
         </h2>
-        {account && (
-          <p className="mt-1 text-[13px] text-[var(--brand-muted)]">
-            {account.name} ·{' '}
-            <span className="font-semibold text-[var(--brand-ink-soft)]">
-              {photosLeft !== null ? plural(photosLeft, 'photo restante', 'photos restantes') : `${account.credits} photo${account.credits > 1 ? 's' : ''} possible${account.credits > 1 ? 's' : ''}`}
-            </span>
-            {' · '}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-[var(--brand-blue)]"
-              onClick={async () => {
-                await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null)
-                window.location.assign('/login')
-              }}
-            >
-              se déconnecter
-            </button>
-          </p>
-        )}
         <a href={`/studio/tour/${sceneId}`} className="ui-btn ui-btn--ghost ui-btn--block mt-3 !justify-between !rounded-[12px] !border-[#ead8b8] !bg-[var(--brand-gold-tint)] !text-[var(--brand-ink)] hover:!border-[var(--brand-gold)]">
           <span className="flex items-center gap-2">
             <Icon name="pano" size={18} className="text-[var(--brand-gold-dark)]" />
@@ -558,8 +538,8 @@ export default function SceneSidebar() {
 
           {cameras.length > 0 && !useCurrent && (
             <div className="mt-4">
-              <p className="ui-label mb-2">Objectif</p>
-              <div className="ui-seg w-full" role="group" aria-label="Objectif">
+              <p className="ui-label mb-2">Angle de vue</p>
+              <div className="ui-seg w-full" role="group" aria-label="Angle de vue">
                 {LENSES.map(l => (
                   <button key={l.id} type="button" className="flex-1" aria-pressed={lens === l.id} onClick={() => chooseLens(l.id)}>
                     {l.label}
@@ -626,6 +606,11 @@ export default function SceneSidebar() {
           </p>
         </section>
 
+        {/* 3 · what the surfaces are (18 Nov): their real finish in the 360° render, remembered on this PC */}
+        <section>
+          <MaterialFamiliesPanel sceneId={sceneId} />
+        </section>
+
         {/* the result of the last run */}
         {(photoSrc || captureSrc) && (
           <section>
@@ -687,7 +672,7 @@ export default function SceneSidebar() {
                 <img src={captureSrc ?? ''} alt="Capture de la scène" className={`w-full rounded-[12px] ${checked ? '' : 'opacity-80'}`} />
                 {checked && (
                   <p className="mt-2 text-[13px] leading-relaxed text-[var(--brand-muted)]">
-                    Le cadrage vous convient ? Lancez « Faire la photo ». Sinon, changez de vue ou d’objectif, ou cadrez librement.
+                    Le cadrage vous convient ? Lancez « Faire le rendu ». Sinon, changez de vue ou d’angle de vue, ou cadrez librement.
                   </p>
                 )}
               </>
@@ -798,7 +783,7 @@ export default function SceneSidebar() {
 
         <button type="button" onClick={() => void generate()} disabled={busy || !hasView || noCredits} className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">
           <Icon name="sparkle" size={18} />
-          {running ? 'Photo en cours…' : 'Faire la photo'}
+          {running ? 'Rendu en cours…' : 'Faire le rendu'}
         </button>
         <div className="mt-2 flex items-center justify-between gap-2 text-[12.5px] text-[var(--brand-muted)]">
           <span>{!hasView ? 'Choisissez une vue ci-dessus.' : checked ? 'Cadrage vérifié · environ 1 minute' : 'Environ 2 à 3 minutes'}</span>
