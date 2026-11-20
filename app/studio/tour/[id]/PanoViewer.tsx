@@ -51,7 +51,7 @@ export default function PanoViewer({
   onReady,
   initialYaw = 0,
   initialPitch = 0,
-  initialFov = 75,
+  initialFov = 100, // 20 Nov (Sarah): every scene opens fully zoomed out, where the picture looks best (100 is the widest the wheel allows)
   still = false,
   arrive = false,
 }: {

@@ -82,7 +82,7 @@ R = {
             # 18 Nov test: a grade fitted to the AI light's broad look (contrast 1.15, saturation 1.1, middle 0.66, warmer whites)
             # brought Blender's own picture close to the AI's, but the final 360 (AI light on top) came out flat and milky. Kept.
             "grade": {"exposure": 0.5, "whiteBalance": [1.0, 1.0, 1.0], "contrast": 1.4, "saturation": 1.2},
-            "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 150)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
+            "interior": {"kelvin": 4000, "downlights": {"energy": float(os.environ.get("ROOMIA_LOOK_DOWNLIGHT_DAY", 90)), "cone": 45, "blend": 0.5, "kelvin": 4000}},
             "lift": 0.04,
             "walkExposure": -0.3,
         },

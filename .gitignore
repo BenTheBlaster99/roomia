@@ -76,5 +76,5 @@ claude.txt
 /.next-b
 /.next-c
 public/compare/
-/.next-new
+/.next-new*
 /desktop/node_modules

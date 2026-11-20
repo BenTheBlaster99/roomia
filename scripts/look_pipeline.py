@@ -159,7 +159,7 @@ def job(extra, views, out_dir, masks):
 def finalize(names):
     lk = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
     e = dict(os.environ, LIFT=os.environ.get("LIFT", str(lk.get("lift", 0.1))), LOOK=args.look)
-    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), os.environ.get("ROOMIA_LOOK_MEDIAN", "0.5") if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
+    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), os.environ.get("ROOMIA_LOOK_MEDIAN", "0.57") if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
 
 
 def install(width, pairs):
