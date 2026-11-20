@@ -9,26 +9,26 @@ Roomia turns an architect's 3D model into a client presentation: photoreal image
 
 ## Roomia Desktop
 
-> **Version 0.5.2, preview.** Version 0.1.0 is withdrawn: its package was incomplete and the app couldn't start. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
+> **Version 0.5.3, preview.** Version 0.1.0 is withdrawn: its package was incomplete and the app couldn't start. Expect rough edges, and please report any problem (see [Troubleshooting](#troubleshooting)).
 
 ### Download
 
 | File | Platform | Size |
 |---|---|---|
-| [**Roomia-0.5.2-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.5.2/Roomia-0.5.2-windows-x64.zip) | Windows 10 / 11, 64-bit | 281 MB |
+| [**Roomia-0.5.3-windows-x64.zip**](https://github.com/BenTheBlaster99/roomia/releases/download/v0.5.3/Roomia-0.5.3-windows-x64.zip) | Windows 10 / 11, 64-bit | 281 MB |
 
 All versions are on the [Releases page](https://github.com/BenTheBlaster99/roomia/releases).
 
 **SHA-256** (optional; lets you check that the download is intact):
 
 ```
-6fbe289a3381c051893c668a2e1931ed752e6406c3cc5daba17b4f413eba9e1c
+3a41819cd38a12a1efb788420fdf8cc4009329a11e4a9aa3d757fc3854951f4b
 ```
 
 To check it in PowerShell:
 
 ```powershell
-Get-FileHash .\Roomia-0.5.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\Roomia-0.5.3-windows-x64.zip -Algorithm SHA256
 ```
 
 ### System requirements
@@ -53,7 +53,7 @@ The app detects your card by itself. Before you install, update your graphics dr
 
 ### Installation
 
-1. Download **Roomia-0.5.2-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.5.2).
+1. Download **Roomia-0.5.3-windows-x64.zip** from the [Releases page](https://github.com/BenTheBlaster99/roomia/releases/tag/v0.5.3).
 2. Right-click the file and choose **Extract All…**. Pick a folder you will keep, for example `C:\Roomia`.
    Don't run the app from inside the zip: Windows only shows its contents, and Roomia won't start.
 3. Open the extracted folder and double-click **Roomia.exe**.
@@ -171,7 +171,7 @@ Your projects, your sign-in and the render engine are kept.
 
 To report a problem, use **Aide → Créer un rapport de problème…**. It saves one zip on your Desktop with the logs, the graphics card test and the state of your projects; send it to Roomia with a sentence about what happened. The report never contains your models, your renders or your password.
 
-### Known limitations (0.5.2)
+### Known limitations (0.5.3)
 
 - Windows only.
 - No installer yet: the app ships as a zip.
