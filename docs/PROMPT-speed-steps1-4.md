@@ -1,6 +1,6 @@
-# Roomia: cut the F5 render time (steps 1–4), engineering brief for Sonnet 5.5
+# Roomia: cut the F5 render time (steps 1–4) and help the architect choose the points (step 5), engineering brief for Sonnet 5.5
 
-You work alone on this. Implement, measure and verify the four changes below, then write a report. Read the whole brief before touching anything. When the brief and your own judgement disagree, follow the brief and note the disagreement in the report.
+You work alone on this. Implement, measure and verify the five changes below, then write a report. Read the whole brief before touching anything. When the brief and your own judgement disagree, follow the brief and note the disagreement in the report.
 
 ## 1. Context
 
@@ -22,7 +22,7 @@ Machine: RTX 3060 12 GB, i5-9400F (6 cores), 16 GB RAM. Projects live on a slow 
 
 Profile of one transfer (cProfile, 38.5 s): **24.6 s in 13 calls to `cv2.GaussianBlur` at full 4096×2048**, 2.9 s optical flow, 1.3 s boxFilter, about 3 s sRGB/linear conversions.
 
-## 2. The four changes
+## 2. The five changes
 
 ### Step 1: skip stage A's quick 360s when the quality render follows (target: −17 min)
 - The quick 360s (TOUR_SCRIPT, from `# Cycles (28 Oct, ChatGPT): one equirectangular render per viewpoint` up to `TOUR_TIME faces`, including the per-view meter and fill renders) are replaced by stage C. The client never sees them; the 15 Nov rule is "never show a Blender-only image".
@@ -46,6 +46,22 @@ Profile of one transfer (cProfile, 38.5 s): **24.6 s in 13 calls to `cv2.Gaussia
 - `look_render.py` sums the light groups and denoises in the **compositor** (`CompositorNodeDenoise`, prefilter ACCURATE), which runs on the CPU. Find out from the Blender 4.5 Python API (inside Blender: `dir(scene.render)`, the manual) whether the compositor can run on the GPU in background renders (for example `scene.render.compositor_device`) and whether the Denoise node then uses the GPU. If yes, switch it on; if not, report it and propose the next-best quality-neutral option. Do not replace OIDN ACCURATE with something lower.
 - Render in one tile if GPU memory allows (it uses 3.4 GB of 12): check the 4.5 property names (`use_auto_tile`, `tile_size`) and confirm the log no longer says "Reading full buffer from disk".
 - Acceptance: same thresholds as step 3, on the linear EXR and on the final JPEG, for at least 4 views (0, 4, 16, 17).
+
+### Step 5: duplicate points flagged, live time estimate before "Lancer" (product, no render change)
+The flow stays as it is since 14 Nov: "Placer les points de vue" proposes the points on the 2D plan (`placementOnly` → proposal.json), the architect edits them in `PointsEditor.tsx`, and "Lancer" starts the render. The user's decision (21 Nov): the architect confirms every point on the plan before any render, and decides the number of points knowing what it costs. Two additions:
+
+**5a. Near-duplicate points.**
+- On the F5, Point 1 and Point 6 (views 8 and 13, auto-20 and auto-12) stand almost at the same spot in the kitchen and nobody noticed.
+- Placement (the placementOnly run of TOUR_SCRIPT, `lib/scene-tour.ts`): do not create an automatic point that is too close to another point (automatic or architect scene) **and** sees it directly (no wall between them; use `scene.ray_cast`). Start from 1.5 m, report the value you settle on and why.
+- The proposal also lists the remaining near-duplicate pairs (same level, close, clear line of sight), so the editor can show them. That includes pairs the architect creates by moving or adding a point (compute in the editor from plan positions, metres from the plan scale; the wall check may come from the placement data).
+- PointsEditor: mark both points of a pair and say it plainly in French, for example « Les points 1 et 6 se ressemblent : vous pouvez en retirer un. » One click on the message selects the pair. Never remove a point by itself; the architect decides.
+- Check on the F5 copy: re-run the placement, report the old and the new point count and positions, and make sure no room lost its only point.
+
+**5b. Time estimate next to "Lancer", updating live.**
+- Show, beside the launch button, the expected time for the points that are ticked, for example « 15 points · environ 35 min sur ce PC ». It updates at once when a point is added, removed, ticked or unticked.
+- Reuse what exists: `app/studio/components/DesktopRenderNotice.tsx` already estimates a tour from a point count (and has a `fmt`). Base the per-point time on this PC's own measured renders when there are some (the render logs/state of earlier projects), else on the GPU profile the app already detects. Use the timings you obtain after steps 1–4, not today's.
+- Keep the wording short and honest (« environ »), no price, no DA (the 14 Nov rule: no money shown in this flow).
+- Check: screenshot the editor with 15 and with 20 points ticked for the report.
 
 ## 3. Hard rules
 
@@ -73,5 +89,5 @@ Profile of one transfer (cProfile, 38.5 s): **24.6 s in 13 calls to `cv2.Gaussia
   - the list of quick-360 readers from step 1;
   - what you could not do, and why;
   - what you would do next (the queue was: 4–5 views per Blender process with `malloc_trim`, the fast sun search `sunFast` checked against today's azimuth, material recognition overlapped with stage A, `emission_sampling = 'NONE'` tested on decorative glow meshes).
-- The four commits on `work/speed-steps1-4`.
-- Expected end state: the F5 first run at about 35–40 min after steps 1–4 (80 min today). State honestly where you landed.
+- The five commits on `work/speed-steps1-4` (one per step).
+- Expected end state: the F5 first run at about 35–40 min after steps 1–4 (80 min today), plus the editor flagging near-duplicates and showing the time before launch. State honestly where you landed.
