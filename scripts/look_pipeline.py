@@ -274,7 +274,10 @@ if args.stage == "render":
     an = analysis()
     fz = floor_z()
     subprocess.run([PY, os.path.join(SCRIPTS, "look_make_recipe.py"), os.path.join(AUTO, "analysis.json"), os.path.join(AUTO, "recipe-auto.json")] + ([str(fz)] if fz is not None else []), check=True)
-    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok"}
+    # 20 Nov: only Roomia's own points are dropped for a tight camera. An architect's scene is a view they chose (F5 Scène 2 looks
+    # down the dressing between the hangers): skipping it left the visit with its old pre-materials image, so it is rendered as drawn.
+    auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
+    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building")}
     pts = [p for p in points() if p["index"] not in bad]
     if args.points:
         want = {int(x) for x in args.points.split(",")}
@@ -302,7 +305,8 @@ elif args.stage == "suggest":
     import cv2
     import numpy as np
     an = json.load(open(os.path.join(AUTO, "analysis.json")))
-    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok"}
+    auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
+    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building")}
     pts = {p["index"]: p for p in points()}
     scored = []
     for i, p in pts.items():

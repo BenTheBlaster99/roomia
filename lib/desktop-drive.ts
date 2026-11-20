@@ -117,7 +117,7 @@ export function publishablePath(rel: string): boolean {
   const [dir, file, extra] = rel.split('/')
   if (extra !== undefined || !file) return false
   if (dir === 'photos') return PHOTO_FILE.test(file)
-  if (dir === 'tour') return file === 'tour.json' || TOUR_FILE.test(file)
+  if (dir === 'tour') return file === 'tour.json' || file === 'labels.json' || TOUR_FILE.test(file)
   return false
 }
 

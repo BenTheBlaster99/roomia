@@ -108,9 +108,271 @@ def read_glb(path):
     return j, f, 12 + 8 + jl + 8
 
 
+def geometry(j, f, base):
+    """
+    Where each material's surfaces stand in the apartment (19 Nov): its area, how much of it faces up, down or sideways, its
+    height span, how flat and square its faces are (a cabinet) or how curved and dense (a sofa). glTF is y-up, metres.
+    Read straight from the file with numpy (no Blender, no graphics card).
+    """
+    import numpy as np
+    acc, views = j.get("accessors", []), j.get("bufferViews", [])
+    COMP = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
+    NUM = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
+
+    def read(i):
+        a = acc[i]
+        bv = views[a["bufferView"]]
+        dt = np.dtype(COMP[a["componentType"]])
+        n, k = a["count"], NUM[a["type"]]
+        stride = bv.get("byteStride") or dt.itemsize * k
+        f.seek(base + bv.get("byteOffset", 0) + a.get("byteOffset", 0))
+        raw = np.frombuffer(f.read(stride * (n - 1) + dt.itemsize * k), np.uint8)
+        if stride == dt.itemsize * k:
+            return raw.view(dt).reshape(n, k)
+        return np.lib.stride_tricks.as_strided(raw.view(dt), (n, k), (stride, dt.itemsize)).copy()
+
+    def local(node):
+        if "matrix" in node:
+            return np.array(node["matrix"], np.float64).reshape(4, 4).T
+        t = np.array(node.get("translation", [0, 0, 0]), np.float64)
+        x, y, z, w = node.get("rotation", [0, 0, 0, 1])
+        r = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+        m = np.eye(4)
+        m[:3, :3] = r * np.array(node.get("scale", [1, 1, 1]), np.float64)[None, :]
+        m[:3, 3] = t
+        return m
+
+    stats, mats = {}, j.get("materials", [])
+    nodes = j.get("nodes", [])
+    scene = j.get("scenes", [{}])[j.get("scene", 0)] if j.get("scenes") else {"nodes": list(range(len(nodes)))}
+    stack = [(i, np.eye(4)) for i in scene.get("nodes", [])]
+    ups = []  # (height, area) of up-facing triangles, for the floor; down-facing for the ceiling
+    downs = []
+    while stack:
+        ni, parent = stack.pop()
+        node = nodes[ni]
+        m = parent @ local(node)
+        for c in node.get("children", []):
+            stack.append((c, m))
+        if "mesh" not in node:
+            continue
+        for prim in j["meshes"][node["mesh"]].get("primitives", []):
+            if prim.get("mode", 4) != 4 or "material" not in prim:
+                continue
+            name = mats[prim["material"]].get("name", "")
+            try:
+                pos = read(prim["attributes"]["POSITION"]).astype(np.float64)
+                idx = read(prim["indices"]).reshape(-1).astype(np.int64) if "indices" in prim else np.arange(len(pos))
+            except Exception:
+                continue
+            pw = pos @ m[:3, :3].T + m[:3, 3]
+            t = pw[idx[: len(idx) // 3 * 3]].reshape(-1, 3, 3)
+            if not len(t):
+                continue
+            cr = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+            ar = np.linalg.norm(cr, axis=1) / 2
+            ok = ar > 1e-9
+            if not ok.any():
+                continue
+            t, cr, ar = t[ok], cr[ok], ar[ok]
+            n = cr / (2 * ar[:, None])
+            ny = n[:, 1]
+            cy = t[:, :, 1].mean(1)
+            axis = (np.abs(n).max(1) > 0.97)
+            s = stats.setdefault(name, {"area": 0.0, "up": 0.0, "down": 0.0, "side": 0.0, "axis": 0.0, "tris": 0, "ymin": 1e9, "ymax": -1e9, "ysum": 0.0, "objects": []})
+            label = node.get("name") or j["meshes"][node["mesh"]].get("name") or ""
+            if label and label not in s["objects"] and len(s["objects"]) < 6:
+                s["objects"].append(label[:40])
+            s["area"] += float(ar.sum())
+            s["up"] += float(ar[ny > 0.8].sum())
+            s["down"] += float(ar[ny < -0.8].sum())
+            s["side"] += float(ar[np.abs(ny) < 0.3].sum())
+            s["axis"] += float(ar[axis].sum())
+            s["tris"] += int(len(ar))
+            s["ymin"] = min(s["ymin"], float(t[:, :, 1].min()))
+            s["ymax"] = max(s["ymax"], float(t[:, :, 1].max()))
+            s["ysum"] += float((cy * ar).sum())
+            big_up = (ny > 0.95)
+            if big_up.any():
+                ups.append(np.stack([cy[big_up], ar[big_up]], 1))
+            big_down = (ny < -0.95)
+            if big_down.any():
+                downs.append(np.stack([cy[big_down], ar[big_down]], 1))
+
+    def mode_height(parts):
+        if not parts:
+            return None
+        a = np.concatenate(parts)
+        h = np.round(a[:, 0] / 0.05).astype(np.int64)
+        u, inv = np.unique(h, return_inverse=True)
+        w = np.bincount(inv, weights=a[:, 1])
+        return float(u[w.argmax()] * 0.05)
+
+    floor = mode_height(ups)
+    # the ceiling: the most down-facing surface at least 1.8 m above the floor (slab undersides face down at floor level)
+    if floor is not None and downs:
+        a_ = np.concatenate(downs)
+        downs = [a_[a_[:, 0] > floor + 1.8]] if (a_[:, 0] > floor + 1.8).any() else []
+    return stats, floor, mode_height(downs)
+
+
+def by_place(s, floor, ceil):
+    """a plain material from where it stands: a wall or a ceiling is matte paint, a flat square-cut front is a painted cabinet"""
+    a = s["area"]
+    if a < 0.5:
+        return None
+    side, up, down, axis = s["side"] / a, s["up"] / a, s["down"] / a, s["axis"] / a
+    span = s["ymax"] - s["ymin"]
+    density = s["tris"] / a
+    if side > 0.7 and a >= 8 and span >= 1.8:
+        return "plaster"  # walls
+    if ceil is not None and down > 0.7 and a >= 3 and abs(s["ysum"] / a - ceil) < 0.6:
+        return "plaster"  # ceilings
+    if floor is not None and up > 0.7 and abs(s["ysum"] / a - floor) < 0.15:
+        return None  # floors: the polish of look_apply.py decides
+    if axis > 0.85 and density < 400 and a < 40 and (floor is None or s["ymin"] > floor - 0.1) and span < 2.8:
+        return "satin"  # flat, square-cut fronts: cabinets, doors, shelves
+    return None
+
+
+FAMILY_WORDS = ", ".join(k for k in FAMILIES if k != "stone_soft")
+
+
+MATERIALS_MODEL = os.environ.get("ROOMIA_MATERIALS_MODEL", "anthropic/claude-haiku-5.5")
+
+
+def _ask(prompt, image_b64=None):
+    """
+    One JSON answer from Coconut's AI gateway (OPENAI_API_KEY + OPENAI_BASE_URL, an OpenAI-style chat with a picture; 19 Nov, the
+    owner: Coconut's key, not a Gemini key). A desktop PC holds no key: it asks Roomia's server (ROOMIA_CLOUD_URL + its account
+    token), which asks the gateway. None when neither is there.
+    """
+    import ssl, time, urllib.request
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    base = os.environ.get("OPENAI_BASE_URL", "").strip().rstrip("/")
+    cloud = os.environ.get("ROOMIA_CLOUD_URL", "").strip()
+    token = ""
+    tf = os.environ.get("ROOMIA_CLOUD_TOKEN_FILE", "")
+    if tf and os.path.exists(tf):
+        try:
+            token = json.load(open(tf)).get("token", "")
+        except Exception:
+            token = ""
+    if not (key and base) and not (cloud and token):
+        return None
+    # Blender's own Python knows no certificates on Linux: the system's bundle (Windows' Python reads the Windows store itself)
+    ctx = ssl.create_default_context()
+    for ca in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem"):
+        if os.path.exists(ca):
+            ctx.load_verify_locations(ca)
+            break
+
+    def parse(text):
+        # the JSON object in the answer (a model may wrap it in a code fence or a sentence)
+        return json.loads(text[text.index("{"): text.rindex("}") + 1])
+
+    # the gateway is behind Cloudflare, which refuses Python's own User-Agent (403)
+    ua = {"User-Agent": "RoomiaDesktop/1.0"}
+
+    for attempt in range(3):
+        try:
+            if key and base:
+                content = [{"type": "text", "text": prompt}]
+                if image_b64:
+                    content.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image_b64}})
+                body = {"model": MATERIALS_MODEL, "messages": [{"role": "user", "content": content}], "temperature": 0, "max_tokens": 4000}
+                req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
+                                             headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, **ua})
+                r = json.load(urllib.request.urlopen(req, timeout=150, context=ctx))
+                return parse(r["choices"][0]["message"]["content"])
+            req = urllib.request.Request(cloud.rstrip("/") + "/api/desktop/materials", data=json.dumps({"image": image_b64 or "", "prompt": prompt}).encode(),
+                                         headers={"Content-Type": "application/json", "Authorization": "Bearer " + token, **ua})
+            return json.load(urllib.request.urlopen(req, timeout=180, context=ctx)).get("families")
+        except Exception as e:
+            print("MATERIALS ai try %d: %s" % (attempt + 1, str(e)[:160]), flush=True)
+            time.sleep(4)
+    return None
+
+
+def by_ai_text(entries):
+    """
+    The plain materials nothing placed yet (19 Nov, "all 543"): their name, colour, size, the way they face, their height in the
+    room and the names of the objects they are on ("Sofa", "Handle", "Lamp") go to the AI as text; it names each one's family.
+    """
+    out = {}
+    for start in range(0, len(entries), 70):
+        chunk = entries[start:start + 70]
+        prompt = ("Materials of an architect's 3D model of an apartment interior (SketchUp). For each, say what it is in real life, one word from: "
+                  + FAMILY_WORDS + ". Always pick the most likely one. Clues: the objects it is on, its colour, its total area, which way its "
+                  "faces point, its height above the floor. Matte wall/ceiling paint = plaster; painted cabinet fronts, doors, shelves = satin; "
+                  "high-gloss = lacquer; sofas, cushions, curtains, bedding = fabric; rugs = carpet; handles, taps, frames in grey = metal; "
+                  "shiny chrome = chrome; brass/gold = gold; screens, appliances, small plastic parts = plastic; books, prints, posters = paper; "
+                  "ceramic sinks, toilets, vases = tile.\n"
+                  + "\n".join("%d: %s" % (i, e) for i, (_, e) in enumerate(chunk))
+                  + '\nAnswer with JSON only: {"<number>": "<family>", ...} for every number.')
+        answer = _ask(prompt) or {}
+        for k_, fam in answer.items():
+            try:
+                i = int(k_)
+            except Exception:
+                continue
+            if 0 <= i < len(chunk) and fam in FAMILIES:
+                out[chunk[i][0]] = fam
+    return out
+
+
+def by_ai(items, pictures):
+    """
+    The pictures Roomia could not place, shown to an AI that names their family (19 Nov): contact sheets of 48 numbered samples
+    with their names, one call each (Coconut's gateway, a text model that reads pictures; cheap, not the image model). On a desktop PC without the key, through Roomia's
+    server (ROOMIA_CLOUD_URL + the account token). Returns {name: family}; nothing when neither is there.
+    """
+    import base64
+    from PIL import Image, ImageDraw
+    out = {}
+    T = 160
+    for start in range(0, len(items), 48):
+        chunk = items[start:start + 48]
+        sheet = Image.new("RGB", (8 * T, ((len(chunk) + 7) // 8) * T), "white")
+        d = ImageDraw.Draw(sheet)
+        lines = []
+        for i, (name, tex) in enumerate(chunk):
+            im = pictures.get(tex)
+            if im is None:
+                continue
+            tile = im.convert("RGB")
+            w, h = tile.size
+            c = min(w, h)
+            tile = tile.crop(((w - c) // 2, (h - c) // 2, (w - c) // 2 + c, (h - c) // 2 + c)).resize((T - 4, T - 4))
+            x, y = (i % 8) * T, (i // 8) * T
+            sheet.paste(tile, (x + 2, y + 2))
+            d.rectangle((x + 2, y + 2, x + 30, y + 20), fill="white")
+            d.text((x + 5, y + 5), str(i), fill="black")
+            lines.append("%d: %s" % (i, name[:60]))
+        buf = io.BytesIO()
+        sheet.save(buf, "JPEG", quality=88)
+        prompt = ("These are material textures from an architect's 3D model of an apartment interior. Each square has a number; "
+                  "the material names are listed below. For each number, say what the material is in real life, one word from: "
+                  + FAMILY_WORDS + ", or unknown (a photo, a picture, a logo, a screen, food, or you are not sure). "
+                  "marble/granite/terrazzo/travertine = stone; ceramic and tiles = tile; high-gloss = lacquer; painted wood or MDF fronts = satin; "
+                  "matte wall paint, plaster, concrete = plaster; rugs = carpet; brushed or dark metal = metal; polished chrome or steel = chrome; brass/gold/copper = gold.\n"
+                  + "\n".join(lines) + '\nAnswer with JSON only: {"<number>": "<family>", ...}')
+        answer = _ask(prompt, base64.b64encode(buf.getvalue()).decode())
+        for k_, fam in (answer or {}).items():
+            try:
+                i = int(k_)
+            except Exception:
+                continue
+            if 0 <= i < len(chunk) and fam in FAMILIES:
+                out[chunk[i][0]] = fam
+    return out
+
+
 def classify(source, out):
     st = os.stat(source)
-    key = {"size": st.st_size, "mtime": int(st.st_mtime), "v": 5}
+    key = {"size": st.st_size, "mtime": int(st.st_mtime), "v": 10}
     if os.path.exists(out):
         try:
             d = json.load(open(out))
@@ -138,20 +400,87 @@ def classify(source, out):
         pictures[tex_index] = im
         return im
 
+    # 1. the name; see-through materials (glass) and glass/mirror names are left to look_apply.py
+    unknown_tex, unknown_plain, skipped = [], [], set()
     for m in j.get("materials", []):
         name = m.get("name", "")
-        if not name or name in found:
+        if not name or name in textured_all:
             continue
-        family, why = by_name(name), "name"
-        tex = (m.get("pbrMetallicRoughness") or {}).get("baseColorTexture")
+        pbr = m.get("pbrMetallicRoughness") or {}
+        tex = pbr.get("baseColorTexture")
         textured_all[name] = tex is not None
-        if family is None and tex is not None:
-            im = picture(tex.get("index"))
-            family, why = (by_picture(im) if im is not None else None), "picture"
-        if family and family != "skip":
-            found[name] = {"family": family, "why": why, "textured": tex is not None}
+        alpha = (pbr.get("baseColorFactor") or [1, 1, 1, 1])[3]
+        family = by_name(name)
+        if family == "skip" or (m.get("alphaMode") == "BLEND" and alpha < 0.9):
+            skipped.add(name)
+            continue
+        if family:
+            found[name] = {"family": family, "why": "name", "textured": tex is not None}
+        elif tex is not None:
+            unknown_tex.append((name, tex.get("index")))
+        else:
+            unknown_plain.append(name)
+    # 2. the AI on the textures the name did not tell (one call per 48), cached with the rest
+    for _, t in unknown_tex:
+        picture(t)
+    ai = by_ai(unknown_tex, pictures) if os.environ.get("ROOMIA_LOOK_MATERIALS_AI", "1") != "0" else {}
+    for name, t in unknown_tex:
+        fam, why = ai.get(name), "ai"
+        if not fam:
+            im = pictures.get(t)
+            fam, why = (by_picture(im) if im is not None else None), "picture"
+        if fam:
+            found[name] = {"family": fam, "why": why, "textured": True}
+    # 3. where the plain ones stand: walls, ceilings, cabinet fronts
+    try:
+        stats, floor, ceil = geometry(j, f, base)
+    except Exception as e:
+        print("MATERIALS geometry skipped: %s" % e, flush=True)
+        stats, floor, ceil = {}, None, None
+    for name in unknown_plain:
+        s = stats.get(name)
+        fam = by_place(s, floor, ceil) if s else None
+        if fam:
+            found[name] = {"family": fam, "why": "place", "textured": False}
+    # 4. every other one (19 Nov, "all 543"): the AI with its context, as text
+    def hexcol(name):
+        m = next((x for x in j.get("materials", []) if x.get("name") == name), {})
+        c = (m.get("pbrMetallicRoughness") or {}).get("baseColorFactor") or [1, 1, 1, 1]
+        return "#%02x%02x%02x" % tuple(int(max(0, min(1, v)) ** (1 / 2.2) * 255) for v in c[:3])
+
+    def describe(name):
+        s = stats.get(name)
+        parts = ['"%s"' % name[:50], "picture" if textured_all.get(name) else "plain " + hexcol(name)]
+        if s and s["area"] > 0:
+            a = s["area"]
+            face = "up" if s["up"] / a > 0.6 else "down" if s["down"] / a > 0.6 else "vertical" if s["side"] / a > 0.6 else "mixed"
+            h = (s["ysum"] / a - floor) if floor is not None else None
+            parts.append("%.1f m2, faces %s%s, %s" % (a, face, ", %.1f m above floor" % h if h is not None else "",
+                                                      "flat boxy" if s["axis"] / a > 0.85 else "curved/detailed"))
+            if s.get("objects"):
+                parts.append("on: " + ", ".join(s["objects"]))
+        return " | ".join(parts)
+
+    rest = [n for n in textured_all if n not in found and n not in skipped]
+    if rest and os.environ.get("ROOMIA_LOOK_MATERIALS_AI", "1") != "0":
+        for name, fam in by_ai_text([(n, describe(n)) for n in rest]).items():
+            # a metal guessed from words alone stays on small things: a big metal surface wrongly so is a dark mirror (the F5's
+            # "Patina" floor, 18 Nov); one of 1 m2 or more is a painted surface instead
+            if fam in ("metal", "chrome", "gold") and stats.get(name, {}).get("area", 0) >= 1.0:
+                fam = "satin"
+            found[name] = {"family": fam, "why": "ai-text", "textured": bool(textured_all.get(name))}
+    # 5. a safe finish for anything still unsure: nothing stays without one
+    for name in textured_all:
+        if name in found or name in skipped:
+            continue
+        a = stats.get(name, {}).get("area", 0)
+        found[name] = {"family": "satin" if a >= 1 else "plastic", "why": "default", "textured": bool(textured_all.get(name))}
+    # glass and mirrors: their own rules in look_apply.py (counted, never given a family finish)
+    for name in skipped:
+        found[name] = {"family": "mirror" if re.search(r"mirror|miroir|espelho|espejo|specchio|镜", name, re.I) else "glass", "why": "name", "textured": bool(textured_all.get(name))}
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    json.dump({"key": key, "materials": found, "textured": textured_all}, open(out, "w"), indent=1, ensure_ascii=False)
+    json.dump({"key": key, "materials": found, "textured": textured_all, "floor": floor, "ceiling": ceil,
+               "areas": {n: round(v["area"], 2) for n, v in stats.items()}}, open(out, "w"), indent=1, ensure_ascii=False)
     return found, textured_all
 
 

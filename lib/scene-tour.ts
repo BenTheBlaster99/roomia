@@ -5631,7 +5631,7 @@ export async function reviewTourAi(sceneId: string, index: number, approve: bool
 /** The names the person gave the points (14 Nov), apart from tour.json so a new build keeps them: "view:<SketchUp scene>" or "auto:<id>". */
 const labelsPath = (sceneId: string) => path.join(tourDir(sceneId), 'labels.json')
 export const readLabels = async (sceneId: string) => JSON.parse(await readFile(labelsPath(sceneId), 'utf8').catch(() => '{}')) as Record<string, string>
-const labelKey = (v: { auto?: boolean; id?: string; index: number; name: string }) => (v.auto ? `auto:${v.id ?? v.index}` : `view:${v.name}`)
+export const labelKey = (v: { auto?: boolean; id?: string; index: number; name: string }) => (v.auto ? `auto:${v.id ?? v.index}` : `view:${v.name}`)
 
 export async function editTourPoint(sceneId: string, index: number, edit: { hidden?: boolean; startYaw?: number | null; name?: string }) {
   const built = await readBuild(sceneId)

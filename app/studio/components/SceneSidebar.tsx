@@ -9,7 +9,6 @@ import { useStudioStore } from '@/store/useStudioStore'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
 import { forfaitLeft, type Forfait } from '@/lib/forfait'
-import MaterialFamiliesPanel from './MaterialFamiliesPanel'
 import DesktopRenderNotice from './DesktopRenderNotice'
 import Icon from './Icon'
 
@@ -606,10 +605,6 @@ export default function SceneSidebar() {
           </p>
         </section>
 
-        {/* 3 · what the surfaces are (18 Nov): their real finish in the 360° render, remembered on this PC */}
-        <section>
-          <MaterialFamiliesPanel sceneId={sceneId} />
-        </section>
 
         {/* the result of the last run */}
         {(photoSrc || captureSrc) && (
