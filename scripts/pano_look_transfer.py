@@ -52,9 +52,18 @@ H, W = B8.shape[:2]
 A8 = cv2.resize(cv2.imread(args.ai, cv2.IMREAD_COLOR), (W, H), interpolation=cv2.INTER_CUBIC)
 
 
-def to_lin(x8):
-    x = x8.astype(np.float32) / 255.0
+def _lin_formula(x):
     return np.where(x <= 0.04045, x / 12.92, ((x + 0.055) / 1.055) ** 2.4)
+
+
+# 21 Nov (speed): the 8-bit pictures go through a 256-entry table made with the very same formula (1.3 s of power() on 25 million values)
+_LIN_LUT = _lin_formula(np.arange(256, dtype=np.float32) / 255.0).astype(np.float32)
+
+
+def to_lin(x8):
+    if x8.dtype == np.uint8:
+        return _LIN_LUT[x8]
+    return _lin_formula(x8.astype(np.float32) / 255.0)
 
 
 def to_srgb(x):
@@ -72,6 +81,8 @@ if args.blender_linear:
     k = float(np.median(A) / max(1e-6, np.median(L)))
     B = L * k
 PADX = 4 * args.radius + 64
+# the quarter-resolution blurs need sizes divisible by 4 (4096 x 2048 and the padding are); ROOMIA_TRANSFER_FULLRES=1 keeps the old full-size blurs
+FAST_FAR = os.environ.get("ROOMIA_TRANSFER_FULLRES") != "1" and W % 4 == 0 and H % 4 == 0 and PADX % 4 == 0
 
 
 def wrap(x):
@@ -142,7 +153,15 @@ for c in range(3):
     gain[..., c] = unwrap(sa - sb)
     # the room's light without any object's detail: very smooth, plain blur on the wrapped picture
     k = 8 * r + 1
-    gain_far[..., c] = unwrap(cv2.GaussianBlur(la, (k, k), 0) - cv2.GaussianBlur(lb, (k, k), 0))
+    if FAST_FAR:
+        # 21 Nov (speed): this blur (a 769 px kernel, sigma 115.7) was 22 of the transfer's 38 seconds. A blur is linear, so the blurred
+        # difference is the difference of the blurs, and a map this smooth loses nothing at a quarter of the resolution
+        sig = 0.3 * ((k - 1) * 0.5 - 1) + 0.8  # the sigma OpenCV derives from a kernel size with sigma 0
+        small = cv2.resize(la - lb, (la.shape[1] // 4, la.shape[0] // 4), interpolation=cv2.INTER_AREA)
+        far = cv2.GaussianBlur(small, (0, 0), sig / 4)
+        gain_far[..., c] = unwrap(cv2.resize(far, (la.shape[1], la.shape[0]), interpolation=cv2.INTER_LINEAR))
+    else:
+        gain_far[..., c] = unwrap(cv2.GaussianBlur(la, (k, k), 0) - cv2.GaussianBlur(lb, (k, k), 0))
 
 # colour only from the room-wide tint (12 Nov, living room: the AI's leaf leaked a green halo onto Blender's wall): locally the
 # brightness follows the AI, the colour balance comes from the smooth gain only
@@ -168,7 +187,11 @@ corr = unwrap(cov / np.sqrt(np.maximum(vB * vA, 1e-8)))
 flat = unwrap((mB < 0.04) & (mA < 0.04))  # a plain wall in both: nothing to disagree about
 trust = np.clip((corr - 0.15) / 0.45, 0, 1)
 trust = np.where(flat, 1.0, trust).astype(np.float32)
-trust = cv2.GaussianBlur(trust, (0, 0), r / 2)[..., None]
+if FAST_FAR:
+    # sigma r/2 = 48 px on a map that only has to be smooth: a quarter of the size, a quarter of the sigma
+    trust = cv2.resize(cv2.GaussianBlur(cv2.resize(trust, (W // 4, H // 4), interpolation=cv2.INTER_AREA), (0, 0), r / 8), (W, H), interpolation=cv2.INTER_LINEAR)[..., None]
+else:
+    trust = cv2.GaussianBlur(trust, (0, 0), r / 2)[..., None]
 
 g = trust * gain + (1 - trust) * gain_far
 g = np.clip(np.exp(g), args.gain_min, args.gain_max)
