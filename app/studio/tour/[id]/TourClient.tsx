@@ -219,6 +219,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
 
   const views = useMemo(() => data?.views ?? [], [data])
   const hasPano = views.some(v => v.pano)
+  // 21 Nov: the build makes no draft 360° when the quality render follows, so a built visit has its views but no picture until the render installs them
+  const builtNoPano = !hasPano && views.some(v => !v.outside)
   const building = data?.status.state === 'building'
   const proposing = data?.proposal?.state === 'running'
   const lookRunning = look?.stage === 'running'
@@ -227,7 +229,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     !published &&
     !editing &&
     !!data &&
-    (building || proposing || lookRunning || (!!data.autoLook && !!data.preview && hasPano && look?.stage !== 'error') || ((look?.autoAi ?? 0) > 0 && look?.stage !== 'error'))
+    (building || proposing || lookRunning || (!!data.autoLook && !!data.preview && (hasPano || builtNoPano) && look?.stage !== 'error') || ((look?.autoAi ?? 0) > 0 && look?.stage !== 'error'))
 
   // 17 Nov (Sarah: "the visit won't open"): a proposal left on disk (the editor left another way, Roomia closed) no longer takes the
   // place of the visit. Over a visit, the editor only shows after "Points de vue" on this page; a leftover one is dropped.
@@ -494,6 +496,19 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           onPause={on => void pauseBuild(on)}
           onPreview={hasPano && editing ? () => setPreview(true) : undefined}
         />
+      )
+    }
+    // the visit is built but its quality render stopped before any picture existed (Roomia closed, PC off, an error): no draft to show,
+    // so the way back is the render itself, from the points already confirmed (21 Nov)
+    if (builtNoPano && !building && (look?.stage === 'interrupted' || look?.stage === 'error')) {
+      return (
+        <div className="tour tour-message">
+          <a className="tour-back floating-back" href={`/studio?scene=${sceneId}`}>
+            ← Studio
+          </a>
+          <strong className="tour-intro-title">La visite 360° de « {title} » n’est pas terminée</strong>
+          <LookPanel sceneId={sceneId} tourReady />
+        </div>
       )
     }
     // nothing yet: start by placing the points
@@ -912,7 +927,7 @@ function Pipeline({
   const aiPlanned = (look?.autoAi ?? 0) > 0 || lookJob === 'ai'
   const steps = [
     { key: 'points', label: 'Placement des points de vue' },
-    { key: 'build', label: 'Rendu 360° et plans' },
+    { key: 'build', label: data.autoLook ? 'Plans et points de vue' : 'Rendu 360° et plans' },
     { key: 'look', label: 'Lumière du jour, lampes allumées' },
     ...(aiPlanned ? [{ key: 'ai', label: 'Finition IA de chaque point' }] : []),
   ]

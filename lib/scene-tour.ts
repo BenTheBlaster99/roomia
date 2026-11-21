@@ -44,6 +44,12 @@ const TOUR_PREVIEW = process.env.ROOMIA_TOUR_PREVIEW === '1'
 const AUTO_LOOK = TOUR_PREVIEW && process.env.ROOMIA_AUTO_LOOK !== '0'
 const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
 const PLAN_SIZE = 1800
+/**
+ * 21 Nov: when the quality render follows the build (AUTO_LOOK), the build's own draft 360° are never shown to anyone: the render
+ * replaces every one of them. They are not made at all then (the script's skipPanos: placement, plan and links only).
+ * ROOMIA_QUICK_PANOS=1 brings the drafts back. An update of a file (isUpdate) and the explorer bake keep their own renders.
+ */
+const SKIP_QUICK_PANOS = AUTO_LOOK && process.env.ROOMIA_QUICK_PANOS !== '1'
 /** The panoramas are not touched by the AI, so they carry their own light: late afternoon sun and the room's lights on. */
 const TOUR_LIGHTING: Lighting = { time: 'apres-midi', sun: true, interior: true }
 
@@ -1492,7 +1498,10 @@ if FULL and all_eyes:
     print("TOUR_INFO culled %d far objects" % culled, flush=True)
 # Cycles (28 Oct, ChatGPT): one equirectangular render per viewpoint instead of six EEVEE faces. EEVEE lights each face
 # from what that camera sees, so the upward face drew the ceiling darker and its edge showed as a line (Ecolodge).
-CYCLES_PANO = FULL and spec.get("panoEngine") == "cycles"
+# 21 Nov: skipPanos = the quality render follows this build, so no draft 360° at all: no Cycles setup, no faces, no stitching
+# (placement, plan, nav, links and the views' metadata are all made before this point)
+SKIP_PANOS = FULL and bool(spec.get("skipPanos")) and not spec.get("bakeExplorer")
+CYCLES_PANO = FULL and spec.get("panoEngine") == "cycles" and not SKIP_PANOS
 GPU_KIND = None
 if CYCLES_PANO:
     scene.render.engine = "CYCLES"
@@ -2374,7 +2383,7 @@ if CYCLES_PANO:
     scene.render.use_simplify = False
     scene.render.engine = "BLENDER_EEVEE_NEXT"
     scene.render.resolution_x = scene.render.resolution_y = FACE
-elif FULL and spec.get("faceMode", "animation") == "animation":
+elif FULL and not SKIP_PANOS and spec.get("faceMode", "animation") == "animation":
     # All the faces as the frames of one animation: a separate render per face makes Blender prepare
     # the whole scene again each time; an animation keeps it loaded and only moves the camera.
     frames = []
@@ -2408,7 +2417,7 @@ elif FULL and spec.get("faceMode", "animation") == "animation":
     bpy.app.handlers.render_write.remove(frame_written)
     for f, (i, name) in enumerate(frames, 1):
         os.replace(os.path.join(out_dir, "frame-%04d.png" % f), os.path.join(out_dir, "face-%d-%s.png" % (i, name)))
-for i, eye in enumerate(all_eyes if FULL and not CYCLES_PANO and spec.get("faceMode", "animation") != "animation" else []):
+for i, eye in enumerate(all_eyes if FULL and not SKIP_PANOS and not CYCLES_PANO and spec.get("faceMode", "animation") != "animation" else []):
     if i in skip:
         continue  # a camera outside the building is left out of the tour: no 360° for it
     aim(eye, (1, 0, 0), (0, 0, 1))
@@ -2544,7 +2553,7 @@ def ceiling_mask(eye, forward, up, fov, path, N=256):
     np.save(path, m)
 
 # Cycles reflects the room in the mirrors itself.
-if FULL and MIRROR_MATS and not CYCLES_PANO:
+if FULL and MIRROR_MATS and not CYCLES_PANO and not SKIP_PANOS:
     for i, yaw in sorted(({v["index"]: v["yaw"] for v in meta["views"] if not v["outside"]} | {a["index"]: a["yaw"] for a in meta.get("auto", [])}).items()):
         mirror_data(i, all_eyes[i], yaw)
     surface_tree = None
@@ -3942,7 +3951,9 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   // Stage times, from the TOUR_TIME lines of the script (ChatGPT, 25 Oct: measure before optimising).
   const marks: Record<string, number> = {}
   const mark = (name: string) => (marks[name] = performance.now())
-  const totalBefore = total
+  // 21 Nov: no draft 360° when the quality render follows (SKIP_QUICK_PANOS); the progress then counts the plan steps only
+  let skipPanos = SKIP_QUICK_PANOS && !isUpdate && !bakeExplorer
+  if (skipPanos) total = 1 + cameras.length
   // What Blender said about this build (its TOUR_ lines and any error), kept in the tour folder: the work folder is
   // cleared afterwards, and a build stopped for memory left nothing to read (31 Oct).
   const log: string[] = []
@@ -3960,9 +3971,10 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       if (line.startsWith('TOUR_AUTO')) {
         const placed = Number(line.split(' ')[1]) || 0
         pointCount += placed
-        total += placed * 7
+        total += placed * (skipPanos ? 1 : 7)
         void progress(`${placed} points placés automatiquement`)
         return
+      ...(skipPanos ? { skipPanos: true } : {}),
       }
       if (!line.startsWith('TOUR_STEP')) return
       // A Cycles panorama is one step of Blender's in place of six faces.
@@ -3980,9 +3992,11 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     // EEVEE 360° rather than no tour.
     console.error('tour Cycles failed, building with EEVEE', sceneId, result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300))
     const spec = JSON.parse(await readFile(specPath, 'utf8'))
-    await writeFile(specPath, JSON.stringify({ ...spec, panoEngine: 'eevee' }))
+    // a failed build without draft 360° tries again the way it always did, with them (21 Nov): a tour rather than none
+    await writeFile(specPath, JSON.stringify({ ...spec, panoEngine: 'eevee', skipPanos: false }))
     for (const f of await readdir(work)) if (f.startsWith('pano-raw-')) await rm(path.join(work, f), { force: true })
-    ;[pointCount, total, done, finished] = [cameras.length, totalBefore, 0, false]
+    skipPanos = false
+    ;[pointCount, total, done, finished] = [cameras.length, 1 + cameras.length * 7, 0, false]
     result = await blender()
   }
   mark('blender_done')
@@ -4036,8 +4050,9 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   const keptFile = (index: number) => keptView.get(index) ?? keptAuto.get(auto.find(a => a.index === index)?.previous ?? -1)
   const panos = await inParallel(
     [
-      ...meta.views.map(v => ({ index: v.index, yaw: v.yaw, skip: v.outside || keptView.has(v.index) })),
-      ...auto.map(a => ({ index: a.index, yaw: a.yaw, skip: a.previous != null && keptAuto.has(a.previous) })),
+      // no draft 360° were rendered (skipPanos): nothing to stitch, the views keep pano null until the quality render installs theirs
+      ...meta.views.map(v => ({ index: v.index, yaw: v.yaw, skip: skipPanos || v.outside || keptView.has(v.index) })),
+      ...auto.map(a => ({ index: a.index, yaw: a.yaw, skip: skipPanos || (a.previous != null && keptAuto.has(a.previous)) })),
     ],
     STITCH_CONCURRENCY,
     // A camera outside the building gets no 360° (its faces are not rendered).
@@ -4223,8 +4238,10 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   const reused = new Set([...keptView.keys(), ...auto.filter(a => a.previous != null && keptAuto.has(a.previous)).map(a => a.index)])
   await rm(reusePath(sceneId), { force: true }).catch(() => undefined)
   await rm(path.join(dir, 'keep'), { recursive: true, force: true }).catch(() => undefined)
-  if (AUTO_LOOK && views.some(v => v.pano)) {
-    const fresh = reuse ? views.filter(v => v.pano && !reused.has(v.index)) : null
+  // a view is for the render when it has a draft 360°, or (no drafts made) when it is inside the building
+  const forRender = (v: TourViewPoint) => (skipPanos ? !v.outside : !!v.pano)
+  if (AUTO_LOOK && views.some(forRender)) {
+    const fresh = reuse ? views.filter(v => forRender(v) && !reused.has(v.index)) : null
     if (fresh && !fresh.length) {
       // nothing new to render (points removed, names changed): the visit is final as it is
       await rm(previewMarker(sceneId), { force: true }).catch(() => undefined)
