@@ -294,6 +294,15 @@ if args.stage == "render":
     # 16 GB PC's kernel stopped it; each new Blender starts from the file again (about 20 s) with its memory back to the start.
     started = time.time()  # a picture older than this render is not this render's
     batch = max(1, int(os.environ.get("ROOMIA_LOOK_BATCH", 2)))
+    # 21 Nov (step 2): the app asks (ROOMIA_LOOK_STREAM=1) for each batch's views to be made ready as soon as the batch is rendered, so the AI
+    # image and the light transfer of those views run while the next batch renders (lib/look-pipeline.ts, startStreamer). The group
+    # exposure and the install at the end of this render stay exactly as they were.
+    streaming = os.environ.get("ROOMIA_LOOK_STREAM") == "1"
+    stream_proc = None
+    if streaming:
+        lk_ = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
+        stream_lift = os.environ.get("LIFT", str(lk_.get("lift", 0.1)))
+        stream_median = os.environ.get("ROOMIA_LOOK_MEDIAN", "0.57") if args.look == "daylight" else "0.45"
     for b0 in range(0, len(pts), batch):
         json.dump(job({}, pts[b0:b0 + batch], AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
         blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
@@ -308,6 +317,17 @@ if args.stage == "render":
                 blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
             finally:
                 del os.environ["ROOMIA_COMPOSITOR_GPU"]
+        if streaming:
+            done_ = ["t%d" % p["index"] for p in pts[b0:b0 + batch] if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
+            if done_:
+                if stream_proc is not None:
+                    stream_proc.wait()  # one at a time: they share exposure.json
+                argv_ = [PY, os.path.join(SCRIPTS, "look_stream_view.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(done_), stream_median, stream_lift, args.look, "4096"]
+                if sys.platform.startswith("linux"):
+                    argv_ = ["nice", "-n", "15"] + argv_  # it yields to Blender's own processor work
+                stream_proc = subprocess.Popen(argv_)  # its VIEW_READY lines go to this process's output, which the app reads
+    if stream_proc is not None:
+        stream_proc.wait()  # before the group exposure rewrites the same files
     names = ["t%d" % p["index"] for p in pts if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
     finalize(names)
     install(4096, [(int(n[1:]), os.path.join(AUTO, n + "-pano.png")) for n in names])
