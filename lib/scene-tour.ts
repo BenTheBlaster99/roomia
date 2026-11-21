@@ -30,6 +30,8 @@ const PYTHON = process.env.ROOMIA_PYTHON ?? 'python3'
 /** Pixels per cube face of the Blender 360° (ROOMIA_TOUR_FACE_SIZE for test runs only). */
 const FACE_SIZE = Number(process.env.ROOMIA_TOUR_FACE_SIZE ?? 1024)
 const PANO_WIDTH = 4096
+/** An automatic point is not made when it stands closer than this (metres) to another point and sees it; 0 turns the filter off (21 Nov). */
+const DUP_DISTANCE = Number(process.env.ROOMIA_DUP_DISTANCE ?? 1.5)
 /**
  * Quick preview tour (ROOMIA_TOUR_PREVIEW=1, set by the desktop app, 9 Nov): the golden-hour "Présentation" renders the final
  * 360° of every point and replaces these, so the tour build only has to make cameras, plan, arrows and a light preview:
@@ -42,14 +44,14 @@ const TOUR_PREVIEW = process.env.ROOMIA_TOUR_PREVIEW === '1'
  * samples): it only has to hold the place until the final 360° replace it.
  */
 const AUTO_LOOK = TOUR_PREVIEW && process.env.ROOMIA_AUTO_LOOK !== '0'
-const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
-const PLAN_SIZE = 1800
 /**
  * 21 Nov: when the quality render follows the build (AUTO_LOOK), the build's own draft 360° are never shown to anyone: the render
  * replaces every one of them. They are not made at all then (the script's skipPanos: placement, plan and links only).
  * ROOMIA_QUICK_PANOS=1 brings the drafts back. An update of a file (isUpdate) and the explorer bake keep their own renders.
  */
 const SKIP_QUICK_PANOS = AUTO_LOOK && process.env.ROOMIA_QUICK_PANOS !== '1'
+const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
+const PLAN_SIZE = 1800
 /** The panoramas are not touched by the AI, so they carry their own light: late afternoon sun and the room's lights on. */
 const TOUR_LIGHTING: Lighting = { time: 'apres-midi', sun: true, interior: true }
 
@@ -1105,6 +1107,30 @@ if FULL:
             near = standing(pe)
             placed.append((np.array([pe.x, pe.y]), max([float(wcl[k]) for k in near] or [0.0]), j, yaw, pe.z - EYE))
         placed += [(pt, cl, None, None, z) for pt, cl, z in picked]
+        # 21 Nov (the owner: the F5 had two points 1 m apart in the kitchen, and nobody noticed). Each space chooses its points on its own,
+        # so two spaces side by side can put one each on either side of their border. A new point that stands within DUP metres of another
+        # point (an architect's scene, a kept point, or a point chosen before it) and sees it directly makes the same picture twice: it is
+        # not made. Points the person confirmed (autoFixed: nothing is picked) and the architect's scenes are never touched.
+        DUP = float(spec.get("dupDistance", 1.5))
+        def clear_between(a_, b_):
+            d_ = b_ - a_
+            n_ = d_.length
+            return n_ < 1e-3 or solid(a_, d_ / n_, n_) is None
+        anchors = [eyes[k] for k, v in enumerate(meta["views"]) if not v["outside"]]
+        anchors += [Vector((float(it[0][0]), float(it[0][1]), it[4] + EYE)) for it in placed if it[2] is not None]
+        placed_kept, dup_dropped = [], 0
+        for it in placed:
+            if it[2] is not None:
+                placed_kept.append(it)
+                continue
+            e_ = Vector((float(it[0][0]), float(it[0][1]), it[4] + EYE))
+            if any(abs(e_.z - a_.z) < 1.0 and math.hypot(e_.x - a_.x, e_.y - a_.y) < DUP and clear_between(e_, a_) for a_ in anchors):
+                dup_dropped += 1
+                continue
+            placed_kept.append(it)
+            anchors.append(e_)
+        placed = placed_kept
+        print("TOUR_INFO duplicates not placed: %d (within %.1f m of another point and in its sight)" % (dup_dropped, DUP), flush=True)
         # Each level on its plan (27 Oct, Sarah's reference plans show the flat alone): its kept spaces, grown cell by
         # cell through everything a person sees over (beds, counters, railings: floors up to 1.3 m above the level's) but
         # not through walls, tall cupboards or closed doors (a standing surface through the cell at 1 m), nor onto
@@ -1215,6 +1241,19 @@ if FULL:
             "plan": {"x": x, "y": y, "angle": math.degrees(math.atan2(ty - y, tx - x))},
         })
         all_eyes.append(e)
+    # 21 Nov: which points see each other within 3 m on a level (the points editor uses it to flag two points that make the same picture:
+    # it knows distances from the plan, and only this run knows where the walls are)
+    meta["sees"] = []
+    cand_ = [(k, eyes[k], meta["views"][k]["level"]) for k, v in enumerate(meta["views"]) if not v["outside"]] + [(a_["index"], all_eyes[a_["index"]], a_["level"]) for a_ in meta["auto"]]
+    for x_ in range(len(cand_)):
+        for y_ in range(x_ + 1, len(cand_)):
+            (i_, ei_, li_), (j_, ej_, lj_) = cand_[x_], cand_[y_]
+            if li_ != lj_ or abs(ei_.z - ej_.z) > 1.0 or math.hypot(ei_.x - ej_.x, ei_.y - ej_.y) > 3.0:
+                continue
+            d_ = ej_ - ei_
+            n_ = d_.length
+            if n_ < 1e-3 or solid(ei_, d_ / n_, n_) is None:
+                meta["sees"].append([i_, j_])
     print("TOUR_AUTO %d" % len(meta["auto"]), flush=True)
     print("TOUR_TIME placement", flush=True)
     # Arrows: two viewpoints are linked when one can see the other at eye height.
@@ -3912,6 +3951,9 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   const objectsPath = path.join(dir, 'objects.json')
   const isUpdate = !!before && !same && (await stat(objectsPath).then(() => true, () => false))
   const photos = isUpdate ? await latestPhotos(sceneId, cameras) : []
+  // 21 Nov: no draft 360° when the quality render follows (SKIP_QUICK_PANOS); the progress then counts the plan steps only
+  let skipPanos = SKIP_QUICK_PANOS && !isUpdate && !bakeExplorer
+  if (skipPanos) total = 1 + cameras.length
   // The points the person confirmed before the build (14 Nov, points.json): exactly those, with their names.
   const chosen = await readChosenPoints(sceneId)
   // the points kept as they were, with their finished 360° (confirmTourPoints): not rendered again
@@ -3933,6 +3975,8 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
       ...(reuse ? { skipViews: reuse.views.map(v => v.index), skipAuto: reuse.auto.map(a => a.k) } : {}),
       ...(isUpdate ? { previousObjects: objectsPath, shiftViews, updatePhotos: photos.map(p => ({ file: p.file, ...p.view })), aiFov: 100 } : {}),
+      ...(skipPanos ? { skipPanos: true } : {}),
+      dupDistance: DUP_DISTANCE,
       faceSize: FACE_SIZE,
       planSize: PLAN_SIZE,
       viewTransform: 'AgX',
@@ -3951,9 +3995,6 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   // Stage times, from the TOUR_TIME lines of the script (ChatGPT, 25 Oct: measure before optimising).
   const marks: Record<string, number> = {}
   const mark = (name: string) => (marks[name] = performance.now())
-  // 21 Nov: no draft 360° when the quality render follows (SKIP_QUICK_PANOS); the progress then counts the plan steps only
-  let skipPanos = SKIP_QUICK_PANOS && !isUpdate && !bakeExplorer
-  if (skipPanos) total = 1 + cameras.length
   // What Blender said about this build (its TOUR_ lines and any error), kept in the tour folder: the work folder is
   // cleared afterwards, and a build stopped for memory left nothing to read (31 Oct).
   const log: string[] = []
@@ -3974,7 +4015,6 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
         total += placed * (skipPanos ? 1 : 7)
         void progress(`${placed} points placés automatiquement`)
         return
-      ...(skipPanos ? { skipPanos: true } : {}),
       }
       if (!line.startsWith('TOUR_STEP')) return
       // A Cycles panorama is one step of Blender's in place of six faces.
@@ -4380,6 +4420,8 @@ export interface ProposalPoint {
   plan: { x: number; y: number; angle: number }
   /** a SketchUp scene the person took out last time: offered again, unticked */
   off?: boolean
+  /** keys of the points within 3 m that this one sees directly (no wall between), from the placement's ray casts (21 Nov) */
+  sees?: string[]
 }
 
 export interface TourProposal {
@@ -4614,6 +4656,7 @@ async function propose(sceneId: string, fresh = false) {
       previousAuto: prevAuto.map(v => ({ position: v.position, target: v.target, keep: false, approved: false })),
       previousSame: true,
       ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
+      dupDistance: DUP_DISTANCE,
       faceSize: FACE_SIZE,
       planSize: PLAN_SIZE,
       viewTransform: 'AgX',
@@ -4624,6 +4667,8 @@ async function propose(sceneId: string, fresh = false) {
     }),
   )
   let finished = false
+  // what the placement said (points per space, duplicates not placed), kept in the tour folder next to the proposal
+  const placementLog: string[] = []
   const result = await withBlenderSlot(async () => {
     if (proposeStopped.has(sceneId)) throw new Error('Arrêté.')
     await step('Ouverture du fichier…')
@@ -4632,6 +4677,7 @@ async function propose(sceneId: string, fresh = false) {
       ['--background', '--python', scriptPath, '--', specPath],
       line => {
         if (line.startsWith('TOUR_OK')) finished = true
+        if (line.startsWith('TOUR_INFO') || line.startsWith('TOUR_AUTO')) placementLog.push(line)
         if (line.startsWith('TOUR_TIME scene_ready')) void step('Recherche des pièces et placement des points de vue…')
         if (line.startsWith('TOUR_TIME placement')) void step('Dessin du plan…')
       },
@@ -4643,12 +4689,15 @@ async function propose(sceneId: string, fresh = false) {
     )
   })
   if (proposeStopped.has(sceneId)) throw new Error('Arrêté.')
+  await writeFile(path.join(dir, 'propose-log.txt'), placementLog.join('\n') + '\n').catch(() => undefined)
   if (result.code !== 0 || !finished) throw new Error(`Blender a échoué : ${result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300)}`)
   const meta = JSON.parse(await readFile(path.join(work, 'tour-blender.json'), 'utf8')) as {
     plan: { width: number; height: number; mpp: number }
     levels?: { index: number; suffix: string; main: boolean; width: number; height: number; mpp: number; floor: number; frame?: [number, number, number, number]; outdoor?: boolean }[]
     views: { index: number; plan: { x: number; y: number; angle: number }; outside?: boolean; level?: number }[]
     auto?: { index: number; position: [number, number, number]; target: [number, number, number]; plan: { x: number; y: number; angle: number }; previous?: number | null; level?: number }[]
+    /** pairs of point indices within 3 m on a level with a clear line between them */
+    sees?: [number, number][]
   }
   const planLevels = meta.levels ?? []
   if (!planLevels.length) throw new Error('Aucune pièce trouvée dans ce fichier.')
@@ -4674,6 +4723,23 @@ async function propose(sceneId: string, fresh = false) {
     })
   }
   const points: ProposalPoint[] = []
+  // point index -> key, to turn the script's pairs of indices into keys
+  const keyOfIndex = new Map<number, string>()
+  for (const v of meta.views) keyOfIndex.set(v.index, `view:${v.index}`)
+  for (const [n, a] of (meta.auto ?? []).entries()) {
+    const old = a.previous != null ? prevAuto[a.previous] : undefined
+    keyOfIndex.set(a.index, `auto:${old?.id ?? `auto-p${n + 1}`}`)
+  }
+  const seesOf = (index: number): string[] | undefined => {
+    if (!meta.sees) return undefined
+    const out: string[] = []
+    for (const [i, j] of meta.sees) {
+      const other = i === index ? j : j === index ? i : null
+      const key = other !== null ? keyOfIndex.get(other) : undefined
+      if (key) out.push(key)
+    }
+    return out
+  }
   for (const v of meta.views) {
     if (v.outside && !chosen?.dropViews.includes(v.index)) continue
     const camera = cameras[v.index]
@@ -4688,6 +4754,7 @@ async function propose(sceneId: string, fresh = false) {
       level: v.level ?? 0,
       plan: v.plan,
       ...(chosen?.dropViews.includes(v.index) ? { off: true } : {}),
+      ...(meta.sees ? { sees: seesOf(v.index) } : {}),
     })
   }
   for (const [n, a] of (meta.auto ?? []).entries()) {
@@ -4702,6 +4769,7 @@ async function propose(sceneId: string, fresh = false) {
       target: a.target,
       level: a.level ?? 0,
       plan: a.plan,
+      ...(meta.sees ? { sees: seesOf(a.index) } : {}),
     })
   }
   await writeProposal(sceneId, { state: 'ready', at: new Date().toISOString(), levels, points, eye: PROPOSAL_EYE })

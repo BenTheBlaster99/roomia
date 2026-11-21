@@ -348,6 +348,11 @@
 .points-dot.view { background: var(--brand-blue); color: #fff; }
 .points-dot.off { background: #b9b4aa; color: #fff; opacity: 0.8; cursor: pointer; }
 .points-dot.sel { outline: 3px solid var(--brand-blue-night); outline-offset: 2px; z-index: 3; }
+.points-dot.dup { box-shadow: 0 0 0 3px var(--brand-gold, #d9a42b), 0 0 0 5px rgba(217, 164, 43, 0.35); }
+.points-dups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.points-dups button { all: unset; cursor: pointer; font-size: 13px; line-height: 1.4; color: var(--brand-blue-night); background: rgba(217, 164, 43, 0.16); border-left: 3px solid var(--brand-gold, #d9a42b); padding: 7px 10px; border-radius: 4px; }
+.points-dups button:focus-visible { outline: 2px solid var(--brand-blue-night); outline-offset: 1px; }
+.points-eta { margin: 2px 0 0; font-size: 13px; color: var(--brand-muted, #55627a); }
 .points-cone {
   position: absolute; left: 50%; top: 50%; width: 46px; height: 34px; margin-top: -17px; transform-origin: 0 50%; pointer-events: none; z-index: 0;
   background: linear-gradient(to right, rgba(192, 144, 77, 0.85), rgba(192, 144, 77, 0)); clip-path: polygon(0 50%, 100% 0, 100% 100%);

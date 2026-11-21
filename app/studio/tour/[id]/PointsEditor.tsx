@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { forfaitLeft, plural } from '@/lib/forfait'
 import type { ProposalLevel, ProposalPoint, TourProposal } from '@/lib/scene-tour'
+import { alikePairs } from '@/lib/points-alike'
+import { formatMinutes, tourMinutes, useDesktopEngine, useDesktopTiming } from '../../components/DesktopRenderNotice'
 import { useForfait } from '../../components/useForfait'
 
 /** A point while the person edits it: where it stands on its level's plan (pixels) and where its 360° starts (degrees). */
@@ -23,6 +25,8 @@ interface Edit {
   changed: boolean
   position: [number, number, number]
   target: [number, number, number]
+  /** the points this one sees directly within 3 m (the placement's ray casts); absent for a point the person made or moved */
+  sees?: string[]
 }
 
 export interface ConfirmedPoints {
@@ -44,6 +48,7 @@ const fromProposal = (p: ProposalPoint): Edit => ({
   changed: false,
   position: p.position,
   target: p.target,
+  sees: p.sees,
 })
 
 /** Plan pixels -> the model (three.js, y up): the inverse of the tour script's plan_xy, at eye height on the level's floor. */
@@ -113,6 +118,15 @@ export default function PointsEditor({
       : null
   const number = new Map(kept.map((p, n) => [p.key, n + 1]))
   const sel = points.find(p => p.key === selected) ?? null
+  // 21 Nov: two points that stand close and see each other make the same picture twice (the F5's kitchen had two, 1 m apart, and nobody
+  // noticed). Flagged, never removed: the person decides. A pair of untouched SketchUp scenes is the architect's own choice: not flagged.
+  const dups = useMemo(() => alikePairs(kept, levels), [kept, levels])
+  const dupKeys = new Set(dups.flatMap(d => [d.a.key, d.b.key]))
+  // 21 Nov: the time of the visit as the person has chosen it, from this PC's own earlier visits (else its graphics profile)
+  const engine = useDesktopEngine()
+  const timing = useDesktopTiming()
+  const toMake = onCancel ? toRender.length : kept.length
+  const eta = engine && toMake > 0 ? formatMinutes(tourMinutes(engine, timing, toMake)) : null
 
   const update = (key: string, patch: Partial<Edit>) => setPoints(ps => ps.map(p => (p.key === key ? { ...p, ...patch } : p)))
   const planXY = (clientX: number, clientY: number) => {
@@ -217,7 +231,7 @@ export default function PointsEditor({
                 <button
                   key={p.key}
                   type="button"
-                  className={`points-dot${p.on ? '' : ' off'}${p.key === selected ? ' sel' : ''}${p.kind === 'view' ? ' view' : ''}`}
+                  className={`points-dot${p.on ? '' : ' off'}${p.key === selected ? ' sel' : ''}${p.kind === 'view' ? ' view' : ''}${dupKeys.has(p.key) ? ' dup' : ''}`}
                   style={{ left: `${(p.x / level.width) * 100}%`, top: `${(p.y / level.height) * 100}%` }}
                   title={p.name}
                   onPointerDown={e => {
@@ -289,6 +303,25 @@ export default function PointsEditor({
             </>
           )}
 
+          {dups.length > 0 && (
+            <ul className="points-dups" aria-label="Points qui se ressemblent">
+              {dups.slice(0, 4).map(({ a, b }) => (
+                <li key={`${a.key}|${b.key}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevelIndex(a.level)
+                      setSelected(a.kind === 'auto' ? a.key : b.key)
+                    }}
+                  >
+                    Les points {number.get(a.key)} et {number.get(b.key)} se ressemblent : vous pouvez en retirer un.
+                  </button>
+                </li>
+              ))}
+              {dups.length > 4 && <li className="tour-note">et {dups.length - 4} autre{dups.length - 4 > 1 ? 's' : ''}…</li>}
+            </ul>
+          )}
+
           <button type="button" className={`tour-btn secondary${adding ? ' on' : ''}`} onClick={() => setAdding(a => !a)}>
             {adding ? 'Cliquez sur le plan où placer le point…' : '＋ Ajouter un point'}
           </button>
@@ -297,6 +330,11 @@ export default function PointsEditor({
             <p className="tour-big">
               {kept.length} <span>{kept.length > 1 ? 'points 360°' : 'point 360°'}</span>
             </p>
+            {eta && (
+              <p className="points-eta" aria-live="polite">
+                {toMake} {toMake > 1 ? 'points' : 'point'} · environ {eta} sur ce PC
+              </p>
+            )}
             {blocked ? (
               <p className="tour-note">{blocked}</p>
             ) : onCancel && !dirty ? (
