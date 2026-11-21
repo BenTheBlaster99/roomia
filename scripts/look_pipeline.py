@@ -96,6 +96,10 @@ def blender(job_path, script, log):
         argv = ["bash", "-c", "echo 1000 > /proc/self/oom_score_adj; exec nice -n 10 \"$@\"", "blender"] + argv
     with open(log, "w") as f:
         subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT, check=False)
+    keep = os.environ.get("ROOMIA_LOOK_KEEP_LOGS")  # benchmarks: every batch's log is kept (render.log holds only the last one)
+    if keep and os.path.exists(log):
+        os.makedirs(keep, exist_ok=True)
+        shutil.copyfile(log, os.path.join(keep, "%s-%d.log" % (os.path.splitext(os.path.basename(log))[0], len([f_ for f_ in os.listdir(keep) if f_.startswith("render-")]))))
     print("  %s %.0fs" % (script, time.time() - t), flush=True)
 
 
@@ -288,10 +292,22 @@ if args.stage == "render":
     print("rendering %d panoramas (about 3 minutes each)..." % len(pts), flush=True)
     # 18 Nov: two views per Blender, then a fresh one (4 still reached 8.5 GB with a browser open). One Blender for the F5's 14 views grew to 9.5 GB by the 8th and the
     # 16 GB PC's kernel stopped it; each new Blender starts from the file again (about 20 s) with its memory back to the start.
+    started = time.time()  # a picture older than this render is not this render's
     batch = max(1, int(os.environ.get("ROOMIA_LOOK_BATCH", 2)))
     for b0 in range(0, len(pts), batch):
         json.dump(job({}, pts[b0:b0 + batch], AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
         blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+        # 21 Nov: the GPU compositor is on by default for a "max" card (look_render.py). If a batch gave no picture (a card that cannot
+        # hold it, a driver that refuses), the views of that batch are made again once with the compositor on the processor, as before.
+        lost = [p for p in pts[b0:b0 + batch] if not os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"])) or os.path.getmtime(os.path.join(AUTO, "t%d-lin.npy" % p["index"])) < started]
+        if lost and os.environ.get("ROOMIA_COMPOSITOR_GPU") != "0":
+            print("batch without picture for %s: again with the compositor on the processor" % [p["index"] for p in lost], flush=True)
+            os.environ["ROOMIA_COMPOSITOR_GPU"] = "0"
+            try:
+                json.dump(job({}, lost, AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
+                blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+            finally:
+                del os.environ["ROOMIA_COMPOSITOR_GPU"]
     names = ["t%d" % p["index"] for p in pts if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
     finalize(names)
     install(4096, [(int(n[1:]), os.path.join(AUTO, n + "-pano.png")) for n in names])

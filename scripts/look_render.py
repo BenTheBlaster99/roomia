@@ -43,6 +43,32 @@ for kind in ("OPTIX", "CUDA"):
 scene.render.use_simplify = True
 scene.cycles.texture_limit_render = str(JOB.get("textureLimit", "2048"))
 scene.render.use_persistent_data = True
+
+
+def _set(obj, name, value):
+    try:
+        setattr(obj, name, value)
+    except Exception as err_:
+        print("LOOK_INFO could not set %s: %s" % (name, err_), flush=True)
+
+
+# 21 Nov (speed, step 4): the compositor (the light groups' sum and the OIDN denoise, 26-34 s a view on the processor) on the graphics
+# card, with full float precision (the GPU compositor's Auto precision may use half floats), and optionally the picture in one tile
+# instead of two. Environment switches so each can be measured alone and put back.
+# Measured on the F5 (20-21 Nov, views 16 and 17, same batch as the baseline): post-processing 33.8 s -> 12.5 s a view, 282 s -> 239 s for a
+# two-view Blender run, the pictures within 3/255 of the CPU ones (mean 0.08). On by default for the "max" tier (10 GB of video memory
+# and more: the compositor's buffers and the denoiser need room); ROOMIA_COMPOSITOR_GPU=0 turns it off, =1 forces it on.
+# One tile (ROOMIA_ONE_TILE=1) is not on by default: with the GPU compositor it made the path tracing slower and gained nothing.
+_gpu_comp = os.environ.get("ROOMIA_COMPOSITOR_GPU")
+if _gpu_comp == "1" or (_gpu_comp != "0" and JOB.get("quality") == "max" and scene.cycles.device == "GPU"):
+    _set(scene.render, "compositor_device", "GPU")
+    _set(scene.render, "compositor_precision", "FULL")
+    _set(scene.render, "compositor_denoise_device", "GPU")
+if os.environ.get("ROOMIA_ONE_TILE") == "1":
+    _set(scene.cycles, "use_auto_tile", False)
+print("LOOK_INFO compositor %s, denoise device %s, precision %s, auto tile %s" % (
+    getattr(scene.render, "compositor_device", "?"), getattr(scene.render, "compositor_denoise_device", "?"),
+    getattr(scene.render, "compositor_precision", "?"), getattr(scene.cycles, "use_auto_tile", "?")), flush=True)
 scene.cycles.use_light_tree = True
 scene.cycles.max_bounces, scene.cycles.diffuse_bounces, scene.cycles.glossy_bounces = 12, 8, 6  # 11 Nov: brighter corners, no slower on the bench
 scene.cycles.transmission_bounces, scene.cycles.transparent_max_bounces = 8, 8
