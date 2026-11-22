@@ -93,8 +93,10 @@ export interface TourViewPoint {
   id?: string
   position?: [number, number, number]
   target?: [number, number, number]
-  /** Removed from the tour by the operator. */
+  /** Removed from the tour by the operator, or by the render when it makes the same 360° as an earlier view (22 Nov). */
   hidden?: boolean
+  /** The earlier view this one duplicates once the cameras have been moved (22 Nov); its name. */
+  duplicateOf?: string | number
   /** Where the 360° starts, set by the operator (radians from the panorama's centre, + = right). */
   startYaw?: number
   /** The level it stands on (index into TourBuild.levels; plan coordinates are on that level's plan). */
@@ -2933,8 +2935,6 @@ if rooms and plan_meta.get("frame") and os.path.exists(work + "/plan-rooms%s.npy
         # wardrobe and left white holes in the room (Bloc B F2's bedroom). The cells are 25 cm and miss the floor under
         # furniture, so the growth reaches 60 cm.
         R = ndimage.binary_dilation(R, iterations=px(0.6), mask=~walls)
-        around = walls & grow(R, 0.4)
-        apt = R | around
         # 21 Nov: a pocket the growth did not reach (a big bed: over a metre of floor with no kept cell under it, so more than 60 cm from
         # any cell) is closed by room cells on some sides and a wall on the others. It was left white, and white through the wall too,
         # because the wall is only kept near the apartment. What the cells and the walls close off, up to 4 m2, belongs to the room.
@@ -2943,6 +2943,8 @@ if rooms and plan_meta.get("frame") and os.path.exists(work + "/plan-rooms%s.npy
         if np_:
             parea = ndimage.sum(np.ones_like(pockets), pockets, index=np.arange(1, np_ + 1)) * hd_mpp * hd_mpp
             R |= (parea < 4.0)[np.maximum(pockets - 1, 0)] & (pockets > 0)
+        around = walls & grow(R, 0.4)
+        apt = R | around
         # what the apartment encloses (a cupboard, a closet behind a closed door, the floor under a bed), not a whole
         # room of the next flat caught between two walls
         holes, n = ndimage.label(ndimage.binary_fill_holes(apt) & ~apt)

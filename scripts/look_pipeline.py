@@ -76,7 +76,7 @@ def points(raw=False):
         # a view whose 360 failed to build (no pano yet) gets one too: its eye is the view's own, else the saved camera's, else the walk probe's
         pos = v.get("position") or cams.get(v["name"]) or (probes[v["index"]]["eye"] if probes and v["index"] < len(probes) else None)
         if pos:
-            out.append({"index": v["index"], "name": v["name"], "position": pos})
+            out.append({"index": v["index"], "name": v["name"], "position": pos, "auto": bool(v.get("auto"))})
     # a camera against a wall or inside a cupboard takes its 360 from the better spot the analysis found nearby (11 Nov)
     an_p = os.path.join(AUTO, "analysis.json")
     if raw:
@@ -190,6 +190,15 @@ def install(width, pairs):
             v.pop("facesWall", None)
             if fit and v.get("plan"):
                 v["plan"] = dict(v["plan"], x=fit[0] * mv[v["index"]][0] + fit[1], y=fit[0] * mv[v["index"]][2] + fit[2])
+    # 22 Nov: a view that makes the same 360 as an earlier one (see look_analyze.py) leaves the visit; "Remettre ... dans la visite" brings it back
+    an_p = os.path.join(AUTO, "analysis.json")
+    if os.path.exists(an_p):
+        dups = {c["index"]: c["duplicateOf"] for c in json.load(open(an_p)).get("cameras", []) if c.get("duplicateOf") is not None}
+        names = {v["index"]: v.get("name") for v in t["views"]}
+        for v in t["views"]:
+            if v["index"] in dups and v["index"] not in {i for i, _ in pairs}:
+                v["hidden"] = True
+                v["duplicateOf"] = names.get(dups[v["index"]], dups[v["index"]])
     if all(v.get("pano") or v.get("hidden") for v in t["views"]):
         # a build that failed long ago (out of memory, 30 Oct) no longer shows its red notice on a tour that is complete
         st = os.path.join(TOUR, "status.json")
@@ -199,7 +208,7 @@ def install(width, pairs):
     json.dump(t, open(tour_p, "w"), ensure_ascii=False)
 
 
-ANALYSIS_VERSION = 3  # bump when look_analyze.py's method changes (3: camera search with the 8-ray pre-test, same results)
+ANALYSIS_VERSION = 4  # bump when look_analyze.py's method changes (3: camera search with the 8-ray pre-test, same results; 4: duplicate views after the moves, 22 Nov)
 
 
 def source_hash():
@@ -281,7 +290,8 @@ if args.stage == "render":
     # 20 Nov: only Roomia's own points are dropped for a tight camera. An architect's scene is a view they chose (F5 Scène 2 looks
     # down the dressing between the hangers): skipping it left the visit with its old pre-materials image, so it is rendered as drawn.
     auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
-    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building")}
+    # 22 Nov: a view that duplicates an earlier one once the cameras have been moved (look_analyze.py) is dropped whoever drew it.
+    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building" or c.get("duplicateOf") is not None)}
     pts = [p for p in points() if p["index"] not in bad]
     if args.points:
         want = {int(x) for x in args.points.split(",")}
@@ -342,7 +352,7 @@ elif args.stage == "suggest":
     import numpy as np
     an = json.load(open(os.path.join(AUTO, "analysis.json")))
     auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
-    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building")}
+    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building" or c.get("duplicateOf") is not None)}
     pts = {p["index"]: p for p in points()}
     scored = []
     for i, p in pts.items():
