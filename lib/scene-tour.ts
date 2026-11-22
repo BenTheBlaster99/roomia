@@ -2935,6 +2935,14 @@ if rooms and plan_meta.get("frame") and os.path.exists(work + "/plan-rooms%s.npy
         R = ndimage.binary_dilation(R, iterations=px(0.6), mask=~walls)
         around = walls & grow(R, 0.4)
         apt = R | around
+        # 21 Nov: a pocket the growth did not reach (a big bed: over a metre of floor with no kept cell under it, so more than 60 cm from
+        # any cell) is closed by room cells on some sides and a wall on the others. It was left white, and white through the wall too,
+        # because the wall is only kept near the apartment. What the cells and the walls close off, up to 4 m2, belongs to the room.
+        sealed = R | walls
+        pockets, np_ = ndimage.label(ndimage.binary_fill_holes(sealed) & ~sealed)
+        if np_:
+            parea = ndimage.sum(np.ones_like(pockets), pockets, index=np.arange(1, np_ + 1)) * hd_mpp * hd_mpp
+            R |= (parea < 4.0)[np.maximum(pockets - 1, 0)] & (pockets > 0)
         # what the apartment encloses (a cupboard, a closet behind a closed door, the floor under a bed), not a whole
         # room of the next flat caught between two walls
         holes, n = ndimage.label(ndimage.binary_fill_holes(apt) & ~apt)

@@ -46,7 +46,7 @@ if (!args['skip-build']) {
   step(`next build (standalone, ${DIST})`)
   const link = path.join(ROOT, DIST)
   if (process.platform === 'linux') {
-    const target = path.join(os.homedir(), '.cache', 'roomia-next-desktop')
+    const target = path.join(os.homedir(), '.cache', process.env.ROOMIA_DESKTOP_CACHE || 'roomia-next-desktop')
     fs.mkdirSync(target, { recursive: true })
     const isLink = fs.existsSync(link) && fs.lstatSync(link).isSymbolicLink()
     if (!isLink) {
