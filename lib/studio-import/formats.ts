@@ -24,18 +24,19 @@ export const SERVER_PREP_FORMATS = [
   'gltf', 'fbx', 'obj', 'stl', 'ply', // 3ds Max, Maya, Blender, Rhino, ArchiCAD, Revit (FBX / OBJ), Cinema 4D
   'usd', 'usda', 'usdc', 'usdz', 'abc', // USD and Alembic (Blender, Maya, Houdini, Rhino, Revit via plug-ins)
   'blend', // Blender
+  'ifc', // Revit, ArchiCAD, Allplan (IfcOpenShell, 22 Nov)
 ] as const
 export type ServerPrepFormat = (typeof SERVER_PREP_FORMATS)[number]
 
-export const IMPORT_ACCEPT = '.' + [...SERVER_PREP_FORMATS, 'skp', 'dwg', 'dxf', '3ds', 'kmz', 'wrl', 'ifc'].join(',.')
+export const IMPORT_ACCEPT = '.' + [...SERVER_PREP_FORMATS, 'skp', 'dwg', 'dxf', '3ds', 'kmz', 'wrl'].join(',.')
 
-const CAD_REJECT = new Set(['dwg', 'dxf', '3ds', 'kmz', 'wrl', 'ifc'])
+const CAD_REJECT = new Set(['dwg', 'dxf', '3ds', 'kmz', 'wrl'])
 
 export const IMPORT_COPY = {
   skp:
     'Un .skp seul ne suffit pas. Dans SketchUp : Fichier → Exporter → Modèle 3D → COLLADA (.dae), puis mettez le .dae ET le .skp dans un même zip : Roomia récupère les textures dans le .skp. Vous pouvez aussi exporter en GLB ou FBX, ou utiliser « Envoyer à Roomia ».',
   skpHeavy: ' Les gros fichiers sont acceptés en COLLADA (.dae) ou GLB : Roomia les prépare automatiquement.',
-  cad: 'Les fichiers CAO (DWG/DXF) et les formats 3DS/KMZ/WRL/IFC ne sont pas encore supportés. Exportez en FBX, OBJ, GLB ou COLLADA (.dae) depuis votre logiciel (SketchUp, Revit, ArchiCAD, 3ds Max, Rhino, Blender…).',
+  cad: 'Les fichiers CAO (DWG/DXF) et les formats 3DS/KMZ/WRL ne sont pas supportés. Exportez en IFC, FBX, OBJ, GLB ou COLLADA (.dae) depuis votre logiciel (SketchUp, Revit, ArchiCAD, 3ds Max, Rhino, Blender…).',
   unknown:
     'Format non reconnu. Exportez votre scène en GLB (conseillé), FBX, OBJ ou COLLADA (.dae). Pour un modèle avec textures, mettez le fichier et ses images dans un même zip.',
   tooBig: (bytes: number) =>

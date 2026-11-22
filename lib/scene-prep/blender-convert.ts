@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import type { SceneCamera } from '../scene-cameras'
@@ -8,10 +9,10 @@ import type { SceneCamera } from '../scene-cameras'
  * and .blend; scripts/convert_to_glb.py turns any of them into a GLB in metres, Y-up, with its materials, textures and saved cameras,
  * and the usual preparation (normalizeGlb, the light viewport copy) follows.
  */
-export const BLENDER_FORMATS = ['fbx', 'obj', 'stl', 'ply', 'usd', 'usda', 'usdc', 'usdz', 'abc', 'blend'] as const
+export const BLENDER_FORMATS = ['fbx', 'obj', 'stl', 'ply', 'usd', 'usda', 'usdc', 'usdz', 'abc', 'blend', 'ifc'] as const
 
-/** Highest priority first: when a zip holds several, the first format found wins (FBX and USD carry units and axes; OBJ, STL, PLY do not). */
-export const BLENDER_PRIORITY = ['fbx', 'usdz', 'usdc', 'usda', 'usd', 'blend', 'abc', 'obj', 'ply', 'stl'] as const
+/** Highest priority first: when a zip holds several, the first format found wins (IFC, FBX and USD carry units and axes; OBJ, STL, PLY do not). */
+export const BLENDER_PRIORITY = ['ifc', 'fbx', 'usdz', 'usdc', 'usda', 'usd', 'blend', 'abc', 'obj', 'ply', 'stl'] as const
 
 const TIMEOUT_MS = Number(process.env.ROOMIA_CONVERT_TIMEOUT_MS ?? 30 * 60_000)
 
@@ -24,6 +25,12 @@ export interface BlenderConversion {
   objects: number
   triangles: number
   warnings: string[]
+}
+
+const ifcLib = () => {
+  const root = path.join(/* turbopackIgnore: true */ process.cwd(), 'desktop')
+  for (const d of [`pylib-ifc-${process.platform}`, 'pylib-ifc']) if (existsSync(path.join(root, d))) return path.join(root, d)
+  return ''
 }
 
 const scriptPath = () => path.join(/* turbopackIgnore: true */ process.env.ROOMIA_SCRIPTS_DIR ?? path.join(process.cwd(), 'scripts'), 'convert_to_glb.py')
@@ -40,7 +47,8 @@ export async function convertWithBlender(
   await rm(meta, { force: true })
   const args = ['-b', '--python', scriptPath(), '--', input, outGlb, meta, unit]
   const code = await new Promise<number>((resolve, reject) => {
-    const child = spawn(blender, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    // IFC: the IfcOpenShell folder shipped with the app (desktop/pylib-ifc-<platform>), unless ROOMIA_IFC_LIB says otherwise
+    const child = spawn(blender, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ROOMIA_IFC_LIB: process.env.ROOMIA_IFC_LIB ?? ifcLib() } })
     const tail: string[] = []
     const eat = (chunk: Buffer) => {
       for (const line of chunk.toString().split('\n')) {
@@ -64,7 +72,15 @@ export async function convertWithBlender(
       clearTimeout(timer)
       if (status !== 0) {
         const why = tail.find(l => /the file holds no mesh|unsupported format|import failed/.test(l))
-        reject(new Error(why?.includes('no mesh') ? 'Ce fichier ne contient aucune géométrie 3D.' : 'Ce fichier 3D n’a pas pu être lu. Réexportez-le en GLB ou FBX.'))
+        reject(
+          new Error(
+            why?.includes('no mesh')
+              ? 'Ce fichier ne contient aucune géométrie 3D.'
+              : why?.includes('IFC reader')
+                ? 'Le lecteur IFC n’est pas installé sur cette version de Roomia. Exportez en FBX, OBJ ou GLB.'
+                : 'Ce fichier 3D n’a pas pu être lu. Réexportez-le en GLB ou FBX.',
+          ),
+        )
       } else resolve(0)
     })
   })

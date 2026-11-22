@@ -39,6 +39,8 @@ const RES = app.isPackaged ? process.resourcesPath : __dirname
 // packaged: resources/app-server; from source: stage/app-server (one level down, see package.json extraResources)
 const SERVER_DIR = path.join(RES, app.isPackaged ? 'app-server' : 'stage/app-server')
 const PYLIB = path.join(RES, app.isPackaged ? 'pylib' : `pylib-${process.platform}`)
+// IFC (22 Nov): IfcOpenShell for Blender's Python, beside the other Python packages
+const IFCLIB = path.join(RES, app.isPackaged ? 'pylib-ifc' : `pylib-ifc-${process.platform}`)
 // The server's own Node (nodejs.org's, packed with the app): inside Electron sharp crashes and the heap stops at 4 GB.
 const NODE = path.join(RES, app.isPackaged ? 'runtime' : `runtime-${process.platform}`, process.platform === 'win32' ? 'node.exe' : 'node')
 const ENGINE_FILE = path.join(DATA, 'engine.json')
@@ -619,6 +621,7 @@ function serverEnv(port) {
   env.ROOMIA_PARENT_PID = String(process.pid)
   // scipy and Pillow for the plan and 360° scripts, packed with the app, next to Blender's own numpy
   if (fs.existsSync(PYLIB)) env.PYTHONPATH = PYLIB
+  if (fs.existsSync(IFCLIB)) env.ROOMIA_IFC_LIB = IFCLIB
   // VS Code and others set it; the server's Node must not pass it on as if it were Electron
   delete env.ELECTRON_RUN_AS_NODE
   return env

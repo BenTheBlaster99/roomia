@@ -3,7 +3,7 @@
 
 blender -b --python scripts/convert_to_glb.py -- <input> <output.glb> <meta.json> [unit]
 
-input   .fbx .obj .stl .ply .usd .usda .usdc .usdz .abc .blend (.dae and .gltf/.glb have their own readers in lib/scene-prep)
+input   .fbx .obj .stl .ply .usd .usda .usdc .usdz .abc .blend .ifc (.dae and .gltf/.glb have their own readers in lib/scene-prep)
 unit    auto (default), m, cm, mm, in, ft: the file's length unit when it does not say (OBJ, STL, PLY carry none)
 
 Writes a GLB (metres, Y-up, materials and textures as Blender reads them) and a JSON next to it:
@@ -47,6 +47,83 @@ elif ext in (".usd", ".usda", ".usdc", ".usdz"):
     run(bpy.ops.wm.usd_import, filepath=SRC)
 elif ext == ".abc":
     run(bpy.ops.wm.alembic_import, filepath=SRC)
+elif ext == ".ifc":
+    # 22 Nov: IFC (Revit, ArchiCAD, Allplan, Tekla...) through IfcOpenShell: walls, slabs, doors, windows, furniture as meshes with
+    # the file's colours. IFC is metres-or-declared-units, Z up: IfcOpenShell hands back metres.
+    for cand in [os.environ.get("ROOMIA_IFC_LIB", "")] + [os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), d) for d in ("desktop/pylib-ifc-linux", "desktop/pylib-ifc-win32", "pylib-ifc")]:
+        if cand and os.path.isdir(cand) and cand not in sys.path:
+            sys.path.insert(0, cand)
+    try:
+        import ifcopenshell
+        import ifcopenshell.geom
+    except Exception as err:  # noqa: BLE001
+        raise SystemExit("import failed: IFC reader (IfcOpenShell) not available: %s" % err)
+    ifc = ifcopenshell.open(SRC)
+    settings = ifcopenshell.geom.settings()
+    settings.set("use-world-coords", True)
+    # not drawn: the rooms' own volumes (IfcSpace), the voids cut for doors and windows, annotations
+    skip = []
+    for t in ("IfcSpace", "IfcOpeningElement", "IfcAnnotation", "IfcGrid", "IfcVirtualElement"):
+        try:
+            skip += ifc.by_type(t)
+        except Exception:  # noqa: BLE001
+            pass
+    it = ifcopenshell.geom.iterator(settings, ifc, max(1, (os.cpu_count() or 2) - 1), exclude=skip)
+    mats = {}
+
+    def material_for(style):
+        try:
+            name = style.original_name()  # the IfcSurfaceStyle's own name ("Plaster", "Parquet", "Glass")
+        except Exception:  # noqa: BLE001
+            name = None
+        name = (name or getattr(style, "name", None) or "IFC material")[:60]
+        d = getattr(style, "diffuse", None) or getattr(style, "surface_colour", None)
+        rgb = tuple(float(x) for x in (d.r(), d.g(), d.b())) if d is not None and hasattr(d, "r") else (0.8, 0.8, 0.8)
+        alpha = 1.0 - float(getattr(style, "transparency", 0.0) or 0.0)
+        key = (name, rgb, round(alpha, 2))
+        if key not in mats:
+            m = bpy.data.materials.new(name)
+            m.use_nodes = True
+            bsdf = m.node_tree.nodes["Principled BSDF"]
+            bsdf.inputs["Base Color"].default_value = (rgb[0], rgb[1], rgb[2], 1.0)
+            bsdf.inputs["Roughness"].default_value = 0.5
+            if alpha < 0.99:
+                bsdf.inputs["Alpha"].default_value = max(0.05, alpha)
+                m.blend_method = "BLEND"
+            mats[key] = m
+        return mats[key]
+
+    col = bpy.context.scene.collection
+    n_el = 0
+    if it.initialize():
+        while True:
+            shape = it.get()
+            g = shape.geometry
+            verts = g.verts
+            faces = g.faces
+            if len(faces) >= 3:
+                me = bpy.data.meshes.new("ifc")
+                vs = [(verts[i], verts[i + 1], verts[i + 2]) for i in range(0, len(verts), 3)]
+                fs = [(faces[i], faces[i + 1], faces[i + 2]) for i in range(0, len(faces), 3)]
+                me.from_pydata(vs, [], fs)
+                styles = list(g.materials)
+                slot_of = {}
+                for idx, st in enumerate(styles):
+                    me.materials.append(material_for(st))
+                    slot_of[idx] = idx
+                if styles and len(g.material_ids) == len(fs):
+                    for poly, mid in zip(me.polygons, g.material_ids):
+                        poly.material_index = max(0, min(int(mid), len(styles) - 1))
+                me.update()
+                ob = bpy.data.objects.new((getattr(shape, "name", None) or getattr(shape, "guid", "element"))[:60], me)
+                col.objects.link(ob)
+                n_el += 1
+            if not it.next():
+                break
+    if n_el == 0:
+        raise SystemExit("the file holds no mesh")
+    ifc_units = "m"
+    unit = "ifc"
 elif ext == ".blend":
     run(bpy.ops.wm.open_mainfile, filepath=SRC)
     # a .blend states its own unit
@@ -91,6 +168,18 @@ def transform_all(scale=1.0, rot_x_deg=0.0):
         o.matrix_world = m @ o.matrix_world
     bpy.context.view_layer.update()
 
+
+# --- a model far from the origin (a georeferenced IFC sits kilometres away): bring its floor to the origin
+if ext == ".ifc":
+    lo, hi = world_bbox()
+    c = (lo + hi) / 2
+    if max(abs(c.x), abs(c.y)) > 500 or abs(lo.z) > 500:
+        from mathutils import Matrix as _M
+
+        for o in roots():
+            o.matrix_world = _M.Translation((-c.x, -c.y, -lo.z)) @ o.matrix_world
+        bpy.context.view_layer.update()
+        warnings.append("model recentred (it stood %.0f m from the origin)" % max(abs(c.x), abs(c.y)))
 
 # --- units: only for formats that do not carry one
 scale = 1.0
