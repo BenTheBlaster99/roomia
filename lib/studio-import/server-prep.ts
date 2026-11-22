@@ -1,12 +1,11 @@
-import { fileExtension } from './formats'
+import { fileExtension, SERVER_PREP_FORMATS } from './formats'
 
 const POLL_MS = 1500
 const POLL_TIMEOUT_MS = 20 * 60_000
 
 /** Formats the server can turn into a light copy. */
 export function canPrepareOnServer(fileName: string): boolean {
-  const ext = fileExtension(fileName)
-  return ext === 'dae' || ext === 'glb' || ext === 'zip'
+  return (SERVER_PREP_FORMATS as readonly string[]).includes(fileExtension(fileName))
 }
 
 /** Files above this go up in small pieces, each retried on its own, so one dropped connection costs seconds, not minutes. */

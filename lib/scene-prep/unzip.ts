@@ -5,7 +5,11 @@ import { pipeline } from 'node:stream/promises'
 import yauzl from 'yauzl'
 
 /** Only what a scene needs; everything else in the zip is ignored, never extracted. */
-const ALLOWED_EXTENSIONS = new Set(['dae', 'glb', 'skp', 'json', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff'])
+const ALLOWED_EXTENSIONS = new Set([
+  'dae', 'glb', 'skp', 'json', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff',
+  // 22 Nov: the other 3D formats (see SERVER_PREP_FORMATS) with what they point to: .gltf's .bin, .obj's .mtl, textures
+  'gltf', 'bin', 'fbx', 'obj', 'mtl', 'stl', 'ply', 'usd', 'usda', 'usdc', 'usdz', 'abc', 'blend', 'tga', 'dds', 'exr', 'hdr',
+])
 
 export const MAX_UNZIPPED_BYTES = Number(process.env.SCENE_MAX_UNZIPPED_BYTES ?? 6 * 1024 ** 3)
 
