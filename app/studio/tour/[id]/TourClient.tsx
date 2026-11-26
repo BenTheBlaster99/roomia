@@ -90,16 +90,33 @@ function visitOrder(views: TourView[]): number[] {
   return order
 }
 
-/** Direction from view `from` to the floor where view `to` stands: right (+) of where `from` looks, and down (−). */
+/** 25 Nov: where a point's 360° was taken and the way its middle looks (lib/scene-tour.ts pointFrame), not the saved camera's. */
+const eyeOf = (v: TourView) => v.eye ?? v.position
+const aheadOf = (v: TourView) => v.ahead ?? v.target
+
+/** 25 Nov: where a point's carousel cover looks, in the viewer's yaw (+ = right of the 360°'s middle): the operator's chosen
+ *  start, else the way the architect's camera looked (turned around when it faces a wall). Clicking the cover arrives there. */
+function coverYaw(v: TourView) {
+  if (v.startYaw != null) return v.startYaw
+  const e = eyeOf(v)
+  const a = aheadOf(v)
+  const middle = Math.atan2(-(a[2] - e[2]), a[0] - e[0])
+  const looks = Math.atan2(-(v.target[2] - v.position[2]), v.target[0] - v.position[0])
+  const yaw = middle - looks + (v.noPhoto && !v.auto ? Math.PI : 0)
+  return Math.atan2(Math.sin(yaw), Math.cos(yaw))
+}
+
+/** Direction from view `from` to the floor where view `to` stands: right (+) of where `from`'s 360° looks, and down (−). */
 function direction(from: TourView, to: TourView) {
-  const [px, py, pz] = from.position
-  const fx = from.target[0] - px
-  const fz = from.target[2] - pz
-  const vx = to.position[0] - px
-  const vz = to.position[2] - pz
+  const [px, py, pz] = eyeOf(from)
+  const fx = aheadOf(from)[0] - px
+  const fz = aheadOf(from)[2] - pz
+  const there = eyeOf(to)
+  const vx = there[0] - px
+  const vz = there[2] - pz
   const yaw = Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz)
   const dist = Math.hypot(vx, vz)
-  const pitch = Math.atan2(to.position[1] - EYE_ABOVE_ARROW - py, dist)
+  const pitch = Math.atan2(there[1] - EYE_ABOVE_ARROW - py, dist)
   return { yaw, pitch, dist }
 }
 
@@ -116,10 +133,11 @@ interface LookData {
 
 /** Direction (radians, + = right) a point's 360° faces when one walks into it from another: the way one was going. */
 function arrivalYaw(from: TourView, to: TourView) {
-  const fx = to.target[0] - to.position[0]
-  const fz = to.target[2] - to.position[2]
-  const vx = to.position[0] - from.position[0]
-  const vz = to.position[2] - from.position[2]
+  const [ex, , ez] = eyeOf(to)
+  const fx = aheadOf(to)[0] - ex
+  const fz = aheadOf(to)[2] - ez
+  const vx = ex - eyeOf(from)[0]
+  const vz = ez - eyeOf(from)[2]
   if (Math.hypot(vx, vz) < 0.05) return null
   return Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz)
 }
@@ -278,6 +296,20 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     [order.length, step],
   )
   const goToView = useCallback((index: number) => go(order.indexOf(views.findIndex(v => v.index === index))), [go, order, views])
+
+  // the carousel (25 Nov): every point of the visit in its order, as a cover cut from its 360° (or its photo)
+  const strip = useMemo(
+    () =>
+      order
+        .map((i, k) => ({ v: views[i], n: k + 1 }))
+        .filter(({ v }) => v && (v.pano || v.photo) && (!v.hidden || v.index === current?.index)),
+    [order, views, current?.index],
+  )
+  const stripRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const here = stripRef.current?.querySelector<HTMLElement>('[data-here]')
+    here?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }, [current?.index, mode])
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -758,6 +790,45 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           </nav>
         )}
 
+        {inVisit && strip.length > 1 && (
+          <nav
+            className={`tour-strip${plan ? ' with-plan' : ''}`}
+            style={plan ? { ['--ratio' as string]: plan.width / plan.height } : undefined}
+            aria-label="Les pièces de la visite"
+          >
+            <div className="tour-strip-track" ref={stripRef}>
+              {strip.map(({ v, n }) => (
+                <button
+                  key={v.index}
+                  type="button"
+                  className={`tour-card${v.index === current.index ? ' here' : ''}`}
+                  aria-current={v.index === current.index ? 'true' : undefined}
+                  data-here={v.index === current.index ? '' : undefined}
+                  onClick={() => {
+                    // in the 360°, the next room opens in the 360° too, looking the way its cover looks
+                    const in360 = shown === 'pano'
+                    goToView(v.index)
+                    if (v.pano) setArrival(coverYaw(v))
+                    if (v.pano && in360) setMode('pano')
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={v.pano ? `/api/scenes/${sceneId}/tour/${v.pano}?cover=1&yaw=${coverYaw(v).toFixed(2)}&v=${version}` : photoUrl(sceneId, v.photo as string)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span className="tour-card-name">
+                    <b>{n}</b>
+                    {v.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
+
         {/* what is still being made, out of the way (the preview while the final quality is on its way, a rebuild) */}
         {!published && !editing && (pipeline || data.status.state === 'failed' || look?.stage === 'error' || error) && (
           <div className="tour-pill" role="status">
@@ -1023,11 +1094,13 @@ function ProjectRail({ items, sceneId }: { items: RailItem[]; sceneId: string | 
     <nav className="tour-rail" aria-label="Le projet">
       {sceneId ? (
         <Link className="tour-rail-mark" href="/studio/projets" aria-label="Roomia, mes projets">
-          R<span>.</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/roomia-mark.png" alt="" width={44} height={44} />
         </Link>
       ) : (
         <span className="tour-rail-mark" aria-label="Roomia">
-          R<span>.</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/roomia-mark.png" alt="" width={44} height={44} />
         </span>
       )}
       <div className="tour-rail-items">

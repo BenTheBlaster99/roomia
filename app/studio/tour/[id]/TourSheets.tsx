@@ -151,7 +151,7 @@ export function Plan3dSheet({
       </div>
       <aside className="tour-sheet-side">
         <h2>Plan 3D</h2>
-        <p className="tour-note">Vue en coupe meublée de tout l’appartement, à hauteur d’yeux.</p>
+        <p className="tour-note">Vue en coupe meublée de tout l’appartement, les murs jusqu’au plafond.</p>
         <a className="tour-btn" href={url} download={`plan-3d-${sceneId}.jpg`}>
           Télécharger le plan 3D
         </a>

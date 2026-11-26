@@ -8,6 +8,7 @@ import { getDb } from './db'
 import { PHOTO_FILE } from './scene-photos'
 import { isSceneId, readMeta, SCENES_DIR, sceneDir, writeMeta, type SceneMeta } from './scene-store'
 import { TOUR_FILE } from './scene-tour'
+import { removeFromR2, scheduleMirror } from './tour-mirror'
 
 /**
  * A Roomia Desktop account's space on Roomia's server ("Mon espace"): what it paid for and what it published stays
@@ -175,10 +176,13 @@ export async function finishPublish(userId: number, id: string, files: { path: s
   await rm(old, { recursive: true, force: true })
   await rm(incoming, { recursive: true, force: true })
   await writeMeta({ ...meta, status: 'ready', bytes, published: { ...meta.published!, at: Date.now(), bytes } })
+  // 25 Nov: the copy that answers when this PC is off (lib/tour-mirror.ts) follows the new version
+  scheduleMirror(id)
   return { id, bytes }
 }
 
 export async function unpublish(userId: number, id: string): Promise<void> {
   if (!(await ownTour(userId, id))) throw new DriveError('Visite introuvable sur votre compte.', 404)
   await rm(sceneDir(id), { recursive: true, force: true })
+  await removeFromR2(id).catch(err => console.error('tour mirror: removing', id, err))
 }

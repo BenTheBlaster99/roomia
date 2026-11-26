@@ -6,7 +6,7 @@
  * exists, put it at public/brand/roomia-logo.svg and set LOGO_SRC below: the mark is then shown before the
  * wordmark everywhere on the site, at the wordmark's height. Do not redraw or approximate the mark here.
  */
-const LOGO_SRC: string | null = null
+const LOGO_SRC: string | null = '/brand/roomia-mark.png' // 25 Nov: the logo, a PNG until a vector file exists
 
 export default function Wordmark({ className = '' }: { className?: string }) {
   return (

@@ -1,6 +1,7 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { CreditError } from './credits'
+import { publishSignature } from './desktop-autopublish'
 import { cloudPublishTour, type PublishProgress } from './roomia-cloud'
 import { PHOTO_FILE } from './scene-photos'
 import { readMeta, sceneDir, writeMeta } from './scene-store'
@@ -69,6 +70,8 @@ export async function startPublishing(sceneId: string): Promise<PublishProgress>
   if (running?.state === 'sending') return running
   const meta = await readMeta(sceneId)
   if (!meta || meta.status !== 'ready') throw new CreditError('Projet introuvable.', 404)
+  // what is sent, fingerprinted before the upload: a change during the upload is published again (lib/desktop-autopublish.ts)
+  const { sig } = await publishSignature(sceneId)
   const files = await tourFiles(sceneId)
   const total = files.reduce((n, f) => n + f[2], 0)
   const state: PublishProgress = { state: 'sending', sent: 0, total }
@@ -90,7 +93,7 @@ export async function startPublishing(sceneId: string): Promise<PublishProgress>
     })
     .then(async ({ id, url }) => {
       const now = await readMeta(sceneId)
-      if (now) await writeMeta({ ...now, publishedAs: { id, url, at: Date.now() } })
+      if (now) await writeMeta({ ...now, publishedAs: { id, url, at: Date.now(), sig } })
       Object.assign(state, { state: 'done', sent: total, id, url })
     })
     .catch(err => {

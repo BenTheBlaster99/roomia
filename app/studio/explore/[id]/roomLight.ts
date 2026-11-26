@@ -52,7 +52,7 @@ export async function roomEnvironment(renderer: THREE.WebGLRenderer, pmrem: THRE
 
   const used = panos.length <= MAX ? panos : Array.from({ length: MAX }, (_, k) => panos[Math.floor((k * panos.length) / MAX)])
   for (const { t } of used) t.colorSpace = THREE.SRGBColorSpace
-  const dirs = used.map(({ v }) => new THREE.Vector3(v.target[0] - v.position[0], 0, v.target[2] - v.position[2]).normalize())
+  const dirs = used.map(({ v }) => new THREE.Vector3((v.ahead ?? v.target)[0] - (v.eye ?? v.position)[0], 0, (v.ahead ?? v.target)[2] - (v.eye ?? v.position)[2]).normalize())
   const target = new THREE.WebGLRenderTarget(WIDTH, WIDTH / 2, { type: THREE.HalfFloatType, depthBuffer: false })
   const material = new THREE.ShaderMaterial({
     uniforms: {

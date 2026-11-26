@@ -51,7 +51,7 @@ export interface SceneMeta {
   /** Roomia Desktop: sent by the SketchUp extension (lib/desktop-inbox.ts); `versionOf` is the project it was sent as before. */
   source?: { kind: 'sketchup'; guid?: string; at: number; versionOf?: string }
   /** Roomia Desktop: where this project's tour was published, to update the same link (lib/roomia-cloud.ts). */
-  publishedAs?: { id: string; url: string; at: number }
+  publishedAs?: { id: string; url: string; at: number; /** fingerprint of what was sent (lib/desktop-autopublish.ts) */ sig?: string }
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{21}$/

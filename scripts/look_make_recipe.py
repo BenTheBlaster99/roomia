@@ -17,7 +17,8 @@ out = sys.argv[2]
 floor_z = float(sys.argv[3]) if len(sys.argv) > 3 else None
 az = float(an["sun"]["azimuth"])
 # "lum" alone matched "Aluminum" (10 Nov: F5 got downlights under every aluminium trim): luminaire/luminaria/lumi... but never alumin...
-LAMP = re.compile(r"led|light|lamp|(?<!a)lum(?!inum|inium)|bulb|spot|downl|neon|glow|strip|ampoule", re.I)
+# 25 Nov: the fixtures blender-render.ts now lights by name (Emissive discs are ceiling spots: they get their downlight too)
+LAMP = re.compile(r"led|light|lamp|(?<!a)lum(?!inum|inium)|bulb|spot|downl|neon|glow|strip|ampoule|emissi|arandela|lustre|chandelier|applique", re.I)
 
 small, glow = [], []
 for name, e in an.get("emissive", {}).items():
@@ -77,7 +78,11 @@ R = {
             # the white balance hit its 15 % limit and the picture went hazy. 6000 K-ish sky at 320 turned rooms green (E).
             # 14 Nov (the user: "the lights need to be shown that they are on"): the glowing fixtures x3, the cove washes x3, the LED
             # lines x2, the downlights 110 -> 150 W, so a lamp reads as switched on in broad daylight too.
-            "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": 1.5, "COVES": 0.45, "COVE_LINES": 2.0, "PENDANTS": 1.5, "PENDANT_GLOW": 4, "SLOT": 10},
+            # 25 Nov (the user, after Sarah asked a 3rd time: "make the lights brighter, they should really glow"): the glowing fixtures
+            # 1.5 -> 4 and a bloom on the fixtures' own light ("glow" below, look_render.py), never on the windows.
+            "gains": {"SUN_DAY": 1.6, "WORLD_DAY": 150, "INTERIOR": 2.0, "PRACTICALS": float(os.environ.get("ROOMIA_LOOK_PRACTICALS_DAY", 4.0)), "COVES": 0.45, "COVE_LINES": 2.0, "PENDANTS": 1.5, "PENDANT_GLOW": 4, "SLOT": 10},
+            "glow": {"groups": ["PRACTICALS", "PENDANT_GLOW", "COVE_LINES"], "threshold": float(os.environ.get("ROOMIA_LOOK_GLOW_THRESHOLD", 0.8)),
+                     "strength": float(os.environ.get("ROOMIA_LOOK_GLOW", 0.6)), "size": float(os.environ.get("ROOMIA_LOOK_GLOW_SIZE", 0.6))},
             "tints": {"INTERIOR": [1.0, 1.0, 1.0], "COVES": [0.95, 1.0, 1.15], "PENDANTS": [0.95, 1.0, 1.15]},
             # 18 Nov test: a grade fitted to the AI light's broad look (contrast 1.15, saturation 1.1, middle 0.66, warmer whites)
             # brought Blender's own picture close to the AI's, but the final 360 (AI light on top) came out flat and milky. Kept.

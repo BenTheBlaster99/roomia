@@ -291,6 +291,17 @@ elif JOB["mode"] == "pano":
         mul.inputs[0].default_value = 1.0
         tree.links.new(sock, mul.inputs[1])
         mul.inputs[2].default_value = (gain * tint[0], gain * tint[1], gain * tint[2], 1.0)
+        GLOW = (LOOK or {}).get("glow") or {}
+        if g in GLOW.get("groups", []) and float(GLOW.get("strength", 0)) > 0:
+            # 25 Nov: a lamp that is on glows. Bloom on the fixtures' own light only (their group), so the windows never get a halo
+            gl_ = tree.nodes.new("CompositorNodeGlare")
+            gl_.glare_type = "BLOOM"
+            gl_.quality = "HIGH"
+            for k_, v_ in (("Threshold", GLOW.get("threshold", 0.8)), ("Strength", GLOW.get("strength", 0.6)), ("Size", GLOW.get("size", 0.6))):
+                if gl_.inputs.get(k_) is not None:
+                    gl_.inputs[k_].default_value = float(v_)
+            tree.links.new(mul.outputs[0], gl_.inputs["Image"])
+            mul = gl_
         if acc is None:
             acc = mul
         else:

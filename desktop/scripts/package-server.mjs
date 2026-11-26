@@ -103,7 +103,10 @@ fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true
   if (fs.existsSync(nm) && fs.lstatSync(nm).isSymbolicLink()) {
     const real = fs.realpathSync(nm)
     fs.unlinkSync(nm)
-    fs.cpSync(real, nm, { recursive: true, dereference: true })
+    // 26 Nov: in a nested build the link leaves the standalone output (roomia-speed → roomia-w → roomia's whole install: 35k files,
+    // eslint, @types…) and filled the drive; the traced packages are in standalone/<other checkout>/node_modules, copied just below
+    if (nested && !real.startsWith(standalone + path.sep)) fs.mkdirSync(nm)
+    else fs.cpSync(real, nm, { recursive: true, dereference: true })
   }
   if (nested) {
     for (const d of fs.readdirSync(standalone)) {

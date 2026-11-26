@@ -172,8 +172,12 @@ def install(width, pairs):
     t = json.load(open(tour_p))
     for i, _ in pairs:
         for v in t["views"]:
-            if v["index"] == i and not v.get("pano"):
-                v["pano"] = "pano-%d.jpg" % i
+            if v["index"] == i:
+                if not v.get("pano"):
+                    v["pano"] = "pano-%d.jpg" % i
+                # 25 Nov: job() renders every 360 centred on +x (yaw 0), not along the view's direction: the tour turns its cone,
+                # arrows and arrivals by this (lib/scene-tour.ts pointFrame)
+                v["panoYaw"] = 0.0
     # moved cameras: the tour's arrows and the plan's dot follow the 360 to its new spot (plan pixels from the views that have both)
     mv = {p["index"]: p["position"] for p in points() if p.get("moved")}
     known = [v for v in t["views"] if v.get("position") and v.get("plan") and v["index"] not in mv]
