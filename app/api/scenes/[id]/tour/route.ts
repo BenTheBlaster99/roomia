@@ -3,8 +3,8 @@ import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
 import { confirmTourPoints, dropTourProposal, editTourPoint, openPointsEditor, startPlan3d, readTour, stopTourBuild, stopTourPropose, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { planAutoAi } from '@/lib/look-pipeline'
-import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
-import { readMeta } from '@/lib/scene-store'
+import { cloudMode, cloudUpdateRefusal, cloudUsage } from '@/lib/roomia-cloud'
+import { readMeta, type SceneMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 
@@ -102,9 +102,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // The new version must be reachable by the same person (its owner, with accounts on).
       const deniedFrom = await accessDenied(req, body.newVersion)
       if (deniedFrom) return deniedFrom
+      const [before, next] = await Promise.all([readMeta(id), readMeta(body.newVersion)])
+      // Roomia Desktop: a projects forfait includes 3 updates per started project (lib/forfait.ts): asked before anything moves
+      if (cloudMode()) {
+        const refusal = await cloudUpdateRefusal(id, next?.fileName ?? body.newVersion)
+        if (refusal) return Response.json({ detail: refusal }, { status: 402 })
+      }
       const status = await startNewVersion(id, body.newVersion)
-      // Roomia Desktop: a client's forfait counts its updates (lib/forfait.ts); the work is free and never waits for this
-      if (cloudMode()) void readMeta(id).then(meta => cloudUsage('update', meta?.fileName ?? id))
+      if (cloudMode()) void cloudUsage('update', next?.fileName ?? id, { id, note: unlikeModel(before, next) })
       return Response.json({ status })
     }
     if (body?.update === true) return Response.json({ status: await startTourUpdate(id) })
@@ -129,4 +134,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err) {
     return Response.json({ detail: err instanceof Error ? err.message : String(err) }, { status: 400 })
   }
+}
+
+/**
+ * An update must be the same apartment, modified. When the new model is far from the current one (3 times more or fewer
+ * triangles), Roomia's admin sees a note on that update; nothing is refused (an architect may furnish an empty model).
+ */
+function unlikeModel(before: SceneMeta | null, next: SceneMeta | null): string | null {
+  const a = Number(before?.report?.trianglesIn ?? 0)
+  const b = Number(next?.report?.trianglesIn ?? 0)
+  if (!a || !b) return null
+  const ratio = b / a
+  if (ratio < 3 && ratio > 1 / 3) return null
+  const m = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : `${Math.round(n / 1e3)} k`)
+  return `modèle très différent (${m(a)} → ${m(b)} triangles) : autre appartement ?`
 }

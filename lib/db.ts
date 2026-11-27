@@ -94,6 +94,33 @@ CREATE TABLE IF NOT EXISTS forfait_usage (
   detail TEXT,
   at INTEGER NOT NULL
 );
+-- 27 Nov: the projects forfait (lib/forfait.ts PROJECT_SCOPE). A project is opened by its first AI image.
+CREATE TABLE IF NOT EXISTS forfait_projects (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  project TEXT NOT NULL,
+  name TEXT NOT NULL,
+  opened_at INTEGER NOT NULL,
+  credits INTEGER NOT NULL DEFAULT 1,
+  extra_updates INTEGER NOT NULL DEFAULT 0,
+  extra_views INTEGER NOT NULL DEFAULT 0,
+  extra_photos INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, project)
+);
+-- the project of a job of a projects forfait; such a job never takes or gives back a plain credit
+CREATE TABLE IF NOT EXISTS project_jobs (
+  job_id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  project TEXT NOT NULL
+);
+-- every update (new version of the model) of an opened project; note: why it looked like another apartment
+CREATE TABLE IF NOT EXISTS project_versions (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  project TEXT NOT NULL,
+  file TEXT,
+  note TEXT,
+  at INTEGER NOT NULL
+);
 `
 
 function processAlive(pid: number): boolean {
@@ -119,7 +146,8 @@ function releaseOrphans(database: Database) {
         .prepare(`UPDATE jobs SET status = 'released', failure = 'serveur redémarré', finished_at = ? WHERE id = ? AND status = 'reserved'`)
         .run(Date.now(), job.id)
       if (Number(done.changes) !== 1) return
-      database.prepare(`UPDATE users SET credits = credits + 1 WHERE id = ?`).run(job.user_id)
+      // a projects forfait's job took no credit (lib/credits.ts)
+      if (!database.prepare(`SELECT 1 FROM project_jobs WHERE job_id = ?`).get(job.id)) database.prepare(`UPDATE users SET credits = credits + 1 WHERE id = ?`).run(job.user_id)
       const balance = Number(database.prepare(`SELECT credits FROM users WHERE id = ?`).get(job.user_id)?.credits ?? 0)
       database
         .prepare(`INSERT INTO ledger (at, user_id, job_id, kind, delta, balance_after, outcome, detail) VALUES (?, ?, ?, 'release', 1, ?, 'interrupted', 'serveur redémarré pendant le rendu')`)

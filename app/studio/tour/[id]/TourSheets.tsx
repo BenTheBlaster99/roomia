@@ -3,7 +3,7 @@
 // The tour's other deliverables, each in its own tab (11 Nov makeover): the architect's 2D plan, the 3D plan, the video and
 // the AI photos (the views picked one by one, each with its own ambiance). Before, plans and video sat behind ?edit=1.
 import { useEffect, useState } from 'react'
-import { forfaitLeft, plural } from '@/lib/forfait'
+import { forfaitLeft, plural, projectNotice } from '@/lib/forfait'
 import type { TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { useForfait } from '../../components/useForfait'
@@ -237,7 +237,8 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
   const [failed, setFailed] = useState<string[]>([])
   // a client's forfait counts photos, not DA (lib/forfait.ts)
   const { forfait, refresh: refreshForfait } = useForfait()
-  const photosLeft = forfaitLeft(forfait, 'photo')
+  const photosLeft = forfaitLeft(forfait, 'photo', sceneId)
+  const notice = projectNotice(forfait, sceneId)
   const chosen = candidates.filter(v => picked[v.index])
   const overForfait = photosLeft !== null && chosen.length > photosLeft
   const count = (m: Mood) => chosen.filter(v => picked[v.index] === m).length
@@ -341,7 +342,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
               <td>Temps estimé</td>
               <td>{chosen.length * 2} min</td>
             </tr>
-            {photosLeft !== null ? (
+            {photosLeft !== null && !forfait?.projects ? (
               <tr>
                 <td>Forfait</td>
                 <td>{plural(photosLeft, 'photo restante', 'photos restantes')}</td>
@@ -353,8 +354,16 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
           <p className="tour-note">{running}</p>
         ) : (
           <>
-            {overForfait && <p className="tour-note">Choisissez au plus {plural(photosLeft!, 'photo', 'photos')}, ou contactez Roomia pour étendre le forfait.</p>}
-            <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0 || overForfait}>
+            {notice && <p className="tour-note">{notice.text}</p>}
+            {overForfait &&
+              (forfait?.projects ? (
+                <p className="tour-note">
+                  {photosLeft ? `Ce projet comprend encore ${plural(photosLeft, 'photo HD', 'photos HD')} : choisissez-en au plus ${photosLeft}.` : 'Les photos HD incluses dans ce projet sont faites.'} Pour des photos en plus, contactez Roomia.
+                </p>
+              ) : (
+                <p className="tour-note">Choisissez au plus {plural(photosLeft!, 'photo', 'photos')}, ou contactez Roomia pour étendre le forfait.</p>
+              ))}
+            <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0 || overForfait || notice?.tone === 'warn'}>
               Lancer {chosen.length > 1 ? `les ${chosen.length} photos` : 'la photo'}
             </button>
           </>

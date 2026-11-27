@@ -562,7 +562,7 @@ async function makeLight(id: string, k: number, name: string, reference: Buffer 
     try {
       if (cloud) {
         const r = await cloudPhoto(
-          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view: name, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: false, kind: 'pano-light', reference },
+          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), projectId: id, projectName: (await readMeta(id))?.fileName, view: name, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: false, kind: 'pano-light', reference },
           () => {},
         )
         buf = Buffer.from(r.base64, 'base64')

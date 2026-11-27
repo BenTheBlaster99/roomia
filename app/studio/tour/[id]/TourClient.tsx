@@ -467,6 +467,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     const file = (form.elements.namedItem('file') as HTMLInputElement).files?.[0]
     const scenes = (form.elements.namedItem('scenes') as HTMLInputElement).files?.[0]
     if (!file) return
+    if (!window.confirm('Une nouvelle version, c’est le même appartement modifié : elle compte parmi les mises à jour du projet.\n\nSi c’est un autre appartement, importez-le plutôt comme un nouveau projet (Mes projets).\n\nContinuer ?')) return
     setError('')
     setBusy('Nouvelle version : envoi…')
     try {

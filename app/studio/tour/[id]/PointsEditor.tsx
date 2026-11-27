@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useRef, useState } from 'react'
-import { forfaitLeft, plural } from '@/lib/forfait'
+import { forfaitLeft, plural, projectNotice } from '@/lib/forfait'
 import type { ProposalLevel, ProposalPoint, TourProposal } from '@/lib/scene-tour'
 import { alikePairs } from '@/lib/points-alike'
 import { formatMinutes, tourMinutes, useDesktopEngine, useDesktopTiming } from '../../components/DesktopRenderNotice'
@@ -103,8 +103,10 @@ export default function PointsEditor({
   const drag = useRef<{ key: string; moved: boolean } | null>(null)
   const added = useRef(0)
   const { forfait, signedIn, credits } = useForfait()
-  const panoLeft = forfaitLeft(forfait, 'pano')
+  const panoLeft = forfaitLeft(forfait, 'pano', sceneId)
   const aiMax = signedIn ? (panoLeft ?? credits) : 0
+  // 27 Nov, projects forfait: the project's scope speaks of the project, never of a stock of views
+  const notice = signedIn ? projectNotice(forfait, sceneId) : null
 
   const level = levels.find(l => l.index === levelIndex) ?? levels[0]
   const kept = points.filter(p => p.on)
@@ -113,9 +115,13 @@ export default function PointsEditor({
   // the 360 is the AI image itself (15 Nov): never a visit left at the Blender stage, so every point needs its finish
   const blocked = !signedIn
     ? 'Connectez-vous à votre compte Roomia (Mon espace) pour lancer la visite : chaque point est fini par l’IA.'
-    : aiMax < toRender.length
-      ? `Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet encore ${plural(aiMax, 'vue 360°', 'vues 360°')} : ${toRender.length} points à faire. Retirez-en ou contactez Roomia pour l’étendre.`
-      : null
+    : notice?.tone === 'warn'
+      ? notice.text
+      : aiMax < toRender.length
+        ? forfait?.projects
+          ? `Ce projet comprend encore ${plural(aiMax, 'point de vue 360°', 'points de vue 360°')} : ${toRender.length} points à faire. Retirez-en, ou contactez Roomia pour un projet plus grand (sur devis).`
+          : `Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet encore ${plural(aiMax, 'vue 360°', 'vues 360°')} : ${toRender.length} points à faire. Retirez-en ou contactez Roomia pour l’étendre.`
+        : null
   const number = new Map(kept.map((p, n) => [p.key, n + 1]))
   const sel = points.find(p => p.key === selected) ?? null
   // 21 Nov: two points that stand close and see each other make the same picture twice (the F5's kitchen had two, 1 m apart, and nobody
@@ -342,11 +348,15 @@ export default function PointsEditor({
             ) : onCancel ? (
               <p className="tour-note">
                 {toRender.length
-                  ? `${plural(toRender.length, 'point à refaire', 'points à refaire')} (${plural(toRender.length, 'vue 360°', 'vues 360°')} de votre ${panoLeft !== null ? 'forfait' : 'compte'}) ; les autres gardent leur 360° fini. Plans mis à jour.`
+                  ? forfait?.projects
+                    ? `${plural(toRender.length, 'point à refaire', 'points à refaire')}, inclus dans votre projet ; les autres gardent leur 360° fini. Plans mis à jour.`
+                    : `${plural(toRender.length, 'point à refaire', 'points à refaire')} (${plural(toRender.length, 'vue 360°', 'vues 360°')} de votre ${panoLeft !== null ? 'forfait' : 'compte'}) ; les autres gardent leur 360° fini. Plans mis à jour.`
                   : 'Aucun point à refaire : la visite et les plans sont mis à jour, sans nouvelle vue 360°.'}
               </p>
             ) : (
-              <p className="tour-note">Rendu, lumière du jour, finition IA de chaque point et plans, en une fois, sans autre clic.</p>
+              <p className="tour-note">
+                Rendu, lumière du jour, finition IA de chaque point et plans, en une fois, sans autre clic.{notice ? ` ${notice.text}` : ''}
+              </p>
             )}
           </div>
 

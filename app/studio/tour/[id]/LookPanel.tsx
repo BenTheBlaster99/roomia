@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { forfaitLeft, plural } from '@/lib/forfait'
+import { forfaitLeft, plural, projectNotice } from '@/lib/forfait'
 import type { LookState as LookJob } from '@/lib/look-pipeline'
 import { useForfait } from '../../components/useForfait'
 
@@ -31,7 +31,9 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   const [error, setError] = useState('')
   // a client's forfait counts 360 views, not credits or DA (lib/forfait.ts)
   const { forfait, signedIn, credits, refresh: refreshForfait } = useForfait()
-  const panoLeft = forfaitLeft(forfait, 'pano')
+  const panoLeft = forfaitLeft(forfait, 'pano', sceneId)
+  // 27 Nov, projects forfait: "the first AI image of this project uses 1 project" (or why nothing can be made)
+  const notice = projectNotice(forfait, sceneId)
 
   // the time read with each state, so the minutes shown are computed outside the render
   const [readAt, setReadAt] = useState(0)
@@ -162,8 +164,13 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                   <strong>Finition IA</strong>
                   <span>
                     L’IA donne à chaque vue sa qualité photo finale : lumière du jour, lampes allumées.
-                    {aiCount < state.suggestions.length ? ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.` : ''}
+                    {aiCount < state.suggestions.length
+                      ? forfait?.projects
+                        ? ` Ce projet comprend encore ${plural(aiCount, 'point de vue 360°', 'points de vue 360°')} : les premiers de la visite. Pour un appartement plus grand, contactez Roomia (sur devis).`
+                        : ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.`
+                      : ''}
                   </span>
+                  {notice && <span>{notice.text}</span>}
                   <button type="button" onClick={() => void start({ action: 'ai', points: allPoints, ring: [], maxCost: allPoints.length * DA_PER_IMAGE })}>
                     Finir toute la visite avec l’IA ({plural(aiCount, 'vue', 'vues')})
                   </button>

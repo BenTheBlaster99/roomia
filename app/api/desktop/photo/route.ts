@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest } from 'next/server'
-import { consumeCredit, CreditError, forfaitOf, isJobId, releaseCredit, reserveCredit } from '@/lib/credits'
+import { consumeCredit, CreditError, forfaitOf, isJobId, projectsTotal, releaseCredit, reserveCredit } from '@/lib/credits'
 import { getDb } from '@/lib/db'
 import { bearerUser, cloudOff, desktopCloudEnabled, desktopPhotoPath, notSignedIn } from '@/lib/desktop-cloud'
 import { getOpenAIClient } from '@/lib/openai-client'
@@ -37,6 +37,9 @@ export async function POST(req: NextRequest) {
   if (!isJobId(jobId)) return Response.json({ detail: 'Requête incomplète.' }, { status: 400 })
   const view = String(body?.view ?? 'Vue').slice(0, 80)
   const project = String(body?.project ?? '').slice(0, 80)
+  // 0.5.5: the project's scene id, so a projects forfait (lib/forfait.ts) knows which project the image belongs to
+  const projectId = typeof body?.projectId === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(body.projectId) ? body.projectId : null
+  const projects = projectsTotal(user.id)
   const lighting = parseLighting(body?.lighting as Record<string, unknown> | undefined)
   const ask = body?.ask === true
   // a 360 tile (lib/look-pipeline.ts): one square view of a panorama, edited with the face prompt; one credit like a photo
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   // 13 Nov: Roomia Desktop 0.4.6 and older finish a 360 with 6 "tiles" per view. With a forfait each tile would take one of its
   // 360 views (a 3-view finish = 18 views), so those apps are refused, before anything is reserved: they must update first.
-  if (tile && forfaitOf(user.id)) {
+  if ((tile && forfaitOf(user.id)) || (projects !== null && !projectId)) {
     return Response.json(
       { detail: 'Votre version de Roomia est trop ancienne pour la finition 360° de votre forfait. Mettez à jour (menu Aide → Rechercher une mise à jour), relancez Roomia, puis recommencez. Rien n’a été décompté.' },
       { status: 426 },
@@ -71,7 +74,7 @@ export async function POST(req: NextRequest) {
   if (!capture || capture.length < 10_000 || capture.length > MAX_CAPTURE_BYTES) {
     return Response.json({ detail: 'Capture manquante ou trop lourde.' }, { status: 400 })
   }
-  if (user.credits < 1) return Response.json({ detail: 'Plus de crédits sur ce compte. Contactez Roomia pour recharger.' }, { status: 402 })
+  if (projects === null && user.credits < 1) return Response.json({ detail: 'Plus de crédits sur ce compte. Contactez Roomia pour recharger.' }, { status: 402 })
   try {
     getOpenAIClient()
   } catch (err) {
@@ -94,7 +97,7 @@ export async function POST(req: NextRequest) {
       let reserved = false
       const started = performance.now()
       try {
-        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, panoLight ? `360 lumière · ${view}` : tile ? `360 tuile · ${view}` : view, panoLight || tile ? 'pano' : 'photo')
+        reserveCredit(user.id, jobId, `desktop:${project || 'projet'}`, panoLight ? `360 lumière · ${view}` : tile ? `360 tuile · ${view}` : view, panoLight || tile ? 'pano' : 'photo', projectId ? { id: projectId, name: String(body?.projectName ?? project).slice(0, 80) } : null)
         reserved = true
         if (!takeRenderSlot()) throw new Error(RENDER_LIMIT_MESSAGE)
         // The photo is made and kept even if the app left: it is paid for, and a retry with the same id gets it.
