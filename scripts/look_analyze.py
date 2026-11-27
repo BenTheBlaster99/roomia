@@ -220,7 +220,46 @@ for p in points:
             entry["verdict"] = "ok"  # a 360 from the better spot nearby instead of none (11 Nov: Scene 2 stood inside a wardrobe)
             print("LOOK_CAMERA %s moved %.2f m: clearance %.2f -> %.2f" % (p.get("name"), mv[1], mv[2], mv[3]), flush=True)
     cams.append(entry)
-print("LOOK_TIME cameras (incl. moves) %.1f" % (time.time() - T_CAM), flush=True)
+
+
+# --- 22 Nov: two views that end up in the same spot make the same 360 (F5-sized apartment of 21 Nov: SDB 1 and SDB 2, saved 1.9 m apart, were
+# both moved to the middle of the bathroom, 4 cm apart; Chambre 1.2 landed 27 cm from Chambre 1). The check runs on the FINAL eyes, after the
+# moves above. A view within DUP metres of an earlier one, on the same floor and with nothing solid between them, is a duplicate: it is not
+# rendered (no minutes, no AI image) and the tour hides it ("Remettre ... dans la visite" brings it back). The earlier one is kept: the
+# designer's scenes before the automatic points, then in file order. ROOMIA_DUP_DISTANCE=0 turns the check off.
+DUP = float(JOB.get("dupDistance", os.environ.get("ROOMIA_DUP_DISTANCE", 1.5)))
+if DUP > 0:
+    by_index = {p["index"]: p for p in points}
+    final = {}
+    for e in cams:
+        if e["verdict"] == "outside the building":
+            continue
+        p = by_index.get(e["index"])
+        if p is None:
+            continue
+        final[e["index"]] = gl2b(e["moved"] if e.get("moved") else p["position"])
+    order = sorted(final, key=lambda i: (bool(by_index[i].get("auto")), i))
+    kept = []
+    for i in order:
+        c = final[i]
+        twin = None
+        for j in kept:
+            d = final[j] - c
+            if abs(d.z) > 1.0 or math.hypot(d.x, d.y) >= DUP:
+                continue
+            n = d.length
+            if n < 1e-3 or cast(c, d / n, n)[0] is None:  # nothing solid on the way (glass panes do not count)
+                twin = j
+                break
+        if twin is None:
+            kept.append(i)
+            continue
+        for e in cams:
+            if e["index"] == i:
+                e["duplicateOf"] = twin
+                e["verdict"] = "duplicate of %s" % by_index[twin].get("name", twin)
+                print("LOOK_DUPLICATE %s is %.2f m from %s: not rendered" % (by_index[i].get("name", i), (final[twin] - c).length, by_index[twin].get("name", twin)), flush=True)
+print("LOOK_TIME cameras (incl. moves, duplicates) %.1f" % (time.time() - T_CAM), flush=True)
 json.dump({"sun": {"azimuth": best, "elevation": 6, "scores": scores}, "emissive": em_out, "cameras": cams}, open(os.path.join(OUT, "analysis.json"), "w"), indent=1)
 print("LOOK_ANALYSIS_OK", flush=True)
 os._exit(0)

@@ -174,7 +174,11 @@ MIRROR = re.compile(r"mirror|miroir", re.I)
 GLASS = re.compile(r"glass|verre|vitre(?!ous)|window", re.I)
 # Sheer curtains are see-through too, but cloth, not glass: they keep their soft transparency.
 FABRIC = re.compile(r"curtain|rideau|voilage|tulle|sheer|drape|cortina", re.I)
-LIGHT = re.compile(r"^(led|light|lights|lamp|spot)$|\bled\b|bedside lights|lumin|plafonnier|neon", re.I)
+# 25 Nov (Sarah, 3rd time: "the lights are off"): "lumin" lit every aLUMINium and aLUMINum material (oven fronts, ring housings)
+# while the real fixtures were missed: "pendant LIGHT", "Emissive", "Emissive Tungstan", "ARANDELA-LAMPADA", "Lustre - Cristais".
+# A name ending in light(s), a fixture word before light, emissive, lamp/lampe/lampada (not clamp), luminaire/lumiere, lustre,
+# chandelier, applique, arandela, bulb, ampoule; never a colour such as "wood light grey" or "LIGHT BLEND travertine".
+LIGHT = re.compile(r"^(led|light|lights|lamp|spot)$|\bled\b|(?<![a-z])lights?$|\b(pendant|bedside|wall|ceiling|floor|table|desk|strip|cove|down|track|reading)[ _-]*lights?\b|emissi|(?<!c)lamp|luminai|luminaria|lumi[eè]re|plafonnier|applique|arandela|lustre|chandelier|ampoule|bulb|spotlight|neon|灯|发光", re.I)
 
 def link_into(mat, node, socket):
     return [l for l in mat.node_tree.links if l.to_node == node and l.to_socket.name == socket]
@@ -253,6 +257,45 @@ for mat in bpy.data.materials:
         for l in link_into(mat, bsdf, "Roughness"):
             mat.node_tree.links.remove(l)
         bsdf.inputs["Roughness"].default_value = FINISH_ROUGHNESS[edit["finish"]]
+
+# Recessed ceiling spots drawn as plain geometry (25 Nov, Sarah's hall: "the lights in the hall are not lit"): SketchUp draws
+# each spot as a small white disc (3 cm, SketchUp's default "<auto>" material, shared with columns) inside a trim, so neither
+# the name nor the material says "lamp". A small (12 cm at most), flat, horizontal, light-coloured disc at least 2.2 m above
+# the lowest floor is a spot lens: it gets its own glowing material (its name says spot, so the look recipe
+# also puts a downlight under it). The material shared with other objects is left alone.
+if spec.get("interior", True):
+    spot_lens = None
+    lens_n = 0
+    floor_ = min(((ob.matrix_world @ Vector(c)).z for ob in bpy.data.objects if ob.type == "MESH" for c in ob.bound_box), default=0.0)
+    for ob in bpy.data.objects:
+        if ob.type != "MESH" or not ob.material_slots or len(ob.data.vertices) > 400:
+            continue
+        bb_ = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
+        dx = max(v.x for v in bb_) - min(v.x for v in bb_)
+        dy = max(v.y for v in bb_) - min(v.y for v in bb_)
+        dz = max(v.z for v in bb_) - min(v.z for v in bb_)
+        ztop = max(v.z for v in bb_)
+        if not (0.015 <= dx <= 0.12 and 0.015 <= dy <= 0.12 and abs(dx - dy) <= 0.02 and dz <= 0.012 and ztop - floor_ >= 2.2):
+            continue
+        mats_ = [sl.material for sl in ob.material_slots if sl.material]
+        if not mats_ or any(role_of(m_) in ("light", "mirror", "glass-name") for m_ in mats_):
+            continue
+        bs_ = next((n for n in mats_[0].node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) if mats_[0].use_nodes else None
+        if bs_ is None or link_into(mats_[0], bs_, "Base Color") or min(bs_.inputs["Base Color"].default_value[:3]) < 0.7:
+            continue
+        if spot_lens is None:
+            spot_lens = bpy.data.materials.new("roomia_spot_lens")
+            spot_lens.use_nodes = True
+            lb_ = spot_lens.node_tree.nodes["Principled BSDF"]
+            lb_.inputs["Base Color"].default_value = (1.0, 0.95, 0.85, 1)
+            lb_.inputs["Emission Color"].default_value = (1.0, 0.86, 0.62, 1)
+            lb_.inputs["Emission Strength"].default_value = 12.0
+        for sl in ob.material_slots:
+            sl.link = "OBJECT"
+            sl.material = spot_lens
+        lens_n += 1
+    if lens_n:
+        print("TOUR_INFO ceiling spot lenses lit: %d" % lens_n, flush=True)
 
 # Enscape's lights (27 Oct, Suite): SketchUp files made for Enscape mark each light with a small object of no
 # material, which Enscape lights up. Rendered as they are, they were grey discs next to the lit LED spots, half

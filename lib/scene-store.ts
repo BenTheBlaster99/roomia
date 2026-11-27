@@ -3,6 +3,7 @@ import path from 'node:path'
 import { nanoid } from 'nanoid'
 import type { SceneCamera } from './scene-cameras'
 import { cleanRoles, type MaterialRoles } from './material-roles'
+import { SERVER_PREP_FORMATS, type ServerPrepFormat } from './studio-import/formats'
 
 export const SCENES_DIR = process.env.SCENES_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), '.scenes')
 export const MAX_SCENE_BYTES = Number(process.env.SCENE_MAX_BYTES ?? 2 * 1024 ** 3)
@@ -12,8 +13,8 @@ const SCENE_TTL_MS = Number(process.env.SCENE_TTL_HOURS ?? 24 * 7) * 3600_000
 /** Size of each piece the browser sends in a resumable upload. Small enough to finish in seconds on a weak line. */
 export const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 
-export const SCENE_FORMATS = ['dae', 'glb', 'zip'] as const
-export type SceneFormat = (typeof SCENE_FORMATS)[number]
+export const SCENE_FORMATS = SERVER_PREP_FORMATS
+export type SceneFormat = ServerPrepFormat
 
 export type SceneStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 
@@ -50,7 +51,7 @@ export interface SceneMeta {
   /** Roomia Desktop: sent by the SketchUp extension (lib/desktop-inbox.ts); `versionOf` is the project it was sent as before. */
   source?: { kind: 'sketchup'; guid?: string; at: number; versionOf?: string }
   /** Roomia Desktop: where this project's tour was published, to update the same link (lib/roomia-cloud.ts). */
-  publishedAs?: { id: string; url: string; at: number }
+  publishedAs?: { id: string; url: string; at: number; /** fingerprint of what was sent (lib/desktop-autopublish.ts) */ sig?: string }
 }
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{21}$/

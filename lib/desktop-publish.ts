@@ -1,10 +1,11 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { CreditError } from './credits'
+import { publishSignature } from './desktop-autopublish'
 import { cloudPublishTour, type PublishProgress } from './roomia-cloud'
 import { PHOTO_FILE } from './scene-photos'
 import { readMeta, sceneDir, writeMeta } from './scene-store'
-import { TOUR_FILE, tourDir } from './scene-tour'
+import { labelKey, readLabels, TOUR_FILE, tourDir } from './scene-tour'
 
 /**
  * Roomia Desktop: publishing a project's tour to Roomia's server for the architect's clients (lib/desktop-drive.ts on
@@ -35,7 +36,23 @@ async function tourFiles(sceneId: string): Promise<[string, string, number][]> {
   for (const f of await readdir(path.join(dir, 'photos')).catch(() => [] as string[])) {
     if (PHOTO_FILE.test(f)) await add(`photos/${f}`, path.join(dir, 'photos', f))
   }
-  await add('tour/tour.json', path.join(tdir, 'tour.json'))
+  // 19 Nov: the names given to points in the app reach the client's link (before, a renamed point kept its old name there).
+  // An automatic point's name goes into the published tour.json; a SketchUp scene keeps its own name there (the server finds
+  // its camera by it) and its new name travels in labels.json, which the server reads like the app does.
+  const labels = await readLabels(sceneId)
+  if (Object.keys(labels).length) await add('tour/labels.json', path.join(tdir, 'labels.json'))
+  if (Object.keys(labels).some(k => k.startsWith('auto:'))) {
+    const tour = JSON.parse(tourJson) as { views?: { auto?: boolean; id?: string; index: number; name: string }[] }
+    for (const v of tour.views ?? []) {
+      const name = v.auto ? labels[labelKey(v)] : undefined
+      if (name) v.name = name
+    }
+    const named = path.join(tdir, 'tour-published.json')
+    await writeFile(named, JSON.stringify(tour))
+    await add('tour/tour.json', named)
+  } else {
+    await add('tour/tour.json', path.join(tdir, 'tour.json'))
+  }
   for (const f of await readdir(tdir).catch(() => [] as string[])) {
     if (!TOUR_FILE.test(f)) continue
     if (/^pano-\d+-ai/.test(f) && !named.has(f)) continue
@@ -53,6 +70,8 @@ export async function startPublishing(sceneId: string): Promise<PublishProgress>
   if (running?.state === 'sending') return running
   const meta = await readMeta(sceneId)
   if (!meta || meta.status !== 'ready') throw new CreditError('Projet introuvable.', 404)
+  // what is sent, fingerprinted before the upload: a change during the upload is published again (lib/desktop-autopublish.ts)
+  const { sig } = await publishSignature(sceneId)
   const files = await tourFiles(sceneId)
   const total = files.reduce((n, f) => n + f[2], 0)
   const state: PublishProgress = { state: 'sending', sent: 0, total }
@@ -74,7 +93,7 @@ export async function startPublishing(sceneId: string): Promise<PublishProgress>
     })
     .then(async ({ id, url }) => {
       const now = await readMeta(sceneId)
-      if (now) await writeMeta({ ...now, publishedAs: { id, url, at: Date.now() } })
+      if (now) await writeMeta({ ...now, publishedAs: { id, url, at: Date.now(), sig } })
       Object.assign(state, { state: 'done', sent: total, id, url })
     })
     .catch(err => {

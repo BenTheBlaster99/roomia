@@ -88,7 +88,7 @@ if top.size != (W, H):
 # The geometry (wall poché, rooms, enclosed pockets) is the slow part of a pass (about 20 of 32 s) and does not depend on the room names: plan_build.py
 # draws twice (numbers, then the AI's names), so the first pass saves it and the second one reads it back (12 Nov, docs/PLAN-performance.md).
 import hashlib
-_h = hashlib.sha1(b'plan-geometry-v1|%d' % int(os.environ.get('ROOMIA_PLAN_GROW_DS', '2')))
+_h = hashlib.sha1(b'plan-geometry-v2|%d' % int(os.environ.get('ROOMIA_PLAN_GROW_DS', '2')))
 for _f in (os.path.join(CAP, 'plan-cut.npy'), os.path.join(CAP, 'plan-objects.json'), TOP, OPT.get('apt') or ''):
     if _f and os.path.exists(_f):
         with open(_f, 'rb') as _fh:
@@ -178,6 +178,28 @@ if not _hit:
                 k += 1
                 comp = dil(rest == j, m(0.2)) & free & (rooms == 0)
                 rooms[comp] = k
+    # 25 Nov: floor the growth did not reach (the seed is more than 0.75 m away: the shower strip along the WC's outer wall on
+    # Sarah's apartment) belongs to the room that has most of its border; floor shared evenly between two rooms keeps the rules above
+    # (the thin margins left along every wall are not patches: only what is wider than 20 cm counts, then grown back to its edges)
+    leftover = free & inside & (rooms == 0)
+    left, nl = ndi.label(ero(leftover, m(0.1)))
+    for j, sl in enumerate(ndi.find_objects(left), 1):
+        if sl is None:
+            continue
+        g = m(0.12) + 3
+        pad = tuple(slice(max(0, s.start - g), s.stop + g) for s in sl)
+        core = left[pad] == j
+        if core.sum() * MPP * MPP < 0.1:
+            continue
+        comp = dil(core, m(0.12)) & leftover[pad]
+        touch = rooms[pad][ndi.binary_dilation(comp, iterations=3) & ~comp]
+        ids_, cnt = np.unique(touch[touch > 0], return_counts=True)
+        if len(ids_) == 0:
+            continue
+        order = np.argsort(-cnt)
+        # one room, or one room that has most of the border (a thin wall lets the next room brush the patch's corner)
+        if len(ids_) == 1 or cnt[order[0]] >= 2 * cnt[order[1]]:
+            rooms[pad][comp] = ids_[order[0]]
     ids = [i for i in range(1, k + 1)]
     # a room is never smaller than 1 m²: merged into the neighbour it touches most
     for i in ids:

@@ -26,12 +26,31 @@ ap.add_argument("--default-ref")
 ap.add_argument("--auto", default="auto-f")
 ap.add_argument("--yes", action="store_true")
 ap.add_argument("--transfer", action="store_true", help="the 12 Nov way: only the AI's light, put on Blender's pixels")
+ap.add_argument("--stream", action="store_true", help="21 Nov: the transfer for a view still being rendered with the others: reads look/<auto>/stream/pano-k.jpg, writes look/<auto>/stream/final-k.jpg, never touches the tour")
+ap.add_argument("--promote", action="store_true", help="21 Nov: puts the streamed finished pictures in the tour where the group exposure left their Blender picture unchanged (byte for byte)")
 args = ap.parse_args()
 S = os.path.abspath(args.scene_dir) if args.scene_dir else os.path.join(os.path.abspath(os.environ.get("SCENES_DIR") or os.path.join(ROOT, ".scenes")), args.scene)
 T, D = os.path.join(S, "tour"), os.path.join(S, "look", "sunburst")
 os.makedirs(D, exist_ok=True)
 views = [int(v) for v in args.views.split(",")]
 refs = {int(k): v for k, v in json.loads(args.refs).items()}
+STREAM = os.path.join(S, "look", args.auto, "stream")
+if args.promote:
+    # A streamed picture was made from the view's own exposure while the render went on. The group exposure at the end of the render
+    # (look_pipeline.py finalize + install) gives most views the very same Blender picture; for those the finished picture is valid as it
+    # is, and is put in the tour exactly as the normal step would leave it. Any view whose Blender picture changed is left to the normal step.
+    for k in views:
+        sp, fin, cur = (os.path.join(STREAM, "pano-%d.jpg" % k), os.path.join(STREAM, "final-%d.jpg" % k), os.path.join(T, "pano-%d.jpg" % k))
+        if not (os.path.exists(sp) and os.path.exists(fin) and os.path.exists(cur)) or open(sp, "rb").read() != open(cur, "rb").read():
+            print("PROMOTE_SKIP %d" % k, flush=True)
+            continue
+        before = os.path.join(T, "pano-%d-before-sunburst.jpg" % k)
+        shutil.copyfile(cur, before)
+        shutil.copyfile(before, os.path.join(T, "pano-%d-ai-orig.jpg" % k))
+        shutil.copyfile(fin, os.path.join(T, "pano-%d-ai-light.jpg" % k))
+        shutil.copyfile(fin, cur)
+        print("PROMOTED %d" % k, flush=True)
+    sys.exit(0)
 print("AI_LIGHT %d views, %s" % (len(views), "free (AI images already made)" if args.finish_only else "x 16 DA = %d DA" % (16 * len(views))), flush=True)
 if not args.yes and not args.finish_only:
     sys.exit(0)
@@ -39,12 +58,15 @@ PY = sys.executable
 done = []
 for k in views:
     t0 = time.time()
-    blender = os.path.join(T, "pano-%d-before-sunburst.jpg" % k)
-    cur, done_light = os.path.join(T, "pano-%d.jpg" % k), os.path.join(T, "pano-%d-ai-light.jpg" % k)
-    # the Blender 360 kept once; a view rendered again since (pano-k.jpg is not our last result) is taken afresh
-    same = os.path.exists(done_light) and open(cur, "rb").read() == open(done_light, "rb").read()
-    if not os.path.exists(blender) or not same:
-        shutil.copyfile(cur, blender)
+    if args.stream:
+        blender = os.path.join(STREAM, "pano-%d.jpg" % k)
+    else:
+        blender = os.path.join(T, "pano-%d-before-sunburst.jpg" % k)
+        cur, done_light = os.path.join(T, "pano-%d.jpg" % k), os.path.join(T, "pano-%d-ai-light.jpg" % k)
+        # the Blender 360 kept once; a view rendered again since (pano-k.jpg is not our last result) is taken afresh
+        same = os.path.exists(done_light) and open(cur, "rb").read() == open(done_light, "rb").read()
+        if not os.path.exists(blender) or not same:
+            shutil.copyfile(cur, blender)
     raw = os.path.join(D, "pano-%d-sunburst-2560.jpg" % k)
     if not os.path.exists(raw) and args.finish_only:
         print("AI_LIGHT view %d: no AI image, skipped" % k, flush=True)
@@ -71,9 +93,12 @@ for k in views:
     # the light alone on Blender's pixels still looked like Blender). The old transfer stays behind --transfer.
     out, info = seam, "AI image"
     if args.transfer:
-        out = os.path.join(D, "pano-%d-light.jpg" % k)
+        out = os.path.join(STREAM, "final-%d.jpg" % k) if args.stream else os.path.join(D, "pano-%d-light.jpg" % k)
         lin = os.path.join(S, "look", args.auto, "t%d-lin.npy" % k)
-        cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.05", "--gain-max", "20"]
+        # 18 Nov: 0.05..20 pasted the AI's own shadows onto Blender (dark blotches on ceilings, TVs, walls wherever the AI drew a
+        # thing elsewhere). The AI now only moves an area's light between 0.75x and 1.6x, over broad zones (radius 96): its warmth and
+        # brightness, never a spot; every texture stays Blender's (the user: the architect's textures exactly)
+        cmd = [PY, os.path.join(ROOT, "scripts", "pano_look_transfer.py"), blender, seam, out, "--gain-min", "0.75", "--gain-max", "1.6", "--radius", "96"]
         if os.path.exists(lin):
             cmd += ["--blender-linear", lin]
         r = subprocess.run(cmd, capture_output=True, text=True)
@@ -81,6 +106,10 @@ for k in views:
         if r.returncode or not os.path.exists(out):
             print("AI_LIGHT view %d: the transfer failed: %s" % (k, r.stderr.strip()[-300:]), flush=True)
             continue
+    if args.stream:
+        done.append(k)
+        print("STREAM_FINAL %d done in %.0f s (%s)" % (k, time.time() - t0, info), flush=True)
+        continue
     shutil.copyfile(blender, os.path.join(T, "pano-%d-ai-orig.jpg" % k))
     shutil.copyfile(out, os.path.join(T, "pano-%d-ai-light.jpg" % k))
     shutil.copyfile(out, os.path.join(T, "pano-%d.jpg" % k))

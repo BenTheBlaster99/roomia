@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const fileName = decodeURIComponent(req.headers.get('x-file-name') ?? '')
   const format = sceneFormatOf(fileName)
   if (!format) {
-    return Response.json({ detail: 'Formats acceptés : .dae ou .glb' }, { status: 400 })
+    return Response.json({ detail: 'Formats acceptés : .glb, .dae, .fbx, .obj, .gltf, .stl, .ply, .usd, .blend ou .zip' }, { status: 400 })
   }
   if (!req.body) return Response.json({ detail: 'Fichier manquant' }, { status: 400 })
 

@@ -72,10 +72,23 @@ export async function cloudMe(): Promise<CloudUser | null> {
 }
 
 /** Tells Roomia's server about a free use its forfait counts (a new version of a project). Best effort: never throws. */
-export async function cloudUsage(item: 'update', detail: string): Promise<void> {
+export async function cloudUsage(item: 'update', detail: string, project?: { id: string; note?: string | null }): Promise<void> {
   const token = await readToken().catch(() => null)
   if (!token) return
-  await call('/api/desktop/usage', { method: 'POST', body: JSON.stringify({ item, detail }) }, token).catch(() => undefined)
+  await call('/api/desktop/usage', { method: 'POST', body: JSON.stringify({ item, detail, project: project?.id, note: project?.note ?? undefined }) }, token).catch(() => undefined)
+}
+
+/**
+ * Before taking a new version of a project: with a projects forfait, the server says whether an update is left. Returns the
+ * sentence to show when there is none; null when it may go on (also when signed out or the server can't be reached: the
+ * AI images will be checked again anyway).
+ */
+export async function cloudUpdateRefusal(project: string, file: string): Promise<string | null> {
+  const token = await readToken().catch(() => null)
+  if (!token) return null
+  const res = await call('/api/desktop/usage', { method: 'POST', body: JSON.stringify({ item: 'update', detail: file, project, check: true }) }, token).catch(() => null)
+  if (res?.status !== 402) return null
+  return ((await res.json().catch(() => ({}))) as { detail?: string }).detail ?? 'Plus de mise à jour dans ce projet. Contactez Roomia.'
 }
 
 export interface CloudPhoto {
@@ -94,7 +107,7 @@ export interface CloudPhoto {
  * with the same job id for up to 6 minutes: the server answers the photo it kept, never charging twice.
  */
 export async function cloudPhoto(
-  args: { jobId: string; project: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium'; kind?: 'tile' | 'pano-light'; reference?: Buffer | null },
+  args: { jobId: string; project: string; projectId: string; projectName?: string; view: string; lighting: Lighting; capture: Buffer; ask: boolean; quality?: 'medium'; kind?: 'tile' | 'pano-light'; reference?: Buffer | null },
   onPing: () => void,
 ): Promise<CloudPhoto> {
   const token = await readToken()
@@ -102,6 +115,8 @@ export async function cloudPhoto(
   const body = JSON.stringify({
     jobId: args.jobId,
     project: args.project,
+    projectId: args.projectId,
+    ...(args.projectName ? { projectName: args.projectName } : {}),
     view: args.view,
     lighting: args.lighting,
     ask: args.ask,

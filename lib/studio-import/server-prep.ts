@@ -1,12 +1,11 @@
-import { fileExtension } from './formats'
+import { fileExtension, SERVER_PREP_FORMATS } from './formats'
 
 const POLL_MS = 1500
 const POLL_TIMEOUT_MS = 20 * 60_000
 
 /** Formats the server can turn into a light copy. */
 export function canPrepareOnServer(fileName: string): boolean {
-  const ext = fileExtension(fileName)
-  return ext === 'dae' || ext === 'glb' || ext === 'zip'
+  return (SERVER_PREP_FORMATS as readonly string[]).includes(fileExtension(fileName))
 }
 
 /** Files above this go up in small pieces, each retried on its own, so one dropped connection costs seconds, not minutes. */
@@ -101,12 +100,15 @@ function upload(file: File, onPhase: (message: string) => void): Promise<{ id: s
 }
 
 const CHUNK_BYTES = 2 * 1024 * 1024
+const DESKTOP_CHUNK_BYTES = 32 * 1024 * 1024
 
 async function fetchPiece(url: string, start: number): Promise<{ bytes: Uint8Array; total: number }> {
   let lastError = ''
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const res = await fetch(url, { headers: { Range: `bytes=${start}-${start + CHUNK_BYTES - 1}` } })
+      // Roomia Desktop reads its own disk (the full file, 18 Nov): larger pieces, far fewer requests
+      const size = typeof window !== 'undefined' && window.roomiaDesktop ? DESKTOP_CHUNK_BYTES : CHUNK_BYTES
+      const res = await fetch(url, { headers: { Range: `bytes=${start}-${start + size - 1}` } })
       if (res.status !== 200 && res.status !== 206) throw new Error(`HTTP ${res.status}`)
       const bytes = new Uint8Array(await res.arrayBuffer())
       // 206 carries "bytes a-b/total"; a plain 200 means the server sent the whole file.
@@ -139,7 +141,7 @@ async function downloadViewport(
     out.set(first.bytes, 0)
     let offset = first.bytes.length
     while (offset < first.total) {
-      onPhase(`Téléchargement de l’aperçu… ${Math.round((offset / first.total) * 100)} %`)
+      onPhase(`${typeof window !== 'undefined' && window.roomiaDesktop ? 'Ouverture du projet' : 'Téléchargement de l’aperçu'}… ${Math.round((offset / first.total) * 100)} %`)
       const piece = await fetchPiece(url, offset)
       out.set(piece.bytes, offset)
       offset += piece.bytes.length

@@ -3,7 +3,7 @@
 // The tour's other deliverables, each in its own tab (11 Nov makeover): the architect's 2D plan, the 3D plan, the video and
 // the AI photos (the views picked one by one, each with its own ambiance). Before, plans and video sat behind ?edit=1.
 import { useEffect, useState } from 'react'
-import { forfaitLeft, plural } from '@/lib/forfait'
+import { forfaitLeft, plural, projectNotice } from '@/lib/forfait'
 import type { TourView } from '@/lib/scene-tour'
 import type { VideoBuild, VideoStatus } from '@/lib/scene-video'
 import { useForfait } from '../../components/useForfait'
@@ -129,14 +129,14 @@ export function Plan3dSheet({
             {state?.error && <span className="tour-error">{state.error}</span>}
             {onMake ? (
               <>
-                <span>Il se fait à partir du plan de la visite, sans refaire les 360°.</span>
+                <span>Il se refait à partir du plan de la visite, sans refaire les 360°.</span>
                 <button type="button" onClick={onMake}>
-                  Faire le plan 3D maintenant
+                  Refaire le plan 3D
                 </button>
                 {state?.state === 'failed' && <span className="tour-note">Si cela échoue encore : bouton Aide (?) de Mes projets → Signaler un problème, et envoyez le fichier à Roomia.</span>}
               </>
             ) : (
-              <span>Le plan 3D de cette visite n’est pas disponible.</span>
+              <span>Le plan 3D se fait avec la visite 360°, en même temps que les plans 2D.</span>
             )}
           </>
         )}
@@ -151,7 +151,7 @@ export function Plan3dSheet({
       </div>
       <aside className="tour-sheet-side">
         <h2>Plan 3D</h2>
-        <p className="tour-note">Vue en coupe meublée de tout l’appartement, à hauteur d’yeux.</p>
+        <p className="tour-note">Vue en coupe meublée de tout l’appartement, les murs jusqu’au plafond.</p>
         <a className="tour-btn" href={url} download={`plan-3d-${sceneId}.jpg`}>
           Télécharger le plan 3D
         </a>
@@ -237,7 +237,8 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
   const [failed, setFailed] = useState<string[]>([])
   // a client's forfait counts photos, not DA (lib/forfait.ts)
   const { forfait, refresh: refreshForfait } = useForfait()
-  const photosLeft = forfaitLeft(forfait, 'photo')
+  const photosLeft = forfaitLeft(forfait, 'photo', sceneId)
+  const notice = projectNotice(forfait, sceneId)
   const chosen = candidates.filter(v => picked[v.index])
   const overForfait = photosLeft !== null && chosen.length > photosLeft
   const count = (m: Mood) => chosen.filter(v => picked[v.index] === m).length
@@ -341,7 +342,7 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
               <td>Temps estimé</td>
               <td>{chosen.length * 2} min</td>
             </tr>
-            {photosLeft !== null ? (
+            {photosLeft !== null && !forfait?.projects ? (
               <tr>
                 <td>Forfait</td>
                 <td>{plural(photosLeft, 'photo restante', 'photos restantes')}</td>
@@ -353,8 +354,16 @@ export function PhotosSheet({ sceneId, views, version, onDone }: { sceneId: stri
           <p className="tour-note">{running}</p>
         ) : (
           <>
-            {overForfait && <p className="tour-note">Choisissez au plus {plural(photosLeft!, 'photo', 'photos')}, ou contactez Roomia pour étendre le forfait.</p>}
-            <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0 || overForfait}>
+            {notice && <p className="tour-note">{notice.text}</p>}
+            {overForfait &&
+              (forfait?.projects ? (
+                <p className="tour-note">
+                  {photosLeft ? `Ce projet comprend encore ${plural(photosLeft, 'photo HD', 'photos HD')} : choisissez-en au plus ${photosLeft}.` : 'Les photos HD incluses dans ce projet sont faites.'} Pour des photos en plus, contactez Roomia.
+                </p>
+              ) : (
+                <p className="tour-note">Choisissez au plus {plural(photosLeft!, 'photo', 'photos')}, ou contactez Roomia pour étendre le forfait.</p>
+              ))}
+            <button type="button" className="tour-btn" onClick={launch} disabled={chosen.length === 0 || overForfait || notice?.tone === 'warn'}>
               Lancer {chosen.length > 1 ? `les ${chosen.length} photos` : 'la photo'}
             </button>
           </>

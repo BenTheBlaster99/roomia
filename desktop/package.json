@@ -1,7 +1,7 @@
 {
   "name": "roomia-desktop",
   "productName": "Roomia",
-  "version": "0.5.2",
+  "version": "0.5.5",
   "private": true,
   "description": "Roomia Studio : rendus, visite 360° et plans sur votre propre carte graphique",
   "author": "Roomia",
@@ -68,6 +68,13 @@
           ]
         },
         {
+          "from": "pylib-ifc-win32",
+          "to": "pylib-ifc",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
           "from": "runtime-win32",
           "to": "runtime",
           "filter": [
@@ -108,6 +115,13 @@
         {
           "from": "pylib-linux",
           "to": "pylib",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "pylib-ifc-linux",
+          "to": "pylib-ifc",
           "filter": [
             "**/*"
           ]

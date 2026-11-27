@@ -3,7 +3,7 @@
  * public/brand/roomia-mark.svg and set LOGO to '/brand/roomia-mark.svg'; it then shows before the wordmark everywhere in the app.
  * Until then the wordmark alone: ROOMIA. in Archivo 900 extra-wide, the full stop in gold.
  */
-const LOGO: string | null = null
+const LOGO: string | null = '/brand/roomia-mark.png' // 25 Nov: the logo (from the offer PDF, 320 px)
 
 export default function BrandMark({ size = 20, className = '' }: { size?: number; className?: string }) {
   return (

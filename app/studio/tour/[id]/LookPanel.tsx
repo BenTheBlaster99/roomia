@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { forfaitLeft, plural } from '@/lib/forfait'
+import { forfaitLeft, plural, projectNotice } from '@/lib/forfait'
 import type { LookState as LookJob } from '@/lib/look-pipeline'
 import { useForfait } from '../../components/useForfait'
 
@@ -31,7 +31,9 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   const [error, setError] = useState('')
   // a client's forfait counts 360 views, not credits or DA (lib/forfait.ts)
   const { forfait, signedIn, credits, refresh: refreshForfait } = useForfait()
-  const panoLeft = forfaitLeft(forfait, 'pano')
+  const panoLeft = forfaitLeft(forfait, 'pano', sceneId)
+  // 27 Nov, projects forfait: "the first AI image of this project uses 1 project" (or why nothing can be made)
+  const notice = projectNotice(forfait, sceneId)
 
   // the time read with each state, so the minutes shown are computed outside the render
   const [readAt, setReadAt] = useState(0)
@@ -80,7 +82,8 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
   }
 
   const stage = state?.stage ?? 'idle'
-  const label = running ? 'Qualité finale en cours…' : stage === 'done' ? 'Qualité finale' : stage === 'ready' ? 'Qualité finale prête' : 'Qualité finale (plein jour)'
+  // 18 Nov: only shown on a visit that isn't finished (an interrupted or failed finish, an old visit without it)
+  const label = running ? 'Finition en cours…' : stage === 'interrupted' || stage === 'error' ? 'Reprendre la visite' : 'Terminer la visite'
   const minutes = state?.startedAt && readAt ? Math.max(0, Math.round((readAt - state.startedAt) / 60000)) : 0
 
   return (
@@ -89,21 +92,14 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
         {label}
       </button>
       {open && (
-        <div className="tour-publish-panel look-panel-body" role="dialog" aria-label="Qualité finale plein jour">
-          {(stage === 'idle' || (stage === 'interrupted' && state?.job !== 'ai') || (stage === 'error' && state?.job === 'render')) && (
+        <div className="tour-publish-panel look-panel-body" role="dialog" aria-label="Terminer la visite">
+          {((stage === 'interrupted' && state?.job !== 'ai') || (stage === 'error' && state?.job === 'render')) && (
             <>
-              <strong>Qualité finale · plein jour</strong>
-              <span>
-                Roomia analyse le fichier (soleil, lumières, caméras), puis rend toutes les vues 360° en plein jour, lampes allumées. Environ 1 à 2 minutes
-                par vue sur votre PC.
-              </span>
-              {stage === 'interrupted' && <span className="tour-error">Le travail précédent a été interrompu. Il repart de zéro (gratuit).</span>}
+              <strong>La visite n’a pas été terminée</strong>
+              <span>Le rendu final s’est arrêté avant la fin (Roomia fermé, PC éteint ou erreur). Reprendre le refait sur votre PC, puis la finition IA suit.</span>
               {state?.error && <span className="tour-error">{state.error}</span>}
-              {state?.error && state.log?.length > 0 && <pre className="look-log">{state.log.slice(-14).join('\n')}</pre>}
-              {state?.step && state.stage === 'idle' && <span>{state.step}</span>}
-              {!tourReady && <span className="tour-error">Préparez d’abord la visite 360° (bouton « Préparer la visite ») : la présentation s’appuie sur ses points et son plan.</span>}
               <button type="button" disabled={!tourReady} onClick={() => void start({ action: 'render' })}>
-                Refaire la lumière du jour
+                Reprendre
               </button>
             </>
           )}
@@ -168,8 +164,13 @@ export default function LookPanel({ sceneId, tourReady }: { sceneId: string; tou
                   <strong>Finition IA</strong>
                   <span>
                     L’IA donne à chaque vue sa qualité photo finale : lumière du jour, lampes allumées.
-                    {aiCount < state.suggestions.length ? ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.` : ''}
+                    {aiCount < state.suggestions.length
+                      ? forfait?.projects
+                        ? ` Ce projet comprend encore ${plural(aiCount, 'point de vue 360°', 'points de vue 360°')} : les premiers de la visite. Pour un appartement plus grand, contactez Roomia (sur devis).`
+                        : ` Votre ${panoLeft !== null ? 'forfait' : 'compte'} permet ${plural(aiCount, 'vue', 'vues')} : les premières de la visite.`
+                      : ''}
                   </span>
+                  {notice && <span>{notice.text}</span>}
                   <button type="button" onClick={() => void start({ action: 'ai', points: allPoints, ring: [], maxCost: allPoints.length * DA_PER_IMAGE })}>
                     Finir toute la visite avec l’IA ({plural(aiCount, 'vue', 'vues')})
                   </button>

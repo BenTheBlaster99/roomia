@@ -30,6 +30,8 @@ const PYTHON = process.env.ROOMIA_PYTHON ?? 'python3'
 /** Pixels per cube face of the Blender 360° (ROOMIA_TOUR_FACE_SIZE for test runs only). */
 const FACE_SIZE = Number(process.env.ROOMIA_TOUR_FACE_SIZE ?? 1024)
 const PANO_WIDTH = 4096
+/** An automatic point is not made when it stands closer than this (metres) to another point and sees it; 0 turns the filter off (21 Nov). */
+const DUP_DISTANCE = Number(process.env.ROOMIA_DUP_DISTANCE ?? 1.5)
 /**
  * Quick preview tour (ROOMIA_TOUR_PREVIEW=1, set by the desktop app, 9 Nov): the golden-hour "Présentation" renders the final
  * 360° of every point and replaces these, so the tour build only has to make cameras, plan, arrows and a light preview:
@@ -42,6 +44,12 @@ const TOUR_PREVIEW = process.env.ROOMIA_TOUR_PREVIEW === '1'
  * samples): it only has to hold the place until the final 360° replace it.
  */
 const AUTO_LOOK = TOUR_PREVIEW && process.env.ROOMIA_AUTO_LOOK !== '0'
+/**
+ * 21 Nov: when the quality render follows the build (AUTO_LOOK), the build's own draft 360° are never shown to anyone: the render
+ * replaces every one of them. They are not made at all then (the script's skipPanos: placement, plan and links only).
+ * ROOMIA_QUICK_PANOS=1 brings the drafts back. An update of a file (isUpdate) and the explorer bake keep their own renders.
+ */
+const SKIP_QUICK_PANOS = AUTO_LOOK && process.env.ROOMIA_QUICK_PANOS !== '1'
 const previewMarker = (sceneId: string) => path.join(tourDir(sceneId), 'preview.json')
 const PLAN_SIZE = 1800
 /** The panoramas are not touched by the AI, so they carry their own light: late afternoon sun and the room's lights on. */
@@ -85,12 +93,20 @@ export interface TourViewPoint {
   id?: string
   position?: [number, number, number]
   target?: [number, number, number]
-  /** Removed from the tour by the operator. */
+  /** Removed from the tour by the operator, or by the render when it makes the same 360° as an earlier view (22 Nov). */
   hidden?: boolean
+  /** The earlier view this one duplicates once the cameras have been moved (22 Nov); its name. */
+  duplicateOf?: string | number
   /** Where the 360° starts, set by the operator (radians from the panorama's centre, + = right). */
   startYaw?: number
   /** The level it stands on (index into TourBuild.levels; plan coordinates are on that level's plan). */
   level?: number
+  /**
+   * 25 Nov: the way the middle of its 360° looks, Blender's floor plane (radians, counter-clockwise from +x). The quality render
+   * (scripts/look_pipeline.py) centres every 360° on +x (0); absent, the 360° is centred on the view's own direction (the build's
+   * stitch). The plan's cone, the arrows and the arrivals follow it (Sarah's bedroom pointed backwards, the kitchen sideways).
+   */
+  panoYaw?: number
 }
 
 /** One level of a site with several (31 Oct): its own plan, named from the bottom up. */
@@ -130,6 +146,8 @@ export interface TourBuild {
   timings?: Record<string, number>
   /** What the last new version of the file changed, until the update is made. */
   update?: TourUpdate
+  /** Each plan's frame and floor in Blender's coordinates (18 Nov): the points editor opens from the visit without Blender. */
+  planGeometry?: { index: number; main: boolean; width: number; height: number; frame: [number, number, number, number]; floor: number }[]
 }
 
 /**
@@ -1097,6 +1115,30 @@ if FULL:
             near = standing(pe)
             placed.append((np.array([pe.x, pe.y]), max([float(wcl[k]) for k in near] or [0.0]), j, yaw, pe.z - EYE))
         placed += [(pt, cl, None, None, z) for pt, cl, z in picked]
+        # 21 Nov (the owner: the F5 had two points 1 m apart in the kitchen, and nobody noticed). Each space chooses its points on its own,
+        # so two spaces side by side can put one each on either side of their border. A new point that stands within DUP metres of another
+        # point (an architect's scene, a kept point, or a point chosen before it) and sees it directly makes the same picture twice: it is
+        # not made. Points the person confirmed (autoFixed: nothing is picked) and the architect's scenes are never touched.
+        DUP = float(spec.get("dupDistance", 1.5))
+        def clear_between(a_, b_):
+            d_ = b_ - a_
+            n_ = d_.length
+            return n_ < 1e-3 or solid(a_, d_ / n_, n_) is None
+        anchors = [eyes[k] for k, v in enumerate(meta["views"]) if not v["outside"]]
+        anchors += [Vector((float(it[0][0]), float(it[0][1]), it[4] + EYE)) for it in placed if it[2] is not None]
+        placed_kept, dup_dropped = [], 0
+        for it in placed:
+            if it[2] is not None:
+                placed_kept.append(it)
+                continue
+            e_ = Vector((float(it[0][0]), float(it[0][1]), it[4] + EYE))
+            if any(abs(e_.z - a_.z) < 1.0 and math.hypot(e_.x - a_.x, e_.y - a_.y) < DUP and clear_between(e_, a_) for a_ in anchors):
+                dup_dropped += 1
+                continue
+            placed_kept.append(it)
+            anchors.append(e_)
+        placed = placed_kept
+        print("TOUR_INFO duplicates not placed: %d (within %.1f m of another point and in its sight)" % (dup_dropped, DUP), flush=True)
         # Each level on its plan (27 Oct, Sarah's reference plans show the flat alone): its kept spaces, grown cell by
         # cell through everything a person sees over (beds, counters, railings: floors up to 1.3 m above the level's) but
         # not through walls, tall cupboards or closed doors (a standing surface through the cell at 1 m), nor onto
@@ -1207,6 +1249,19 @@ if FULL:
             "plan": {"x": x, "y": y, "angle": math.degrees(math.atan2(ty - y, tx - x))},
         })
         all_eyes.append(e)
+    # 21 Nov: which points see each other within 3 m on a level (the points editor uses it to flag two points that make the same picture:
+    # it knows distances from the plan, and only this run knows where the walls are)
+    meta["sees"] = []
+    cand_ = [(k, eyes[k], meta["views"][k]["level"]) for k, v in enumerate(meta["views"]) if not v["outside"]] + [(a_["index"], all_eyes[a_["index"]], a_["level"]) for a_ in meta["auto"]]
+    for x_ in range(len(cand_)):
+        for y_ in range(x_ + 1, len(cand_)):
+            (i_, ei_, li_), (j_, ej_, lj_) = cand_[x_], cand_[y_]
+            if li_ != lj_ or abs(ei_.z - ej_.z) > 1.0 or math.hypot(ei_.x - ej_.x, ei_.y - ej_.y) > 3.0:
+                continue
+            d_ = ej_ - ei_
+            n_ = d_.length
+            if n_ < 1e-3 or solid(ei_, d_ / n_, n_) is None:
+                meta["sees"].append([i_, j_])
     print("TOUR_AUTO %d" % len(meta["auto"]), flush=True)
     print("TOUR_TIME placement", flush=True)
     # Arrows: two viewpoints are linked when one can see the other at eye height.
@@ -1468,6 +1523,11 @@ def aim(eye, forward, up):
 
 scene.render.resolution_x = scene.render.resolution_y = FACE
 skip = {v["index"] for v in meta["views"] if v["outside"]} if FULL else set()
+# Points kept as they were (18 Nov: one point moved, one point made again): no faces, their finished 360° is put back after
+if FULL:
+    skip |= set(int(x) for x in spec.get("skipViews", []))
+    _skip_prev = set(int(x) for x in spec.get("skipAuto", []))
+    skip |= {a["index"] for a in meta.get("auto", []) if a.get("previous") in _skip_prev}
 # Only what the viewpoints can see is rendered (29 Oct, Pool: a 93 x 207 m resort filled the 16 GB and was stopped).
 # An object whose box is more than CULL metres from every viewpoint is left out of the renders.
 CULL = float(spec.get("cullDistance", 60.0))
@@ -1485,7 +1545,10 @@ if FULL and all_eyes:
     print("TOUR_INFO culled %d far objects" % culled, flush=True)
 # Cycles (28 Oct, ChatGPT): one equirectangular render per viewpoint instead of six EEVEE faces. EEVEE lights each face
 # from what that camera sees, so the upward face drew the ceiling darker and its edge showed as a line (Ecolodge).
-CYCLES_PANO = FULL and spec.get("panoEngine") == "cycles"
+# 21 Nov: skipPanos = the quality render follows this build, so no draft 360° at all: no Cycles setup, no faces, no stitching
+# (placement, plan, nav, links and the views' metadata are all made before this point)
+SKIP_PANOS = FULL and bool(spec.get("skipPanos")) and not spec.get("bakeExplorer")
+CYCLES_PANO = FULL and spec.get("panoEngine") == "cycles" and not SKIP_PANOS
 GPU_KIND = None
 if CYCLES_PANO:
     scene.render.engine = "CYCLES"
@@ -2367,7 +2430,7 @@ if CYCLES_PANO:
     scene.render.use_simplify = False
     scene.render.engine = "BLENDER_EEVEE_NEXT"
     scene.render.resolution_x = scene.render.resolution_y = FACE
-elif FULL and spec.get("faceMode", "animation") == "animation":
+elif FULL and not SKIP_PANOS and spec.get("faceMode", "animation") == "animation":
     # All the faces as the frames of one animation: a separate render per face makes Blender prepare
     # the whole scene again each time; an animation keeps it loaded and only moves the camera.
     frames = []
@@ -2401,7 +2464,7 @@ elif FULL and spec.get("faceMode", "animation") == "animation":
     bpy.app.handlers.render_write.remove(frame_written)
     for f, (i, name) in enumerate(frames, 1):
         os.replace(os.path.join(out_dir, "frame-%04d.png" % f), os.path.join(out_dir, "face-%d-%s.png" % (i, name)))
-for i, eye in enumerate(all_eyes if FULL and not CYCLES_PANO and spec.get("faceMode", "animation") != "animation" else []):
+for i, eye in enumerate(all_eyes if FULL and not SKIP_PANOS and not CYCLES_PANO and spec.get("faceMode", "animation") != "animation" else []):
     if i in skip:
         continue  # a camera outside the building is left out of the tour: no 360° for it
     aim(eye, (1, 0, 0), (0, 0, 1))
@@ -2537,7 +2600,7 @@ def ceiling_mask(eye, forward, up, fov, path, N=256):
     np.save(path, m)
 
 # Cycles reflects the room in the mirrors itself.
-if FULL and MIRROR_MATS and not CYCLES_PANO:
+if FULL and MIRROR_MATS and not CYCLES_PANO and not SKIP_PANOS:
     for i, yaw in sorted(({v["index"]: v["yaw"] for v in meta["views"] if not v["outside"]} | {a["index"]: a["yaw"] for a in meta.get("auto", [])}).items()):
         mirror_data(i, all_eyes[i], yaw)
     surface_tree = None
@@ -2878,6 +2941,14 @@ if rooms and plan_meta.get("frame") and os.path.exists(work + "/plan-rooms%s.npy
         # wardrobe and left white holes in the room (Bloc B F2's bedroom). The cells are 25 cm and miss the floor under
         # furniture, so the growth reaches 60 cm.
         R = ndimage.binary_dilation(R, iterations=px(0.6), mask=~walls)
+        # 21 Nov: a pocket the growth did not reach (a big bed: over a metre of floor with no kept cell under it, so more than 60 cm from
+        # any cell) is closed by room cells on some sides and a wall on the others. It was left white, and white through the wall too,
+        # because the wall is only kept near the apartment. What the cells and the walls close off, up to 4 m2, belongs to the room.
+        sealed = R | walls
+        pockets, np_ = ndimage.label(ndimage.binary_fill_holes(sealed) & ~sealed)
+        if np_:
+            parea = ndimage.sum(np.ones_like(pockets), pockets, index=np.arange(1, np_ + 1)) * hd_mpp * hd_mpp
+            R |= (parea < 4.0)[np.maximum(pockets - 1, 0)] & (pockets > 0)
         around = walls & grow(R, 0.4)
         apt = R | around
         # what the apartment encloses (a cupboard, a closet behind a closed door, the floor under a bed), not a whole
@@ -2964,7 +3035,7 @@ export async function refinishPlans(sceneId: string) {
 }
 
 /**
- * The 3D plan (2 Nov): each level seen from above at an angle in Cycles, cut 1.6 m over its floor (an exact cut of the
+ * The 3D plan (2 Nov): each level seen from above at an angle in Cycles, cut just under its ceiling (25 Nov; 1.6 m before: an exact cut of the
  * meshes: walls end in a clean edge) and kept to the apartment (faces outside its cells, grown 40 cm, are dropped: the
  * other flats of a building file and the ground). Run on its own, on the plan sources a build keeps (plan-src/).
  */
@@ -2993,6 +3064,11 @@ for kind in [] if picked == "CPU" else list(dict.fromkeys([k for k in (picked, "
     except Exception:
         continue
 scene.cycles.samples = int(spec.get("plan3dSamples", 128))
+# 25 Nov: textures capped at 2048 px (a whole flat seen from above shows none bigger): the render stopped on a 16 GB PC
+# with the browser open ("mémoire presque pleine")
+scene.render.use_simplify = True
+scene.render.simplify_subdivision_render = 6
+scene.cycles.texture_limit_render = str(spec.get("plan3dTextureLimit", "2048"))
 scene.cycles.use_adaptive_sampling = True
 scene.cycles.adaptive_threshold = 0.015
 scene.cycles.use_denoising = True
@@ -3044,7 +3120,15 @@ def grown(mask, cells):
 for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
     sfx = L.get("suffix", "")
     floor = float(L.get("floor", 0.0))
-    cut = floor + float(spec.get("plan3dCut", 1.6))
+    # 25 Nov: cut just under the ceiling (Sarah: the 1.6 m cut "cropped too much from the top"); plan3dCut, a height over
+    # the floor, still overrides it. Without a measured ceiling, 2.6 m.
+    ceil_ = float(L.get("ceil") or floor + 2.6)
+    cut = floor + float(spec["plan3dCut"]) if "plan3dCut" in spec else max(floor + 1.6, ceil_ - 0.03)
+    # what may stand above 1.2 m once the walls go up to the ceiling: long and narrow things along a wall (wall cupboards,
+    # the wall over a door, a curtain rod); compact ones (pendants, ceiling lamps) and wide ones (ceilings) still go
+    def along_wall(xs_, ys_):
+        a_, b_ = sorted((max(xs_) - min(xs_), max(ys_) - min(ys_)))
+        return a_ <= 0.45 and b_ >= 0.6
     x0f, y0f, x1f, y1f = L["frame"]
     # The apartment as the 2D plan drew it (plan-apt: pixel-exact up to and including the walls), in 5 cm cells;
     # else the build's 25 cm cells grown 60 cm.
@@ -3082,7 +3166,10 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
         bb = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
         # as on the 2D plan, nothing that starts above 1.2 m (hanging lamps, wall cupboards): a pendant cut at 1.6 m
         # left its shade floating over the tables (Restaurant)
-        if min(p.z for p in bb) >= floor + 1.2 or max(p.z for p in bb) < floor - 1.0:
+        if max(p.z for p in bb) < floor - 1.0 or min(p.z for p in bb) >= cut - 0.01:
+            ob.hide_render = True
+            continue
+        if min(p.z for p in bb) >= floor + 1.2 and (cut < floor + 2.0 or not along_wall([p.x for p in bb], [p.y for p in bb])):
             ob.hide_render = True
             continue
         if ob.data.users > 1:
@@ -3094,8 +3181,30 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
         if max(p.z for p in bb) > cut:
             bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector((0, 0, cut)), plane_no=Vector((0, 0, 1)), clear_outer=True)
             n_cut += 1
-            # what floats above 1.25 m after the cut (the bottom of a pendant grouped with its table, a shelf) goes too
-            high = [f for f in bm.faces if min(v.co.z for v in f.verts) > floor + 1.25]
+            # what floats above 1.25 m after the cut (the bottom of a pendant grouped with its table, a shelf) goes too;
+            # with the cut at the ceiling, only pieces that float on their own and are not long and narrow along a wall
+            # (the upper part of a wall, the wall over a door stay)
+            if cut < floor + 2.0:
+                high = [f for f in bm.faces if min(v.co.z for v in f.verts) > floor + 1.25]
+            else:
+                high, seen = [], set()
+                bm.faces.index_update()
+                for f0 in bm.faces:
+                    if f0.index in seen:
+                        continue
+                    island, stack = [], [f0]
+                    seen.add(f0.index)
+                    while stack:
+                        f_ = stack.pop()
+                        island.append(f_)
+                        for e_ in f_.edges:
+                            for g_ in e_.link_faces:
+                                if g_.index not in seen:
+                                    seen.add(g_.index)
+                                    stack.append(g_)
+                    vs_ = [v.co for f_ in island for v in f_.verts]
+                    if min(v.z for v in vs_) > floor + 1.25 and not along_wall([v.x for v in vs_], [v.y for v in vs_]):
+                        high.extend(island)
             if high:
                 bmesh.ops.delete(bm, geom=high, context="FACES")
         if bm.faces:
@@ -3139,7 +3248,8 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
     c = sum(corners, Vector()) / len(corners)
     # the corner to look from: the one of eight (every 45 degrees) where the apartment comes out largest, measured on
     # its cells (a flat drawn diagonally in the file fills the picture from its own corner)
-    el = math.radians(float(spec.get("plan3dElevation", 55)))
+    # walls up to the ceiling hide more of each room: seen steeper (65 degrees, 55 with the old 1.6 m cut)
+    el = math.radians(float(spec.get("plan3dElevation", 65 if cut >= floor + 2.0 else 55)))
     tx = cam_data.sensor_width / 2 / cam_data.lens
     ty = tx * H3 / W3
     pts = corners
@@ -3725,9 +3835,16 @@ export function killTree(child: ChildProcess) {
   else child.kill('SIGKILL')
 }
 
-function run(command: string, args: string[], onLine?: (line: string) => void, timeoutMs = BLENDER_TIMEOUT_MS): Promise<{ code: number; stderr: string }> {
+function run(
+  command: string,
+  args: string[],
+  onLine?: (line: string) => void,
+  timeoutMs = BLENDER_TIMEOUT_MS,
+  onChild?: (child: ChildProcess) => void,
+): Promise<{ code: number; stderr: string }> {
   return new Promise(resolve => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    onChild?.(child)
     if (command === BLENDER) {
       liveBlender.add(child)
       child.on('close', () => liveBlender.delete(child))
@@ -3889,8 +4006,13 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   const objectsPath = path.join(dir, 'objects.json')
   const isUpdate = !!before && !same && (await stat(objectsPath).then(() => true, () => false))
   const photos = isUpdate ? await latestPhotos(sceneId, cameras) : []
+  // 21 Nov: no draft 360° when the quality render follows (SKIP_QUICK_PANOS); the progress then counts the plan steps only
+  let skipPanos = SKIP_QUICK_PANOS && !isUpdate && !bakeExplorer
+  if (skipPanos) total = 1 + cameras.length
   // The points the person confirmed before the build (14 Nov, points.json): exactly those, with their names.
   const chosen = await readChosenPoints(sceneId)
+  // the points kept as they were, with their finished 360° (confirmTourPoints): not rendered again
+  const reuse = chosen && same ? await readReuse(sceneId) : null
   const beforeAuto: TourViewPoint[] = chosen
     ? chosen.auto.map((p, n) => ({ index: n, id: p.id, name: p.name, pano: null, plan: null, auto: true, position: p.position, target: p.target }))
     : (before?.views ?? []).filter(v => v.auto && v.position && v.target).sort((a, b) => a.index - b.index)
@@ -3906,7 +4028,10 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       previousAuto: beforeAuto.map(v => ({ position: v.position, target: v.target, keep: Boolean(v.panoAi), approved: Boolean(v.panoAiApproved) })),
       previousSame: same || isUpdate || !!chosen,
       ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
+      ...(reuse ? { skipViews: reuse.views.map(v => v.index), skipAuto: reuse.auto.map(a => a.k) } : {}),
       ...(isUpdate ? { previousObjects: objectsPath, shiftViews, updatePhotos: photos.map(p => ({ file: p.file, ...p.view })), aiFov: 100 } : {}),
+      ...(skipPanos ? { skipPanos: true } : {}),
+      dupDistance: DUP_DISTANCE,
       faceSize: FACE_SIZE,
       planSize: PLAN_SIZE,
       viewTransform: 'AgX',
@@ -3925,7 +4050,6 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   // Stage times, from the TOUR_TIME lines of the script (ChatGPT, 25 Oct: measure before optimising).
   const marks: Record<string, number> = {}
   const mark = (name: string) => (marks[name] = performance.now())
-  const totalBefore = total
   // What Blender said about this build (its TOUR_ lines and any error), kept in the tour folder: the work folder is
   // cleared afterwards, and a build stopped for memory left nothing to read (31 Oct).
   const log: string[] = []
@@ -3943,7 +4067,7 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       if (line.startsWith('TOUR_AUTO')) {
         const placed = Number(line.split(' ')[1]) || 0
         pointCount += placed
-        total += placed * 7
+        total += placed * (skipPanos ? 1 : 7)
         void progress(`${placed} points placés automatiquement`)
         return
       }
@@ -3963,9 +4087,11 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     // EEVEE 360° rather than no tour.
     console.error('tour Cycles failed, building with EEVEE', sceneId, result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300))
     const spec = JSON.parse(await readFile(specPath, 'utf8'))
-    await writeFile(specPath, JSON.stringify({ ...spec, panoEngine: 'eevee' }))
+    // a failed build without draft 360° tries again the way it always did, with them (21 Nov): a tour rather than none
+    await writeFile(specPath, JSON.stringify({ ...spec, panoEngine: 'eevee', skipPanos: false }))
     for (const f of await readdir(work)) if (f.startsWith('pano-raw-')) await rm(path.join(work, f), { force: true })
-    ;[pointCount, total, done, finished] = [cameras.length, totalBefore, 0, false]
+    skipPanos = false
+    ;[pointCount, total, done, finished] = [cameras.length, 1 + cameras.length * 7, 0, false]
     result = await blender()
   }
   mark('blender_done')
@@ -4014,12 +4140,26 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     return stitched.code === 0 ? file : null
   }
   const auto = meta.auto ?? []
+  const keptView = new Map((reuse?.views ?? []).map(v => [v.index, v.file]))
+  const keptAuto = new Map((reuse?.auto ?? []).map(a => [a.k, a.file]))
+  const keptFile = (index: number) => keptView.get(index) ?? keptAuto.get(auto.find(a => a.index === index)?.previous ?? -1)
   const panos = await inParallel(
-    [...meta.views.map(v => ({ index: v.index, yaw: v.yaw, skip: v.outside })), ...auto.map(a => ({ index: a.index, yaw: a.yaw, skip: false }))],
+    [
+      // no draft 360° were rendered (skipPanos): nothing to stitch, the views keep pano null until the quality render installs theirs
+      ...meta.views.map(v => ({ index: v.index, yaw: v.yaw, skip: skipPanos || v.outside || keptView.has(v.index) })),
+      ...auto.map(a => ({ index: a.index, yaw: a.yaw, skip: skipPanos || (a.previous != null && keptAuto.has(a.previous)) })),
+    ],
     STITCH_CONCURRENCY,
     // A camera outside the building gets no 360° (its faces are not rendered).
     p => (p.skip ? Promise.resolve(null) : stitchOne(p.index, p.yaw)),
   )
+  // the kept points get their finished 360° back, under their (maybe new) number
+  for (const [n, p] of [...meta.views.map(v => v.index), ...auto.map(a => a.index)].entries()) {
+    const file = keptFile(p)
+    if (!file) continue
+    const ok = await copyFile(file, path.join(dir, `pano-${p}.jpg`)).then(() => true, () => false)
+    panos[n] = ok ? `pano-${p}.jpg` : null
+  }
   const views: TourViewPoint[] = meta.views.map((view, n) => ({
     index: view.index,
     name: cameras[view.index].name,
@@ -4109,6 +4249,11 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       if (redo.length) v.panoAiUpdate = AI_FACES.filter(f => redo.includes(f))
     }
     if (old.hidden) v.hidden = true
+    // a 360° kept from the last build keeps its frame (25 Nov): where it was taken and the way its middle looks
+    if (keptFile(v.index) || v.panoAi) {
+      if (old.panoYaw !== undefined) v.panoYaw = old.panoYaw
+      if (!v.auto && old.position) v.position = old.position
+    }
     if (old.startYaw !== undefined) {
       // The panorama is centred on the point's direction; a point that moved may face another way.
       const yaw = (p: TourViewPoint) => (p.position && p.target ? Math.atan2(-(p.target[2] - p.position[2]), p.target[0] - p.position[0]) : 0)
@@ -4163,6 +4308,9 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
     aiImages: before?.aiImages ?? 0,
     plan: { file: 'plan.png', hd: 'plan-hd.png', lines: 'plan-hd-traits.png', width: meta.plan.width, height: meta.plan.height },
     ...(levels ? { levels } : {}),
+    ...(planLevels.every(l => 'frame' in l && Array.isArray(l.frame))
+      ? { planGeometry: planLevels.map(l => ({ index: l.index, main: l.main, width: l.width, height: l.height, frame: (l as { frame: [number, number, number, number] }).frame, floor: l.floor })) }
+      : {}),
     views,
     links: meta.links ?? [],
     timings,
@@ -4187,10 +4335,25 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
   }
   await writeStatus(sceneId, { state: 'done', done: total, total })
   // the final 360° of every point: the golden-hour Présentation, started now (it waits for the graphics slot if another job holds it)
-  if (AUTO_LOOK && views.some(v => v.pano)) {
-    void import('./look-pipeline')
-      .then(m => m.startLookRender(sceneId))
-      .catch(err => console.error('automatic golden hour did not start', sceneId, err))
+  const reused = new Set([...keptView.keys(), ...auto.filter(a => a.previous != null && keptAuto.has(a.previous)).map(a => a.index)])
+  await rm(reusePath(sceneId), { force: true }).catch(() => undefined)
+  await rm(path.join(dir, 'keep'), { recursive: true, force: true }).catch(() => undefined)
+  // a view is for the render when it has a draft 360°, or (no drafts made) when it is inside the building
+  const forRender = (v: TourViewPoint) => (skipPanos ? !v.outside : !!v.pano)
+  if (AUTO_LOOK && views.some(forRender)) {
+    const fresh = reuse ? views.filter(v => forRender(v) && !reused.has(v.index)) : null
+    if (fresh && !fresh.length) {
+      // nothing new to render (points removed, names changed): the visit is final as it is
+      await rm(previewMarker(sceneId), { force: true }).catch(() => undefined)
+      void import('./look-pipeline').then(m => m.planAutoAi(sceneId, null)).catch(() => undefined)
+    } else {
+      void import('./look-pipeline')
+        .then(async m => {
+          if (fresh) await m.restrictAutoAi(sceneId, fresh.map(v => ({ index: v.index, name: v.name })))
+          return m.startLookRender(sceneId, fresh ? fresh.map(v => v.index) : [])
+        })
+        .catch(err => console.error('automatic golden hour did not start', sceneId, err))
+    }
   }
 }
 
@@ -4317,6 +4480,8 @@ export interface ProposalPoint {
   plan: { x: number; y: number; angle: number }
   /** a SketchUp scene the person took out last time: offered again, unticked */
   off?: boolean
+  /** keys of the points within 3 m that this one sees directly (no wall between), from the placement's ray casts (21 Nov) */
+  sees?: string[]
 }
 
 export interface TourProposal {
@@ -4329,6 +4494,8 @@ export interface TourProposal {
   points?: ProposalPoint[]
   /** eye height above the floor, metres */
   eye?: number
+  /** made from the finished visit, without Blender (proposalFromBuild) */
+  fromBuild?: boolean
 }
 
 const proposalPath = (sceneId: string) => path.join(tourDir(sceneId), 'proposal.json')
@@ -4354,6 +4521,134 @@ export interface ChosenPoints {
 }
 export const readChosenPoints = async (sceneId: string) => JSON.parse(await readFile(chosenPath(sceneId), 'utf8').catch(() => 'null')) as ChosenPoints | null
 
+/**
+ * "Points de vue" on a finished visit (18 Nov, the owner: the button started Blender again for minutes, with no way to stop it):
+ * the editor is made from the built visit itself, in milliseconds. Each plan's frame (plan pixels <-> the model) is the one the
+ * build kept, else fitted on the points (plan position against model position: exact, they come from the same mapping); the
+ * floor is the one the build kept, else the automatic points' eye height minus 1.6 m. Null when the visit can't give it (no
+ * plan, too few points, no floor): then Blender places the points as before.
+ */
+export async function proposalFromBuild(sceneId: string): Promise<TourProposal | null> {
+  const [built, cameras, chosen, labels] = await Promise.all([readBuild(sceneId), readCameras(sceneId), readChosenPoints(sceneId), readLabels(sceneId)])
+  if (!built?.plan || !built.views.length) return null
+  const geometry = built.planGeometry
+  const levelsIn = built.levels?.length
+    ? built.levels.map((l, n) => ({ index: l.index, name: l.name || `Niveau ${n + 1}`, file: l.file, width: l.width, height: l.height }))
+    : [{ index: geometry?.[0]?.index ?? 0, name: 'Plan', file: built.plan.file, width: built.plan.width, height: built.plan.height }]
+  const posOf = (v: TourViewPoint) => v.position ?? (v.auto ? undefined : (cameras[v.index]?.position as [number, number, number] | undefined))
+  const levels: ProposalLevel[] = []
+  for (const L of levelsIn) {
+    const on = built.views.filter(v => (v.level ?? levelsIn[0].index) === L.index && v.plan && posOf(v))
+    const kept = geometry?.find(g => g.index === L.index)
+    let frame = kept?.frame ?? built.levels?.find(l => l.index === L.index)?.frame
+    if (!frame) {
+      // px = s (x - x0) and py = s (y1 - y): least squares on each axis, the two scales must agree
+      const fit = (xs: number[], ys: number[]) => {
+        const n = xs.length
+        if (n < 2) return null
+        const mx = xs.reduce((a, b) => a + b, 0) / n
+        const my = ys.reduce((a, b) => a + b, 0) / n
+        const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0)
+        if (den < 1e-6) return null
+        const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / den
+        return { slope, icept: my - slope * mx }
+      }
+      const fx = fit(on.map(v => posOf(v)![0]), on.map(v => v.plan!.x))
+      // Blender y = -three.js z
+      const fy = fit(on.map(v => -posOf(v)![2]), on.map(v => v.plan!.y))
+      if (!fx || !fy || fx.slope <= 0 || Math.abs(fx.slope + fy.slope) > 0.02 * fx.slope) return null
+      const s = fx.slope
+      const x0 = -fx.icept / s
+      const y1 = fy.icept / s
+      frame = [x0, y1 - L.height / s, x0 + L.width / s, y1]
+    }
+    let floor = kept?.floor
+    if (floor === undefined) {
+      const eyes = on.filter(v => v.auto).map(v => posOf(v)![1] - PROPOSAL_EYE).sort((a, b) => a - b)
+      if (!eyes.length) return null
+      floor = eyes[Math.floor(eyes.length / 2)]
+    }
+    levels.push({ index: L.index, name: L.name, file: L.file, width: L.width, height: L.height, frame, floor, main: kept?.main ?? L.index === levelsIn[0].index })
+  }
+  if (!levels.length) return null
+  if (!levels.some(l => l.main)) levels[0].main = true
+  // a point's place on a plan, for a SketchUp scene the visit doesn't have (taken out last time)
+  const onPlan = (pos: number[], target: number[]) => {
+    const L = [...levels].sort((a, b) => Math.abs(pos[1] - PROPOSAL_EYE - a.floor) - Math.abs(pos[1] - PROPOSAL_EYE - b.floor))[0]
+    const [x0, y0, x1, y1] = L.frame
+    const x = ((pos[0] - x0) / (x1 - x0)) * L.width
+    const y = ((y1 + pos[2]) / (y1 - y0)) * L.height
+    const angle = (Math.atan2(target[2] - pos[2], target[0] - pos[0]) * 180) / Math.PI
+    return { level: L.index, plan: { x, y, angle } }
+  }
+  const points: ProposalPoint[] = []
+  const inVisit = new Set<number>()
+  for (const v of [...built.views].sort((a, b) => a.index - b.index)) {
+    if (!v.plan || v.outside) continue
+    if (v.auto) {
+      if (!v.position || !v.target) continue
+      const id = v.id ?? `auto-${v.index}`
+      points.push({
+        key: `auto:${id}`,
+        kind: 'auto',
+        id,
+        name: labels[`auto:${id}`] ?? v.name,
+        position: v.position,
+        target: v.target,
+        level: v.level ?? levels[0].index,
+        plan: v.plan,
+        ...(v.hidden ? { off: true } : {}),
+      })
+      continue
+    }
+    const camera = cameras[v.index]
+    if (!camera) continue
+    inVisit.add(v.index)
+    points.push({
+      key: `view:${v.index}`,
+      kind: 'view',
+      view: v.index,
+      name: labels[`view:${camera.name}`] ?? camera.name,
+      position: camera.position as [number, number, number],
+      target: camera.target as [number, number, number],
+      level: v.level ?? levels[0].index,
+      plan: v.plan,
+      ...(v.hidden ? { off: true } : {}),
+    })
+  }
+  // the scenes taken out before stay offered, unticked
+  for (const index of chosen?.dropViews ?? []) {
+    const camera = cameras[index]
+    if (!camera || inVisit.has(index)) continue
+    points.push({
+      key: `view:${index}`,
+      kind: 'view',
+      view: index,
+      name: labels[`view:${camera.name}`] ?? camera.name,
+      position: camera.position as [number, number, number],
+      target: camera.target as [number, number, number],
+      ...onPlan(camera.position, camera.target),
+      off: true,
+    })
+  }
+  if (!points.length) return null
+  return { state: 'ready', at: new Date().toISOString(), levels, points, eye: PROPOSAL_EYE, fromBuild: true }
+}
+
+/** "Points de vue": the editor at once from the visit when there is one, else Blender places the points (startTourPropose). */
+export async function openPointsEditor(sceneId: string): Promise<TourProposal> {
+  if ((await readTourStatus(sceneId)).state === 'building') throw new Error('Une préparation est déjà en cours.')
+  const current = await readProposal(sceneId)
+  if (current?.state === 'running') return current
+  const fromBuild = await proposalFromBuild(sceneId).catch(err => {
+    console.error('points from the visit failed', sceneId, err)
+    return null
+  })
+  if (!fromBuild) return startTourPropose(sceneId)
+  await writeProposal(sceneId, fromBuild)
+  return fromBuild
+}
+
 /** Starts the proposal: Blender opens the file, places the points like a build would, and draws the plan, but renders no 360°. */
 export async function startTourPropose(sceneId: string, fresh = false): Promise<TourProposal> {
   if ((await readTourStatus(sceneId)).state === 'building') throw new Error('Une préparation est déjà en cours.')
@@ -4363,11 +4658,36 @@ export async function startTourPropose(sceneId: string, fresh = false): Promise<
   if (fresh) await rm(chosenPath(sceneId), { force: true })
   const p: TourProposal = { state: 'running', step: 'En attente du processeur graphique…', at: new Date().toISOString(), pid: process.pid }
   await writeProposal(sceneId, p)
+  proposeStopped.delete(sceneId)
   void propose(sceneId, fresh).catch(async err => {
+    // "Arrêter": nothing is left behind, the page goes back to the visit (or to the start)
+    if (proposeStopped.delete(sceneId)) {
+      await rm(proposalPath(sceneId), { force: true }).catch(() => undefined)
+      await clearDir(path.join(tourDir(sceneId), 'propose-work')).catch(() => undefined)
+      return
+    }
     console.error('tour proposal failed', sceneId, err)
     await writeProposal(sceneId, { state: 'failed', error: err instanceof Error ? err.message : String(err), at: new Date().toISOString() })
   })
   return p
+}
+
+/** The points placement running now (its Blender), and the ones the person stopped ("Arrêter", 18 Nov: there was no way out). */
+const proposeChild = new Map<string, ChildProcess>()
+const proposeStopped = new Set<string>()
+
+/** "Arrêter" during the placement of the points: Blender is killed (or never starts when it waits for the graphics card). */
+export async function stopTourPropose(sceneId: string) {
+  const current = await readProposal(sceneId)
+  if (current?.state !== 'running') {
+    if (current?.state === 'failed') await rm(proposalPath(sceneId), { force: true })
+    return
+  }
+  proposeStopped.add(sceneId)
+  const child = proposeChild.get(sceneId)
+  if (child) killTree(child)
+  // waiting for the graphics card: the slot callback sees the stop and throws; the file goes now so the page moves on
+  await rm(proposalPath(sceneId), { force: true })
 }
 
 async function propose(sceneId: string, fresh = false) {
@@ -4396,6 +4716,7 @@ async function propose(sceneId: string, fresh = false) {
       previousAuto: prevAuto.map(v => ({ position: v.position, target: v.target, keep: false, approved: false })),
       previousSame: true,
       ...(chosen ? { autoFixed: true, dropViews: chosen.dropViews } : {}),
+      dupDistance: DUP_DISTANCE,
       faceSize: FACE_SIZE,
       planSize: PLAN_SIZE,
       viewTransform: 'AgX',
@@ -4406,20 +4727,37 @@ async function propose(sceneId: string, fresh = false) {
     }),
   )
   let finished = false
+  // what the placement said (points per space, duplicates not placed), kept in the tour folder next to the proposal
+  const placementLog: string[] = []
   const result = await withBlenderSlot(async () => {
+    if (proposeStopped.has(sceneId)) throw new Error('Arrêté.')
     await step('Ouverture du fichier…')
-    return run(BLENDER, ['--background', '--python', scriptPath, '--', specPath], line => {
-      if (line.startsWith('TOUR_OK')) finished = true
-      if (line.startsWith('TOUR_TIME scene_ready')) void step('Recherche des pièces et placement des points de vue…')
-      if (line.startsWith('TOUR_TIME placement')) void step('Dessin du plan…')
-    })
+    return run(
+      BLENDER,
+      ['--background', '--python', scriptPath, '--', specPath],
+      line => {
+        if (line.startsWith('TOUR_OK')) finished = true
+        if (line.startsWith('TOUR_INFO') || line.startsWith('TOUR_AUTO')) placementLog.push(line)
+        if (line.startsWith('TOUR_TIME scene_ready')) void step('Recherche des pièces et placement des points de vue…')
+        if (line.startsWith('TOUR_TIME placement')) void step('Dessin du plan…')
+      },
+      undefined,
+      child => {
+        proposeChild.set(sceneId, child)
+        child.on('close', () => proposeChild.delete(sceneId))
+      },
+    )
   })
+  if (proposeStopped.has(sceneId)) throw new Error('Arrêté.')
+  await writeFile(path.join(dir, 'propose-log.txt'), placementLog.join('\n') + '\n').catch(() => undefined)
   if (result.code !== 0 || !finished) throw new Error(`Blender a échoué : ${result.stderr.split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 300)}`)
   const meta = JSON.parse(await readFile(path.join(work, 'tour-blender.json'), 'utf8')) as {
     plan: { width: number; height: number; mpp: number }
     levels?: { index: number; suffix: string; main: boolean; width: number; height: number; mpp: number; floor: number; frame?: [number, number, number, number]; outdoor?: boolean }[]
     views: { index: number; plan: { x: number; y: number; angle: number }; outside?: boolean; level?: number }[]
     auto?: { index: number; position: [number, number, number]; target: [number, number, number]; plan: { x: number; y: number; angle: number }; previous?: number | null; level?: number }[]
+    /** pairs of point indices within 3 m on a level with a clear line between them */
+    sees?: [number, number][]
   }
   const planLevels = meta.levels ?? []
   if (!planLevels.length) throw new Error('Aucune pièce trouvée dans ce fichier.')
@@ -4445,6 +4783,23 @@ async function propose(sceneId: string, fresh = false) {
     })
   }
   const points: ProposalPoint[] = []
+  // point index -> key, to turn the script's pairs of indices into keys
+  const keyOfIndex = new Map<number, string>()
+  for (const v of meta.views) keyOfIndex.set(v.index, `view:${v.index}`)
+  for (const [n, a] of (meta.auto ?? []).entries()) {
+    const old = a.previous != null ? prevAuto[a.previous] : undefined
+    keyOfIndex.set(a.index, `auto:${old?.id ?? `auto-p${n + 1}`}`)
+  }
+  const seesOf = (index: number): string[] | undefined => {
+    if (!meta.sees) return undefined
+    const out: string[] = []
+    for (const [i, j] of meta.sees) {
+      const other = i === index ? j : j === index ? i : null
+      const key = other !== null ? keyOfIndex.get(other) : undefined
+      if (key) out.push(key)
+    }
+    return out
+  }
   for (const v of meta.views) {
     if (v.outside && !chosen?.dropViews.includes(v.index)) continue
     const camera = cameras[v.index]
@@ -4459,6 +4814,7 @@ async function propose(sceneId: string, fresh = false) {
       level: v.level ?? 0,
       plan: v.plan,
       ...(chosen?.dropViews.includes(v.index) ? { off: true } : {}),
+      ...(meta.sees ? { sees: seesOf(v.index) } : {}),
     })
   }
   for (const [n, a] of (meta.auto ?? []).entries()) {
@@ -4473,6 +4829,7 @@ async function propose(sceneId: string, fresh = false) {
       target: a.target,
       level: a.level ?? 0,
       plan: a.plan,
+      ...(meta.sees ? { sees: seesOf(a.index) } : {}),
     })
   }
   await writeProposal(sceneId, { state: 'ready', at: new Date().toISOString(), levels, points, eye: PROPOSAL_EYE })
@@ -4550,6 +4907,7 @@ export async function confirmTourPoints(
   if (!keep.size && !auto.length) throw new Error('Gardez au moins un point.')
   const chosen: ChosenPoints = { at: new Date().toISOString(), auto, dropViews: cameras.map((_, i) => i).filter(i => !keep.has(i)) }
   await writeFile(chosenPath(sceneId), JSON.stringify(chosen))
+  await saveReuse(sceneId, cameras, keep, auto)
   // the names typed in the editor are the points' names in the tour too
   const labels = await readLabels(sceneId)
   for (const p of auto) labels[`auto:${p.id}`] = p.name
@@ -4560,6 +4918,48 @@ export async function confirmTourPoints(
 
 const readBuild = async (sceneId: string) =>
   JSON.parse(await readFile(tourPath(sceneId), 'utf8').catch(() => 'null')) as TourBuild | null
+
+/**
+ * The points of a new build that stay as they were (18 Nov, the owner: "I changed one point only"): a SketchUp scene kept
+ * from the visit, an automatic point at the same place looking the same way. Their finished 360° (pano-<n>.jpg) is copied
+ * aside now, before the build renumbers the files; Blender skips them, the build puts them back, and the daylight and the
+ * AI finish only take the others.
+ */
+interface Reuse {
+  views: { index: number; file: string }[]
+  /** k: the point's place in points.json (previousAuto) */
+  auto: { k: number; file: string }[]
+}
+const reusePath = (sceneId: string) => path.join(tourDir(sceneId), 'keep.json')
+const readReuse = async (sceneId: string) => JSON.parse(await readFile(reusePath(sceneId), 'utf8').catch(() => 'null')) as Reuse | null
+
+async function saveReuse(sceneId: string, cameras: SceneCamera[], keep: Set<number>, auto: ChosenPoints['auto']) {
+  await rm(reusePath(sceneId), { force: true })
+  const dir = tourDir(sceneId)
+  const keepDir = path.join(dir, 'keep')
+  await rm(keepDir, { recursive: true, force: true })
+  const before = await readBuild(sceneId)
+  if (!before?.views.length || before.sourceMtime !== Math.round((await stat(sourcePath(sceneId))).mtimeMs)) return
+  const near = (a?: number[], b?: number[]) => !!a && !!b && a.every((x, i) => Math.abs(x - b[i]) < 0.01)
+  const reuse: Reuse = { views: [], auto: [] }
+  await mkdir(keepDir, { recursive: true })
+  const save = async (file: string, name: string) => {
+    const to = path.join(keepDir, name)
+    return copyFile(path.join(dir, file), to).then(() => to, () => null)
+  }
+  for (const index of keep) {
+    const old = before.views.find(v => !v.auto && v.index === index && v.name === cameras[index]?.name && v.pano && !v.outside)
+    const file = old?.pano ? await save(old.pano, `view-${index}.jpg`) : null
+    if (file) reuse.views.push({ index, file })
+  }
+  for (const [k, p] of auto.entries()) {
+    const old = before.views.find(v => v.auto && v.id === p.id && v.pano && near(v.position, p.position) && near(v.target, p.target))
+    const file = old?.pano ? await save(old.pano, `auto-${k}.jpg`) : null
+    if (file) reuse.auto.push({ k, file })
+  }
+  if (reuse.views.length || reuse.auto.length) await writeFile(reusePath(sceneId), JSON.stringify(reuse))
+  else await rm(keepDir, { recursive: true, force: true })
+}
 
 /**
  * The light of an AI 360°, chosen by whoever orders it. 'soleil': warm late-afternoon sun, the
@@ -5376,7 +5776,7 @@ export async function reviewTourAi(sceneId: string, index: number, approve: bool
 /** The names the person gave the points (14 Nov), apart from tour.json so a new build keeps them: "view:<SketchUp scene>" or "auto:<id>". */
 const labelsPath = (sceneId: string) => path.join(tourDir(sceneId), 'labels.json')
 export const readLabels = async (sceneId: string) => JSON.parse(await readFile(labelsPath(sceneId), 'utf8').catch(() => '{}')) as Record<string, string>
-const labelKey = (v: { auto?: boolean; id?: string; index: number; name: string }) => (v.auto ? `auto:${v.id ?? v.index}` : `view:${v.name}`)
+export const labelKey = (v: { auto?: boolean; id?: string; index: number; name: string }) => (v.auto ? `auto:${v.id ?? v.index}` : `view:${v.name}`)
 
 export async function editTourPoint(sceneId: string, index: number, edit: { hidden?: boolean; startYaw?: number | null; name?: string }) {
   const built = await readBuild(sceneId)
@@ -5401,6 +5801,10 @@ export interface TourView {
   name: string
   position: SceneCamera['position']
   target: SceneCamera['target']
+  /** Where its 360° was taken (a camera moved off a wall or out of a bed is not where it was saved), glTF frame. */
+  eye: [number, number, number]
+  /** A point 1 m ahead of the eye along the middle of its 360°: the frame of its arrows and of the plan's cone. */
+  ahead: [number, number, number]
   /** Horizontal field of view of the photo (the lens it was made with). */
   photoHfov: number
   photo: string | null
@@ -5460,8 +5864,53 @@ async function upgradeAiPanos(sceneId: string): Promise<void> {
   await writeFile(marker, new Date().toISOString())
 }
 
+/**
+ * 25 Nov: where a point's 360° really stands and looks, and its dot and cone on the plan from that. The quality render takes a
+ * camera from a better spot nearby (out of a wall, off a bed: tour.json position) and centres its 360° on +x (panoYaw), so the
+ * saved camera's place and direction were wrong for most points: the bedroom's dot sat on the bed and its cone looked backwards.
+ */
+function pointFrame(built: TourBuild | null, point: TourViewPoint | undefined, position: [number, number, number], target: [number, number, number]) {
+  const eye = (point?.position ?? position) as [number, number, number]
+  const yaw = point?.panoYaw ?? Math.atan2(-(target[2] - position[2]), target[0] - position[0])
+  const ahead: [number, number, number] = [eye[0] + Math.cos(yaw), eye[1], eye[2] - Math.sin(yaw)]
+  const was = point?.plan ?? null
+  if (!was) return { eye, ahead, plan: null }
+  // plan pixels from the level's frame (Blender x0, y0, x1, y1; the plan's y goes down, Blender's y = -glTF z)
+  const geometry = built?.planGeometry
+  const g = geometry?.find(l => l.index === (point?.level ?? -1)) ?? (geometry?.length === 1 ? geometry[0] : geometry?.find(l => l.main))
+  const angle = (-yaw * 180) / Math.PI
+  if (!g) return { eye, ahead, plan: { ...was, angle } }
+  const [x0, y0, x1, y1] = g.frame
+  return { eye, ahead, plan: { x: ((eye[0] - x0) / (x1 - x0)) * g.width, y: ((y1 + eye[2]) / (y1 - y0)) * g.height, angle } }
+}
+
+/**
+ * 25 Nov, once per project: a 360° the quality render made before panoYaw was written (scripts/look_pipeline.py renders at yaw 0) gets
+ * it, so the plan's cone, the arrows and the published link follow the picture. Its render (look/auto/t<k>-pano.png) tells it apart from
+ * a 360° the build stitched along the view's own direction.
+ */
+async function markQualityPanos(sceneId: string): Promise<void> {
+  const marker = path.join(sceneDir(sceneId), 'look', 'pano-yaw.done')
+  if (await stat(marker).then(() => true, () => false)) return
+  const auto = path.join(sceneDir(sceneId), 'look', 'auto')
+  const names = await readdir(auto).catch(() => null)
+  if (!names) return
+  const built = await readBuild(sceneId)
+  if (!built) return
+  let changed = false
+  for (const v of built.views) {
+    if (v.panoYaw === undefined && v.pano && names.includes(`t${v.index}-pano.png`)) {
+      v.panoYaw = 0
+      changed = true
+    }
+  }
+  if (changed) await writeFile(tourPath(sceneId), JSON.stringify(built))
+  await writeFile(marker, new Date().toISOString())
+}
+
 export async function readTour(sceneId: string, { review = false } = {}) {
   await upgradeAiPanos(sceneId).catch(() => {})
+  await markQualityPanos(sceneId).catch(() => {})
   const [cameras, photos, status, labels] = await Promise.all([readCameras(sceneId), listPhotos(sceneId), readTourStatus(sceneId), readLabels(sceneId)])
   const built = await readBuild(sceneId)
   const linksOf = (index: number) => (built?.links ?? []).flatMap(([a, b]) => (a === index ? [b] : b === index ? [a] : []))
@@ -5470,11 +5919,14 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     const photo = photos.find(p => p.view === camera.name)
     const point = built?.views.find(v => v.index === index && v.name === camera.name)
     const lens = photo?.lens === 'file' || photo?.lens === '35' || photo?.lens === '24' || photo?.lens === '18' ? photo.lens : '24'
+    const at = pointFrame(built, point, camera.position as [number, number, number], camera.target as [number, number, number])
     return {
       index,
       name: labels[`view:${camera.name}`] ?? camera.name,
       position: camera.position,
       target: camera.target,
+      eye: at.eye,
+      ahead: at.ahead,
       photoHfov: lensHfov(lens, camera),
       photo: point?.facesWall ? null : (photo?.file ?? null),
       noPhoto: point?.facesWall === true,
@@ -5487,7 +5939,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       panoAiCheck: (review && point?.panoAiCheck) || null,
       panoAiApproved: point?.panoAiApproved === true,
       panoAiStale: point?.panoAiStale === true,
-      plan: point?.plan ?? null,
+      plan: at.plan,
       level: point?.level ?? null,
       auto: false,
       links: linksOf(index),
@@ -5497,11 +5949,14 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     }
   })
   for (const point of built?.views.filter(v => v.auto && v.position && v.target) ?? []) {
+    const at = pointFrame(built, point, point.position!, point.target!)
     all.push({
       index: point.index,
       name: labels[labelKey(point)] ?? point.name,
       position: point.position!,
       target: point.target!,
+      eye: at.eye,
+      ahead: at.ahead,
       photoHfov: 74,
       photo: null,
       noPhoto: true,
@@ -5513,7 +5968,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       panoAiCheck: (review && point.panoAiCheck) || null,
       panoAiApproved: point.panoAiApproved === true,
       panoAiStale: point.panoAiStale === true,
-      plan: point.plan,
+      plan: at.plan,
       level: point.level ?? null,
       auto: true,
       links: linksOf(point.index),

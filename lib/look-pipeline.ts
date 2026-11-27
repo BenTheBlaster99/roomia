@@ -8,6 +8,7 @@ import { loadSharp } from './load-sharp'
 import { editPanoLight, PANO_LIGHT_SIZE, PANO_LIGHT_VERSION, panoLightInput, panoLightPrompt, panoLightReference } from './pano-light'
 import { isGatewayDown } from './photoreal'
 import { cloudMode, cloudPhoto } from './roomia-cloud'
+import { recordTiming } from './render-timing'
 import { readCameras, readMeta, sceneDir } from './scene-store'
 import { killTree, TOUR_SCRIPT, tourDir, tourSceneSpec } from './scene-tour'
 
@@ -112,9 +113,11 @@ function killJob(child: ChildProcess) {
   killTree(child)
 }
 
-function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string; scene?: string } = {}): Promise<number> {
+function run(cmd: string, args: string[], onLine: (line: string) => void, opts: { cwd?: string; scene?: string; env?: Record<string, string>; nice?: boolean } = {}): Promise<number> {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' })
+    // `nice`: the light transfers that run beside the render (21 Nov) yield to Blender's own processor work (Linux; Windows has no nice)
+    const [exe, argv] = opts.nice && process.platform === 'linux' ? ['nice', ['-n', '10', cmd, ...args]] : [cmd, args]
+    const child = spawn(exe, argv, { cwd: opts.cwd ?? process.cwd(), env: { ...process.env, ROOMIA_BLENDER: BLENDER, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ...opts.env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' })
     if (opts.scene) {
       const set = kids.get(opts.scene) ?? new Set<ChildProcess>()
       set.add(child)
@@ -139,7 +142,7 @@ function run(cmd: string, args: string[], onLine: (line: string) => void, opts: 
 }
 
 const SCRIPT = path.join(process.cwd(), 'scripts', 'look_pipeline.py')
-const pipeline = async (id: string, args: string[], onLine: (l: string) => void) => run(await pythonExe(), [SCRIPT, ...args.slice(0, 1), id, ...args.slice(1)], onLine, { scene: id })
+const pipeline = async (id: string, args: string[], onLine: (l: string) => void, env?: Record<string, string>) => run(await pythonExe(), [SCRIPT, ...args.slice(0, 1), id, ...args.slice(1)], onLine, { scene: id, env })
 
 /** The scene prepared for the look (lights, glass, mirrors, sky), saved once as look/prepared.blend. Same work as scripts/look-prep.mts. */
 export async function prepareLook(id: string, onLine: (l: string) => void = () => {}): Promise<void> {
@@ -217,14 +220,14 @@ export async function stopLook(id: string): Promise<LookState> {
 }
 
 /** While Blender renders the points: which view it is on, from the finished files and Blender's own progress line. */
-function watchRender(id: string, s: LookState, total: () => number): () => void {
+function watchRender(id: string, s: LookState, total: () => number, note: () => string = () => ''): () => void {
   const timer = setInterval(async () => {
     try {
       const files = (await readdir(autoDir(id))).filter(f => /^t\d+-lin\.npy$/.test(f))
       let fresh = 0
       for (const f of files) if ((await stat(path.join(autoDir(id), f))).mtimeMs >= s.startedAt) fresh += 1
       const n = total()
-      if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 1 à 2 minutes chacune)`
+      if (n) s.step = `Rendu des vues 360° : vue ${Math.min(fresh + 1, n)} sur ${n} (environ 1 à 2 minutes chacune)${note()}`
       const tail = (await readFile(path.join(autoDir(id), 'render.log'), 'utf8').catch(() => '')).split('\n').slice(-40).reverse().find(l => /Sample \d+\/\d+/.test(l))
       const m = tail && /Sample (\d+\/\d+)/.exec(tail)
       const th = thermalState()
@@ -245,13 +248,141 @@ function watchRender(id: string, s: LookState, total: () => number): () => void 
   return () => clearInterval(timer)
 }
 
+/**
+ * The time a whole visit took on this PC (21 Nov), kept for the estimate beside "Lancer" in the points editor (lib/render-timing.ts):
+ * the tour build's own time plus everything since the quality render started. Only a visit made from scratch is kept.
+ */
+const visitStarted = new Map<string, { at: number; whole: boolean }>()
+async function noteVisitTime(id: string, points: number): Promise<void> {
+  const st = visitStarted.get(id)
+  visitStarted.delete(id)
+  // a start left over from an earlier visit (the AI finish never followed) is not this visit
+  if (!st?.whole || Date.now() - st.at > 6 * 3600_000) return
+  const tour = JSON.parse(await readFile(path.join(tourDir(id), 'tour.json'), 'utf8').catch(() => 'null')) as { timings?: Record<string, number> } | null
+  await recordTiming({ points, buildSeconds: tour?.timings?.total ?? 0, lookSeconds: (Date.now() - st.at) / 1000 }).catch(() => undefined)
+}
+
+// ── 21 Nov: the AI finish streams while the render goes on (docs/PROMPT-speed-steps1-4.md, step 2) ──
+//
+// The renderer is the slow side (about 2.2 minutes a view); the AI image (about 75 s, the gateway) and the light transfer (a few seconds
+// after step 3) do not need the GPU. As soon as the render has finished a view, its AI image and its transfer run beside the render of the
+// next ones. The group step at the end of the render (one exposure for the visit, then install) is unchanged. A streamed view whose
+// Blender picture ends up the very same bytes as the one it was streamed from keeps its finished picture ("promoted", scripts/pano_ai_light.py
+// --promote); any other view (a view the group exposure moved) goes through the normal AI step afterwards, which makes the same request
+// to the gateway (same picture, same cache key) or reuses the cached image, so nothing is paid twice and the credit ledger is untouched.
+
+/** What the streamed AI finish did for a scene's current render. */
+interface StreamResult {
+  /** views whose finished 360 is already in the tour */
+  promoted: Set<number>
+  paid: number
+  cached: number
+  /** views with a finished picture waiting for the group step */
+  transferred: Set<number>
+  /** views whose AI image was made from the draft picture (kept: a view the group exposure moved reuses it, it is never paid twice) */
+  made: Set<number>
+  generated: number
+}
+const streamed = new Map<string, StreamResult>()
+const streamDir = (id: string) => path.join(autoDir(id), 'stream')
+const GEN_CONCURRENCY = Math.max(1, Number(process.env.ROOMIA_LOOK_GEN_WORKERS ?? 3))
+const XFER_CONCURRENCY = Math.max(1, Number(process.env.ROOMIA_LOOK_XFER_WORKERS ?? 1))
+
+function limiter(n: number) {
+  let active = 0
+  const waiting: (() => void)[] = []
+  return async <T,>(fn: () => Promise<T>): Promise<T> => {
+    if (active >= n) await new Promise<void>(resolve => waiting.push(resolve))
+    active++
+    try {
+      return await fn()
+    } finally {
+      active--
+      waiting.shift()?.()
+    }
+  }
+}
+
+/** The AI finish asked for with the points, when it covers every view this render makes (then nothing needs the images' scores first). */
+async function streamPlan(id: string, only: number[] | null): Promise<{ wants: (k: number, name: string) => boolean; names: Map<number, string> } | null> {
+  if (process.env.ROOMIA_LOOK_STREAM === '0') return null
+  const plan = JSON.parse(await readFile(autoAiFile(id), 'utf8').catch(() => 'null')) as AutoAiPlan | null
+  if (!plan || plan.max < 1) return null
+  const tour = JSON.parse(await readFile(path.join(tourDir(id), 'tour.json'), 'utf8').catch(() => '{}')) as { views?: { index: number; name?: string; outside?: boolean; hidden?: boolean }[] }
+  const candidates = (tour.views ?? []).filter(v => !v.outside && !v.hidden && (!only || only.includes(v.index)))
+  // the render keeps the points the camera check accepts: at most these. Fewer images than `max` are asked for, so `max` is enough.
+  if (!candidates.length || plan.max < candidates.length) return null
+  const names = new Map(candidates.map(v => [v.index, v.name ?? `Vue ${v.index}`]))
+  const wants = (k: number, name: string) => !plan.views || plan.views.some(v => v.index === k || v.name === name)
+  return { wants, names }
+}
+
+/**
+ * Called with each "VIEW_READY <index>" line of the render. Never throws: a view that fails here is left to the normal AI step after
+ * the render, which reports the error as it always did.
+ */
+function startStreamer(id: string, plan: { wants: (k: number, name: string) => boolean; names: Map<number, string> }, line: (l: string) => void) {
+  const res: StreamResult = { promoted: new Set(), paid: 0, cached: 0, transferred: new Set(), made: new Set(), generated: 0 }
+  streamed.set(id, res)
+  const gen = limiter(GEN_CONCURRENCY)
+  const xfer = limiter(XFER_CONCURRENCY)
+  const reference = houseReference(id).catch(() => null)
+  const work: Promise<void>[] = []
+  const handle = async (k: number, name: string) => {
+    if (stopped.has(id)) return
+    const ref = await reference
+    await gen(() => makeLight(id, k, name, ref, res, path.join(streamDir(id), `pano-${k}.jpg`)))
+    res.generated += 1
+    res.made.add(k)
+    if (stopped.has(id)) return
+    const code = await xfer(async () =>
+      stopped.has(id)
+        ? 1
+        : run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', String(k), '--auto', 'auto', '--finish-only', '--transfer', '--stream'], line, { scene: id, nice: true }),
+    )
+    if (code === 0 && (await exists(path.join(streamDir(id), `final-${k}.jpg`)))) res.transferred.add(k)
+  }
+  return {
+    ready(k: number) {
+      const name = plan.names.get(k)
+      if (name === undefined || !plan.wants(k, name)) return
+      work.push(handle(k, name).catch(err => console.error('streamed AI finish of view', k, 'left to the normal step:', err instanceof Error ? err.message : err)))
+    },
+    /** After the render: waits for the views still in the queues, then keeps the finished pictures that are still right. */
+    async finish() {
+      let n = -1
+      while (n !== work.length) {
+        n = work.length
+        await Promise.all(work)
+      }
+      if (stopped.has(id) || !res.transferred.size) return
+      await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', [...res.transferred].sort((a, b) => a - b).join(','), '--auto', 'auto', '--promote'], l => {
+        const m = /^PROMOTED (\d+)/.exec(l)
+        if (m) res.promoted.add(Number(m[1]))
+        line(l)
+      }, { scene: id })
+    },
+    note: () => (res.generated ? ` · IA : ${res.generated} images faites` : ''),
+  }
+}
+
 /** Free: analysis, the automatic recipe, every 360 point rendered and installed, then the suggestion of the points for the AI. */
-export async function startLookRender(id: string): Promise<LookState> {
+export async function startLookRender(id: string, only?: number[]): Promise<LookState> {
   if (lookBusy(id)) return active.get(id)!
   const meta = await readMeta(id)
   if (!meta || meta.status !== 'ready') throw new Error('Scène introuvable ou pas encore prête.')
+  // 18 Nov: only the points made again (the others kept their finished 360°); kept on disk so a resume does the same
+  // (an empty list: every point, a whole new visit)
+  if (only?.length) {
+    await mkdir(lookDir(id), { recursive: true })
+    await writeFile(onlyFile(id), JSON.stringify(only))
+  } else if (only) await rm(onlyFile(id), { force: true })
+  const points = only?.length ? only : only ? null : (JSON.parse(await readFile(onlyFile(id), 'utf8').catch(() => 'null')) as number[] | null)
+  // 21 Nov: when the AI finish was asked for with the points, it runs per view beside the render (see "streams while the render goes on")
+  const plan = await streamPlan(id, points ?? null).catch(() => null)
   const s = fresh()
   Object.assign(s, { stage: 'running', job: 'render', step: 'Préparation de la scène…', startedAt: Date.now() })
+  visitStarted.set(id, { at: s.startedAt, whole: !points?.length })
   await save(id, s)
   const line = follow(id, s)
   stopped.delete(id)
@@ -260,20 +391,37 @@ export async function startLookRender(id: string): Promise<LookState> {
       s.step = 'En attente du processeur graphique…'
       await save(id, s)
       let planned = 0
-      const stopWatching = watchRender(id, s, () => planned)
+      // a render starts clean: nothing streamed by an earlier one is kept
+      streamed.delete(id)
+      await rm(streamDir(id), { recursive: true, force: true }).catch(() => undefined)
+      const streamer = plan ? startStreamer(id, plan, line) : null
+      const stopWatching = watchRender(id, s, () => planned, () => streamer?.note() ?? '')
       const code = await withBlenderSlot(async () => {
         if (stopped.has(id)) throw new Error('Arrêtée.')
         s.step = 'Préparation de la scène…'
         await save(id, s)
         await prepareLook(id, line)
-        return pipeline(id, ['render'], l => {
-          const m = /^points: (\d+) to render/.exec(l)
-          if (m) planned = Number(m[1])
-          line(l)
-        })
+        return pipeline(
+          id,
+          ['render', ...(points?.length ? ['--points', points.join(',')] : [])],
+          l => {
+            const m = /^points: (\d+) to render/.exec(l)
+            if (m) planned = Number(m[1])
+            const v = /^VIEW_READY (\d+)/.exec(l)
+            if (v) streamer?.ready(Number(v[1]))
+            line(l)
+          },
+          streamer ? { ROOMIA_LOOK_STREAM: '1' } : undefined,
+        )
       }).finally(stopWatching)
       if (stopped.has(id)) throw new Error('Arrêtée.')
       if (code !== 0) throw new Error('Le rendu de la présentation a échoué (voir le journal).')
+      if (streamer) {
+        s.step = 'Finition IA des dernières vues…'
+        await save(id, s)
+        await streamer.finish()
+        if (stopped.has(id)) throw new Error('Arrêtée.')
+      }
       const report = JSON.parse(await readFile(path.join(autoDir(id), 'render-report.json'), 'utf8')) as { rendered: string[]; skipped: Record<string, string> }
       s.rendered = report.rendered
       s.skipped = report.skipped
@@ -284,9 +432,14 @@ export async function startLookRender(id: string): Promise<LookState> {
         if (l.startsWith('SUGGEST ')) out = l.slice(8)
       })
       s.suggestions = out ? (JSON.parse(out) as LookSuggestion[]) : []
+      await rm(onlyFile(id), { force: true }).catch(() => undefined)
       s.stage = 'ready'
       s.step = 'La visite est prête. Vous pouvez demander la finition IA.'
+      // no AI finish follows (none was asked for): the visit is complete now
+      if (!(await autoAiPlanned(id))) await noteVisitTime(id, report.rendered.length)
     } catch (err) {
+      streamed.delete(id)
+      visitStarted.delete(id)
       if (stopped.delete(id)) {
         s.stage = 'idle'
         s.step = 'Arrêtée. Vous pouvez la relancer.'
@@ -306,6 +459,14 @@ export async function startLookRender(id: string): Promise<LookState> {
 // ── One click (13 Nov, the user's ask): "Préparer la visite 360°" with the AI finish chosen goes Blender → AI light by itself ──
 
 const autoAiFile = (id: string) => path.join(lookDir(id), 'auto-ai.json')
+const onlyFile = (id: string) => path.join(lookDir(id), 'render-only.json')
+
+/** The AI finish asked for with the points (planAutoAi), kept to the points made again (18 Nov: the others are finished). */
+export async function restrictAutoAi(id: string, views: { index: number; name: string }[]): Promise<void> {
+  const plan = JSON.parse(await readFile(autoAiFile(id), 'utf8').catch(() => 'null')) as AutoAiPlan | null
+  if (!plan) return
+  await writeFile(autoAiFile(id), JSON.stringify({ ...plan, views }))
+}
 
 /** The views the AI finish will take when the Présentation is ready (by name first: the build may renumber them), at most `max`. */
 export interface AutoAiPlan {
@@ -371,16 +532,27 @@ async function blenderPano(id: string, k: number): Promise<Buffer> {
 }
 
 /** One view's AI image: from the cache if this exact panorama and reference were edited before, else paid (1 credit). */
-async function makeLight(id: string, k: number, name: string, reference: Buffer | null, s: LookState): Promise<void> {
-  const input = await loadSharp()(await blenderPano(id, k)).resize(PANO_LIGHT_SIZE.width, PANO_LIGHT_SIZE.height, { fit: 'fill' }).jpeg({ quality: 95 }).toBuffer()
+async function makeLight(id: string, k: number, name: string, reference: Buffer | null, counts: { paid: number; cached: number }, inputFile?: string): Promise<void> {
+  // `inputFile`: the view's picture while the render is still going (streamed AI, 21 Nov): the same picture the normal step would send
+  const input = await loadSharp()(inputFile ? await readFile(inputFile) : await blenderPano(id, k)).resize(PANO_LIGHT_SIZE.width, PANO_LIGHT_SIZE.height, { fit: 'fill' }).jpeg({ quality: 95 }).toBuffer()
   const key = sha(Buffer.concat([input, reference ?? Buffer.alloc(0), Buffer.from(PANO_LIGHT_VERSION + panoLightPrompt(Boolean(reference)))]))
   const dir = path.join(lookDir(id), 'sunburst')
   const out = path.join(dir, `pano-${k}-sunburst-2560.jpg`)
   const cache = path.join(dir, 'cache', `${key}.jpg`)
   await mkdir(path.dirname(cache), { recursive: true })
+  // Benchmarks and tests only, never set by the app (ROOMIA_FAKE_GATEWAY_DELAY=<seconds>): waits as long as the gateway would, then uses
+  // the cached image or the one already on disk. It never calls the gateway and never pays.
+  const fakeDelay = process.env.ROOMIA_FAKE_GATEWAY_DELAY
+  if (fakeDelay !== undefined) {
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, Number(fakeDelay) || 0) * 1000))
+    if (await exists(cache)) await copyFile(cache, out)
+    else if (!(await exists(out))) throw new Error(`fake gateway: no image on disk for view ${k}`)
+    counts.cached += 1
+    return
+  }
   if (await exists(cache)) {
     await copyFile(cache, out)
-    s.ai!.cached += 1
+    counts.cached += 1
     return
   }
   let buf: Buffer | null = null
@@ -390,7 +562,7 @@ async function makeLight(id: string, k: number, name: string, reference: Buffer 
     try {
       if (cloud) {
         const r = await cloudPhoto(
-          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), view: name, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: false, kind: 'pano-light', reference },
+          { jobId: key.slice(0, 48), project: path.basename(sceneDir(id)), projectId: id, projectName: (await readMeta(id))?.fileName, view: name, lighting: { time: 'apres-midi', sun: true, interior: true }, capture: input, ask: false, kind: 'pano-light', reference },
           () => {},
         )
         buf = Buffer.from(r.base64, 'base64')
@@ -402,7 +574,7 @@ async function makeLight(id: string, k: number, name: string, reference: Buffer 
       if (attempt > 0 || !isGatewayDown(err) || Date.now() - t > 15_000) throw err
     }
   }
-  s.ai!.paid += 1
+  counts.paid += 1
   await writeFile(cache, buf)
   await writeFile(out, buf)
 }
@@ -421,7 +593,15 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
   const prev = await getLookState(id)
   const s = fresh()
   Object.assign(s, { stage: 'running', job: 'ai', step: 'Préparation des vues pour l’IA…', startedAt: Date.now(), rendered: prev.rendered, skipped: prev.skipped, suggestions: prev.suggestions })
-  s.ai = { points, ring, images: q.images, cost: q.cost, done: 0, paid: 0, cached: 0 }
+  // 21 Nov: the views the streamed AI finish already finished during the render are not made again
+  const early = streamed.get(id)
+  const todo = points.filter(k => !early?.promoted.has(k))
+  // a view the group exposure moved (a very dark or very bright room, more than 3 stops from the visit's median) keeps the AI image made
+  // from its draft: asking again would be a second paid image for the same view. Only the cheap transfer is redone, on the final picture.
+  // The AI image does not depend on the exposure of the picture it is given (measured on the F5's 15 real AI images: the input medians
+  // spread over 1.77 stops, the AI medians over 0.63, slope 0.02, correlation 0.04; the darkest input, 0.08, gave an ordinary 0.45).
+  const reused = todo.filter(k => early?.made.has(k) && !early.promoted.has(k))
+  s.ai = { points, ring, images: q.images, cost: q.cost, done: points.length - todo.length + reused.length, paid: early?.paid ?? 0, cached: early?.cached ?? 0 }
   await save(id, s)
   const line = follow(id, s)
   stopped.delete(id)
@@ -433,11 +613,12 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
       await save(id, s)
       const made: number[] = []
       let next = 0
+      const toMake = todo.filter(k => !reused.includes(k))
       const worker = async () => {
-        while (next < points.length) {
+        while (next < toMake.length) {
           if (stopped.has(id)) throw new Error('Arrêtée.')
-          const k = points[next++]
-          await makeLight(id, k, names.get(k) ?? `Vue ${k}`, reference, s)
+          const k = toMake[next++]
+          await makeLight(id, k, names.get(k) ?? `Vue ${k}`, reference, s.ai!)
           made.push(k)
           s.ai!.done += 1
           s.step = `Images IA : ${s.ai!.done} sur ${s.ai!.images}`
@@ -445,10 +626,15 @@ export async function startLookAi(id: string, points: number[], ring: number[], 
         }
       }
       await Promise.all([worker(), worker()])
-      s.step = 'Lumière de l’IA sur les vues Blender…'
-      await save(id, s)
-      const finish = await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', made.sort((a, b) => a - b).join(','), '--auto', 'auto', '--finish-only'], line, { scene: id })
-      if (finish !== 0) throw new Error('L’application de la lumière a échoué (voir le journal).')
+      made.push(...reused)
+      if (made.length) {
+        s.step = 'Lumière de l’IA sur les vues Blender…'
+        await save(id, s)
+        const finish = await run(await pythonExe(), [path.join(process.cwd(), 'scripts', 'pano_ai_light.py'), '--scene-dir', sceneDir(id), '--views', made.sort((a, b) => a - b).join(','), '--auto', 'auto', '--finish-only', '--transfer'], line, { scene: id })
+        if (finish !== 0) throw new Error('L’application de la lumière a échoué (voir le journal).')
+      }
+      streamed.delete(id)
+      await noteVisitTime(id, points.length)
       s.stage = 'done'
       s.step = 'Finition IA terminée.'
     } catch (err) {

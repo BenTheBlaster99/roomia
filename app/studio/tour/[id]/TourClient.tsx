@@ -90,16 +90,33 @@ function visitOrder(views: TourView[]): number[] {
   return order
 }
 
-/** Direction from view `from` to the floor where view `to` stands: right (+) of where `from` looks, and down (−). */
+/** 25 Nov: where a point's 360° was taken and the way its middle looks (lib/scene-tour.ts pointFrame), not the saved camera's. */
+const eyeOf = (v: TourView) => v.eye ?? v.position
+const aheadOf = (v: TourView) => v.ahead ?? v.target
+
+/** 25 Nov: where a point's carousel cover looks, in the viewer's yaw (+ = right of the 360°'s middle): the operator's chosen
+ *  start, else the way the architect's camera looked (turned around when it faces a wall). Clicking the cover arrives there. */
+function coverYaw(v: TourView) {
+  if (v.startYaw != null) return v.startYaw
+  const e = eyeOf(v)
+  const a = aheadOf(v)
+  const middle = Math.atan2(-(a[2] - e[2]), a[0] - e[0])
+  const looks = Math.atan2(-(v.target[2] - v.position[2]), v.target[0] - v.position[0])
+  const yaw = middle - looks + (v.noPhoto && !v.auto ? Math.PI : 0)
+  return Math.atan2(Math.sin(yaw), Math.cos(yaw))
+}
+
+/** Direction from view `from` to the floor where view `to` stands: right (+) of where `from`'s 360° looks, and down (−). */
 function direction(from: TourView, to: TourView) {
-  const [px, py, pz] = from.position
-  const fx = from.target[0] - px
-  const fz = from.target[2] - pz
-  const vx = to.position[0] - px
-  const vz = to.position[2] - pz
+  const [px, py, pz] = eyeOf(from)
+  const fx = aheadOf(from)[0] - px
+  const fz = aheadOf(from)[2] - pz
+  const there = eyeOf(to)
+  const vx = there[0] - px
+  const vz = there[2] - pz
   const yaw = Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz)
   const dist = Math.hypot(vx, vz)
-  const pitch = Math.atan2(to.position[1] - EYE_ABOVE_ARROW - py, dist)
+  const pitch = Math.atan2(there[1] - EYE_ABOVE_ARROW - py, dist)
   return { yaw, pitch, dist }
 }
 
@@ -116,10 +133,11 @@ interface LookData {
 
 /** Direction (radians, + = right) a point's 360° faces when one walks into it from another: the way one was going. */
 function arrivalYaw(from: TourView, to: TourView) {
-  const fx = to.target[0] - to.position[0]
-  const fz = to.target[2] - to.position[2]
-  const vx = to.position[0] - from.position[0]
-  const vz = to.position[2] - from.position[2]
+  const [ex, , ez] = eyeOf(to)
+  const fx = aheadOf(to)[0] - ex
+  const fz = aheadOf(to)[2] - ez
+  const vx = ex - eyeOf(from)[0]
+  const vz = ez - eyeOf(from)[2]
   if (Math.hypot(vx, vz) < 0.05) return null
   return Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz)
 }
@@ -156,6 +174,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   /** "Voir l'aperçu": the visit while the final quality is still being made */
   const [preview, setPreview] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
+  /** "Points de vue" clicked on this page: only then does the editor show over a visit that exists (18 Nov) */
+  const [pointsOpen, setPointsOpen] = useState(false)
   // ?edit=1: Roomia's own controls (paid upgrades); a client opening the tour never sees them.
   const [editing] = useState(() => !published && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1')
   const swipe = useRef<{ x: number; y: number } | null>(null)
@@ -168,10 +188,17 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     if (res?.ok) setLook((await res.json()) as LookData)
   }, [sceneId, published])
   // "Arrêter": kills Blender for this scene's build now. It does not restart by itself (only a build cut by closing Roomia does).
-  const stopBuild = useCallback(async () => {
-    await fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).catch(() => undefined)
-    await load()
-  }, [sceneId, load])
+  // 18 Nov: also the placement of the points and the daylight / AI finish (there was no way out of them)
+  const stopBuild = useCallback(
+    async (what: 'build' | 'points' | 'look') => {
+      const url = what === 'look' ? `/api/scenes/${sceneId}/look` : `/api/scenes/${sceneId}/tour`
+      const body = what === 'look' ? { action: 'stop' } : what === 'points' ? { stopPropose: true } : { stop: true }
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => undefined)
+      await load()
+      await loadLook()
+    },
+    [sceneId, load, loadLook],
+  )
   // "Pause after this point": the point in progress finishes, the next waits (the same flag the Présentation uses)
   const pauseBuild = useCallback(
     async (on: boolean) => {
@@ -210,6 +237,8 @@ export default function TourClient({ sceneId, title, published = false }: { scen
 
   const views = useMemo(() => data?.views ?? [], [data])
   const hasPano = views.some(v => v.pano)
+  // 21 Nov: the build makes no draft 360° when the quality render follows, so a built visit has its views but no picture until the render installs them
+  const builtNoPano = !hasPano && views.some(v => !v.outside)
   const building = data?.status.state === 'building'
   const proposing = data?.proposal?.state === 'running'
   const lookRunning = look?.stage === 'running'
@@ -218,7 +247,17 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     !published &&
     !editing &&
     !!data &&
-    (building || proposing || lookRunning || (!!data.autoLook && !!data.preview && hasPano && look?.stage !== 'error') || ((look?.autoAi ?? 0) > 0 && look?.stage !== 'error'))
+    (building || proposing || lookRunning || (!!data.autoLook && !!data.preview && (hasPano || builtNoPano) && look?.stage !== 'error') || ((look?.autoAi ?? 0) > 0 && look?.stage !== 'error'))
+
+  // 17 Nov (Sarah: "the visit won't open"): a proposal left on disk (the editor left another way, Roomia closed) no longer takes the
+  // place of the visit. Over a visit, the editor only shows after "Points de vue" on this page; a leftover one is dropped.
+  const leftover = !published && hasPano && !pointsOpen && data?.proposal?.state === 'ready' && !building
+  useEffect(() => {
+    if (!leftover) return
+    void fetch(`/api/scenes/${sceneId}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dropProposal: true }) })
+      .then(() => load())
+      .catch(() => undefined)
+  }, [leftover, sceneId, load])
 
   // While anything is being made, follow the progress.
   useEffect(() => {
@@ -257,6 +296,20 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     [order.length, step],
   )
   const goToView = useCallback((index: number) => go(order.indexOf(views.findIndex(v => v.index === index))), [go, order, views])
+
+  // the carousel (25 Nov): every point of the visit in its order, as a cover cut from its 360° (or its photo)
+  const strip = useMemo(
+    () =>
+      order
+        .map((i, k) => ({ v: views[i], n: k + 1 }))
+        .filter(({ v }) => v && (v.pano || v.photo) && (!v.hidden || v.index === current?.index)),
+    [order, views, current?.index],
+  )
+  const stripRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const here = stripRef.current?.querySelector<HTMLElement>('[data-here]')
+    here?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }, [current?.index, mode])
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -327,6 +380,18 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     } finally {
       setBusy('')
     }
+  }
+
+  /** "Points de vue" on a finished visit (18 Nov): the editor opens at once, from the visit; no Blender run. */
+  async function openPoints() {
+    setPointsOpen(true)
+    await post({ editPoints: true }, 'Les points de vue n’ont pas pu s’ouvrir.')
+  }
+
+  /** Back to the visit from the editor: the proposal is dropped, nothing is rendered. */
+  async function closePoints() {
+    setPointsOpen(false)
+    await post({ dropProposal: true }, 'Impossible d’annuler.')
   }
 
   /** Step 1: Roomia places the points and draws the plan (free, about a minute); the person sees them before anything is rendered. */
@@ -402,6 +467,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
     const file = (form.elements.namedItem('file') as HTMLInputElement).files?.[0]
     const scenes = (form.elements.namedItem('scenes') as HTMLInputElement).files?.[0]
     if (!file) return
+    if (!window.confirm('Une nouvelle version, c’est le même appartement modifié : elle compte parmi les mises à jour du projet.\n\nSi c’est un autre appartement, importez-le plutôt comme un nouveau projet (Mes projets).\n\nContinuer ?')) return
     setError('')
     setBusy('Nouvelle version : envoi…')
     try {
@@ -436,15 +502,16 @@ export default function TourClient({ sceneId, title, published = false }: { scen
   if (published && !current) return <div className="tour tour-message">Cette visite n’est pas disponible pour le moment.</div>
 
   // The points proposed on the plan, waiting for the person: the editor, also over a visit that exists already ("Revoir les points")
-  if (!published && data.proposal?.state === 'ready' && !building) {
+  if (!published && data.proposal?.state === 'ready' && !building && (!hasPano || pointsOpen)) {
     return (
       <PointsEditor
         sceneId={sceneId}
         proposal={data.proposal}
         busy={!!busy}
+        error={error}
         onConfirm={(p, max) => void confirmPoints(p, max)}
         onRedo={() => void propose(true)}
-        onCancel={hasPano ? () => void post({ dropProposal: true }, 'Impossible d’annuler.') : undefined}
+        onCancel={hasPano ? () => void closePoints() : undefined}
       />
     )
   }
@@ -458,10 +525,23 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           title={title}
           data={data}
           look={look}
-          onStop={() => void stopBuild()}
+          onStop={() => void stopBuild(data.proposal?.state === 'running' ? 'points' : building ? 'build' : 'look')}
           onPause={on => void pauseBuild(on)}
           onPreview={hasPano && editing ? () => setPreview(true) : undefined}
         />
+      )
+    }
+    // the visit is built but its quality render stopped before any picture existed (Roomia closed, PC off, an error): no draft to show,
+    // so the way back is the render itself, from the points already confirmed (21 Nov)
+    if (builtNoPano && !building && (look?.stage === 'interrupted' || look?.stage === 'error')) {
+      return (
+        <div className="tour tour-message">
+          <a className="tour-back floating-back" href={`/studio?scene=${sceneId}`}>
+            ← Studio
+          </a>
+          <strong className="tour-intro-title">La visite 360° de « {title} » n’est pas terminée</strong>
+          <LookPanel sceneId={sceneId} tourReady />
+        </div>
       )
     }
     // nothing yet: start by placing the points
@@ -562,7 +642,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
             version={version}
             title={title}
             state={data.plan3dState}
-            onMake={published ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
+            onMake={published || data.plan3dState?.state !== 'failed' ? undefined : () => void post({ plan3d: true }, 'Le plan 3D n’a pas pu démarrer.')}
           />
         ) : shown === 'gallery' ? (
           <GallerySheet sceneId={sceneId} title={title} onCreate={published ? undefined : () => setMode('photos')} />
@@ -663,12 +743,12 @@ export default function TourClient({ sceneId, title, published = false }: { scen
                 </div>
               )}
               {!published && (
-                <button type="button" className="ui-btn ui-btn--glass ui-btn--sm" onClick={() => void propose()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
+                <button type="button" className="ui-btn ui-btn--glass ui-btn--sm" onClick={() => void openPoints()} disabled={!!busy || building} title="Revoir, ajouter ou retirer des points de vue, puis refaire la visite">
                   <Icon name="pin" size={15} />
                   Points de vue
                 </button>
               )}
-              {!published && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
+              {!published && (look?.stage === 'interrupted' || look?.stage === 'error') && <LookPanel sceneId={sceneId} tourReady={!building && hasPano} />}
               {/* Visite libre: taken out for now (15 Nov, the user); the reviewer still reaches it with ?edit=1 */}
               {data.walk && editing && (
                 <a className="ui-btn ui-btn--glass ui-btn--sm" href={`/studio/explore/${sceneId}?at=${current.index}&edit=1`}>
@@ -711,6 +791,45 @@ export default function TourClient({ sceneId, title, published = false }: { scen
           </nav>
         )}
 
+        {inVisit && strip.length > 1 && (
+          <nav
+            className={`tour-strip${plan ? ' with-plan' : ''}`}
+            style={plan ? { ['--ratio' as string]: plan.width / plan.height } : undefined}
+            aria-label="Les pièces de la visite"
+          >
+            <div className="tour-strip-track" ref={stripRef}>
+              {strip.map(({ v, n }) => (
+                <button
+                  key={v.index}
+                  type="button"
+                  className={`tour-card${v.index === current.index ? ' here' : ''}`}
+                  aria-current={v.index === current.index ? 'true' : undefined}
+                  data-here={v.index === current.index ? '' : undefined}
+                  onClick={() => {
+                    // in the 360°, the next room opens in the 360° too, looking the way its cover looks
+                    const in360 = shown === 'pano'
+                    goToView(v.index)
+                    if (v.pano) setArrival(coverYaw(v))
+                    if (v.pano && in360) setMode('pano')
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={v.pano ? `/api/scenes/${sceneId}/tour/${v.pano}?cover=1&yaw=${coverYaw(v).toFixed(2)}&v=${version}` : photoUrl(sceneId, v.photo as string)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span className="tour-card-name">
+                    <b>{n}</b>
+                    {v.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
+
         {/* what is still being made, out of the way (the preview while the final quality is on its way, a rebuild) */}
         {!published && !editing && (pipeline || data.status.state === 'failed' || look?.stage === 'error' || error) && (
           <div className="tour-pill" role="status">
@@ -738,7 +857,7 @@ export default function TourClient({ sceneId, title, published = false }: { scen
               <span>{data.status.step}</span>
               <ThermalNote t={data.status.thermal} />
               <progress max={data.status.total ?? 1} value={data.status.done ?? 0} />
-              <button type="button" className="tour-stop" onClick={() => void stopBuild()}>
+              <button type="button" className="tour-stop" onClick={() => void stopBuild('build')}>
                 Arrêter
               </button>
             </>
@@ -880,7 +999,7 @@ function Pipeline({
   const aiPlanned = (look?.autoAi ?? 0) > 0 || lookJob === 'ai'
   const steps = [
     { key: 'points', label: 'Placement des points de vue' },
-    { key: 'build', label: 'Rendu 360° et plans' },
+    { key: 'build', label: data.autoLook ? 'Plans et points de vue' : 'Rendu 360° et plans' },
     { key: 'look', label: 'Lumière du jour, lampes allumées' },
     ...(aiPlanned ? [{ key: 'ai', label: 'Finition IA de chaque point' }] : []),
   ]
@@ -976,11 +1095,13 @@ function ProjectRail({ items, sceneId }: { items: RailItem[]; sceneId: string | 
     <nav className="tour-rail" aria-label="Le projet">
       {sceneId ? (
         <Link className="tour-rail-mark" href="/studio/projets" aria-label="Roomia, mes projets">
-          R<span>.</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/roomia-mark.png" alt="" width={44} height={44} />
         </Link>
       ) : (
         <span className="tour-rail-mark" aria-label="Roomia">
-          R<span>.</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/roomia-mark.png" alt="" width={44} height={44} />
         </span>
       )}
       <div className="tour-rail-items">

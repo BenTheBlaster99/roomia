@@ -43,6 +43,11 @@ async function fromOutside(req: NextRequest): Promise<NextResponse> {
   const id = reading ? (pathname.match(TOUR_PAGE) ?? pathname.match(TOUR_DATA))?.[1] : undefined
   if (id && (await published(id))) return NextResponse.next()
   if (reading && pathname === '/favicon.ico') return NextResponse.next()
+  // 25 Nov: the logo in the tour's corner and the phone's home-screen icon
+  if (reading && (/^\/brand\/[a-z0-9-]+\.(?:png|svg)$/.test(pathname) || /^\/apple-icon[^/]*\.png$/.test(pathname))) return NextResponse.next()
+  // 20 Nov: a before/after page for a client (public/compare/<name>-<16 random letters>/index.html + img/*.jpg). The random folder
+  // name is the secret; nothing else under /compare answers, and the folder is git-ignored so it never reaches the website.
+  if (reading && /^\/compare\/[a-z0-9]+-[A-Za-z0-9]{16}\/(?:index\.html|img\/[A-Za-z0-9_-]+\.jpg)$/.test(pathname)) return NextResponse.next()
   // the website's "Tester sur mon projet" still points at /studio: send those visitors to a demo request instead
   if (reading && (pathname === '/' || pathname === '/studio' || pathname === '/studio/')) {
     return NextResponse.redirect(whatsappLink('Bonjour, je souhaite une démo de Roomia Render.'), 302)

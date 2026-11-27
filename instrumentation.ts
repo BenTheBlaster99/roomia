@@ -13,6 +13,9 @@ export async function register() {
       setTimeout(() => {
         resumeInterruptedWork().catch(err => console.error('resume failed', err))
       }, 5000)
+      // 25 Nov: clients' links follow the project (AI light, photos, hidden points) without pressing "Publier" again
+      const { startAutoPublish } = await import('./lib/desktop-autopublish')
+      startAutoPublish()
     }
   }
 }

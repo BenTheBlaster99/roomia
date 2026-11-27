@@ -12,7 +12,7 @@ Blender's 360 holds every object and texture exactly. This keeps Blender's pixel
 python pano_look_transfer.py <blender.jpg> <ai.jpg> <out.jpg> [--blender-linear t4-lin.npy] [--radius 12] [--ai-detail 0.0] [--width 0 (= Blender's)]
 Free (no AI call). Runs with the AI python (cv2, numpy).
 """
-import argparse, time
+import argparse, os, time
 import cv2
 import numpy as np
 
@@ -29,6 +29,17 @@ ap.add_argument("--width", type=int, default=0)
 ap.add_argument("--local-colour", action="store_true", help="let the colour follow the AI locally too (can leak an AI object's colour)")
 ap.add_argument("--dehaze", type=float, default=1.0, help="0..1: bring Blender's black point and midtone spread back (the AI look lifts the shadows: a milky haze)")
 ap.add_argument("--keep-bright", type=float, default=0.75, help="how much of the AI's brighter midtones to keep after the dehaze (0 = Blender's, 1 = the AI's)")
+# 20 Nov (Sarah): the ceiling spots blow the floor (Point 9), the coffee table and the sofa (Point 10) out to flat white. Last stage, on the
+# finished picture: areas whose local brightness is near white are pulled down (--hot, as a share of their light), then the whole picture
+# is lifted (--lift, a linear exposure factor) so it stays bright. ROOMIA_LOOK_HOT / ROOMIA_LOOK_LIFT override; --hot 0 --lift 1 = off.
+ap.add_argument("--hot", type=float, default=float(os.environ.get("ROOMIA_LOOK_HOT", 0)), help="0..1: how much light to take from near-white pools")
+ap.add_argument("--hot-start", type=float, default=0.82, help="display brightness (blurred) where a pool starts to be pulled down; full at +0.12")
+ap.add_argument("--hot-low", type=float, default=float(os.environ.get("ROOMIA_LOOK_HOT_LOW", 0)), help="the same, below the horizon (floor, table tops, sofa seats: what ceiling spots light), on smaller spots too")
+ap.add_argument("--hot-low-start", type=float, default=0.80)
+ap.add_argument("--headroom", type=float, default=float(os.environ.get("ROOMIA_LOOK_HEADROOM", 0)), help="1: the AI may not brighten what is already bright (white marble, a cream sofa): its light only goes up where Blender has room. 0: off")
+ap.add_argument("--knee", type=float, default=float(os.environ.get("ROOMIA_LOOK_KNEE", 0.6)), help="linear level where the highlight curve starts (the raw render's whites are 1.5x-7x the display white)")
+ap.add_argument("--knee-range", type=float, default=float(os.environ.get("ROOMIA_LOOK_KNEE_RANGE", 1.5)), help="how wide the highlight curve is: bigger keeps more detail in very bright surfaces (white marble, a cream sofa)")
+ap.add_argument("--lift", type=float, default=float(os.environ.get("ROOMIA_LOOK_LIFT", 1.10)), help="linear exposure factor for the whole picture")
 ap.add_argument("--no-align", action="store_true", help="skip bending the AI picture onto Blender's layout")
 ap.add_argument("--blender-linear", help="Blender's raw linear render of the same view (look/<auto>/t<k>-lin.npy, RGB float): full detail in the darks")
 args = ap.parse_args()
@@ -41,9 +52,18 @@ H, W = B8.shape[:2]
 A8 = cv2.resize(cv2.imread(args.ai, cv2.IMREAD_COLOR), (W, H), interpolation=cv2.INTER_CUBIC)
 
 
-def to_lin(x8):
-    x = x8.astype(np.float32) / 255.0
+def _lin_formula(x):
     return np.where(x <= 0.04045, x / 12.92, ((x + 0.055) / 1.055) ** 2.4)
+
+
+# 21 Nov (speed): the 8-bit pictures go through a 256-entry table made with the very same formula (1.3 s of power() on 25 million values)
+_LIN_LUT = _lin_formula(np.arange(256, dtype=np.float32) / 255.0).astype(np.float32)
+
+
+def to_lin(x8):
+    if x8.dtype == np.uint8:
+        return _LIN_LUT[x8]
+    return _lin_formula(x8.astype(np.float32) / 255.0)
 
 
 def to_srgb(x):
@@ -61,6 +81,8 @@ if args.blender_linear:
     k = float(np.median(A) / max(1e-6, np.median(L)))
     B = L * k
 PADX = 4 * args.radius + 64
+# the quarter-resolution blurs need sizes divisible by 4 (4096 x 2048 and the padding are); ROOMIA_TRANSFER_FULLRES=1 keeps the old full-size blurs
+FAST_FAR = os.environ.get("ROOMIA_TRANSFER_FULLRES") != "1" and W % 4 == 0 and H % 4 == 0 and PADX % 4 == 0
 
 
 def wrap(x):
@@ -131,7 +153,15 @@ for c in range(3):
     gain[..., c] = unwrap(sa - sb)
     # the room's light without any object's detail: very smooth, plain blur on the wrapped picture
     k = 8 * r + 1
-    gain_far[..., c] = unwrap(cv2.GaussianBlur(la, (k, k), 0) - cv2.GaussianBlur(lb, (k, k), 0))
+    if FAST_FAR:
+        # 21 Nov (speed): this blur (a 769 px kernel, sigma 115.7) was 22 of the transfer's 38 seconds. A blur is linear, so the blurred
+        # difference is the difference of the blurs, and a map this smooth loses nothing at a quarter of the resolution
+        sig = 0.3 * ((k - 1) * 0.5 - 1) + 0.8  # the sigma OpenCV derives from a kernel size with sigma 0
+        small = cv2.resize(la - lb, (la.shape[1] // 4, la.shape[0] // 4), interpolation=cv2.INTER_AREA)
+        far = cv2.GaussianBlur(small, (0, 0), sig / 4)
+        gain_far[..., c] = unwrap(cv2.resize(far, (la.shape[1], la.shape[0]), interpolation=cv2.INTER_LINEAR))
+    else:
+        gain_far[..., c] = unwrap(cv2.GaussianBlur(la, (k, k), 0) - cv2.GaussianBlur(lb, (k, k), 0))
 
 # colour only from the room-wide tint (12 Nov, living room: the AI's leaf leaked a green halo onto Blender's wall): locally the
 # brightness follows the AI, the colour balance comes from the smooth gain only
@@ -157,10 +187,24 @@ corr = unwrap(cov / np.sqrt(np.maximum(vB * vA, 1e-8)))
 flat = unwrap((mB < 0.04) & (mA < 0.04))  # a plain wall in both: nothing to disagree about
 trust = np.clip((corr - 0.15) / 0.45, 0, 1)
 trust = np.where(flat, 1.0, trust).astype(np.float32)
-trust = cv2.GaussianBlur(trust, (0, 0), r / 2)[..., None]
+if FAST_FAR:
+    # sigma r/2 = 48 px on a map that only has to be smooth: a quarter of the size, a quarter of the sigma
+    trust = cv2.resize(cv2.GaussianBlur(cv2.resize(trust, (W // 4, H // 4), interpolation=cv2.INTER_AREA), (0, 0), r / 8), (W, H), interpolation=cv2.INTER_LINEAR)[..., None]
+else:
+    trust = cv2.GaussianBlur(trust, (0, 0), r / 2)[..., None]
 
 g = trust * gain + (1 - trust) * gain_far
 g = np.clip(np.exp(g), args.gain_min, args.gain_max)
+if args.headroom > 0:
+    # 20 Nov (Sarah, Point 10): the AI's light, put on Blender as broad zones up to 1.6x, made soft white blobs on the coffee table and
+    # the sofa (the AI drew the ceiling spots' pools there) that wash out the marble and the fabric. Blender alone is clean there.
+    # A surface already bright in Blender cannot be brightened: full gain up to display 0.50, none from 0.85.
+    LWh = np.array([0.0722, 0.7152, 0.2126], np.float32)
+    Yb = to_srgb(np.clip(B, 0, 1)) @ LWh
+    room = np.clip((0.85 - Yb) / 0.35, 0, 1)
+    room = cv2.GaussianBlur(room, (0, 0), 6)
+    gmax_eff = 1 + (args.gain_max - 1) * (1 - args.headroom * (1 - room))
+    g = np.minimum(g, gmax_eff[..., None] if g.ndim == 3 else gmax_eff)
 out = B * g
 if args.ai_detail > 0:
     # the AI's own fine texture (its high frequencies), only where both pictures agree
@@ -171,7 +215,74 @@ if args.ai_detail > 0:
     out = out * np.exp(np.clip(hf, -0.5, 0.5) * args.ai_detail * trust)
 if args.blender_linear:
     # very bright spots (the window, a lamp) can exceed 1 after the gain: soft roll-off instead of a hard clip
-    out = np.where(out > 0.8, 0.8 + 0.2 * np.tanh((out - 0.8) / 0.2), out)
+    # 20 Nov: the old curve (knee 0.8, width 0.2) sent everything above about 1.2 to the same white, so a white marble table and a cream
+    # sofa, 1.5x-7x the display white in the raw render, lost all their detail (Sarah: "spots" on the table and sofa). A wider curve keeps
+    # 1.5x and 3x apart (display 0.92 and 0.985) while everything under the knee is untouched.
+    k0, kr = args.knee, args.knee_range
+    out = np.where(out > k0, k0 + (1 - k0) * np.tanh((out - k0) / kr), out)
+def finish(disp):
+    """the last stage (see --hot / --lift): pools of ceiling light down, the whole picture up, a soft shoulder instead of a clip"""
+    if args.hot <= 0 and abs(args.lift - 1) < 1e-4:
+        return disp
+    LWb = np.array([0.0722, 0.7152, 0.2126], np.float32)  # BGR
+    lin = np.where(disp <= 0.04045, disp / 12.92, ((disp + 0.055) / 1.055) ** 2.4).astype(np.float32)
+    if args.hot > 0:
+        # above the horizon (walls, ceiling) a gentle reduction of big blown areas; below it (the surfaces the ceiling spots light: floor,
+        # table tops, sofa seats) a stronger one that also catches small objects (20 Nov: Sarah, Point 10's coffee table and sofa)
+        yy = (np.arange(H, dtype=np.float32) / H)[:, None]
+        v = np.clip((yy - 0.50) / 0.08, 0, 1)
+        v = v * v * (3 - 2 * v)
+        Yd = disp @ LWb
+        loc_hi = unwrap(cv2.GaussianBlur(wrap(Yd), (0, 0), max(8.0, W * 0.012)))
+        loc_lo = unwrap(cv2.GaussianBlur(wrap(Yd), (0, 0), max(6.0, W * 0.004)))
+        loc = loc_hi * (1 - v) + loc_lo * v
+        start = args.hot_start * (1 - v) + args.hot_low_start * v
+        strength = args.hot * (1 - v) + args.hot_low * v
+        h = np.clip((loc - start) / 0.12, 0, 1)
+        h = h * h * (3 - 2 * h)
+        if args.blender_linear:
+            # windows are not pools of ceiling light: in the raw render they are far above the display white (8x and more; sunlit furniture reaches 4-7x), so
+            # they and their frame are left as they are (20 Nov test: the first version turned windows milky with a lime halo)
+            win = np.clip((np.maximum(L, 0) @ LWb - 8.0) / 6.0, 0, 1).astype(np.float32)
+            win = unwrap(cv2.GaussianBlur(wrap(win), (0, 0), max(16.0, W * 0.008)))
+            h = h * (1 - np.clip(win * 6, 0, 1))
+        # a blown-out pool has its red clipped: it is really warmer than it looks, and darkening it as it is turns it cool and green
+        # (20 Nov test). Its colour is rebuilt from the unclipped surroundings (the picture's own overall tone where all around is clipped).
+        clipped = np.clip((disp.max(axis=2) - 0.93) / 0.06, 0, 1)
+        # the colour comes from nearby unclipped surfaces that are bright too (floor tiles, cushions, walls), never from a dark carpet
+        # around a white table (20 Nov test: neighbours of any brightness turned the table rose-pink)
+        Ydisp = disp @ LWb
+        bright = np.clip((Ydisp - 0.62) / 0.15, 0, 1)
+        wgt = ((1 - clipped) * bright)[..., None]
+        sig2 = max(24.0, W * 0.02)
+        num = unwrap(cv2.GaussianBlur(wrap(lin * wgt), (0, 0), sig2))
+        den = unwrap(cv2.GaussianBlur(wrap(wgt[..., 0]), (0, 0), sig2))[..., None]
+        Yall = np.maximum(lin @ LWb, 1e-4)
+        sel = (clipped < 0.01) & (Ydisp > 0.62)
+        glob = np.median((lin / Yall[..., None])[sel], axis=0).astype(np.float32) if sel.any() else np.ones(3, np.float32)
+        near = num / np.maximum(den, 1e-3)
+        near_c = near / np.maximum(near @ LWb, 1e-4)[..., None]
+        trust = np.clip(den * 4, 0, 1)
+        chroma = near_c * trust + glob * (1 - trust)
+        # the rebuilt colour may only move a little from the pixel's own (20 Nov test: unlimited, it turned white marble and cushions
+        # rose-pink): enough to undo the cool cast of a darkened clipped floor, not enough to repaint a white surface
+        own = lin / Yall[..., None]
+        chroma = own + np.clip(chroma - own, -0.17, 0.17)
+        keep = (1 - strength * h)
+        rebuilt = chroma * (Yall * keep)[..., None]
+        b = (clipped * np.clip(h * 1.5, 0, 1))[..., None]
+        lin = (lin * keep[..., None]) * (1 - b) + rebuilt * b
+    lin = lin * args.lift
+    # the shoulder acts on the luminance and scales all three channels together: a per-channel shoulder squeezes red most and turned
+    # the bright floors cool and greenish (20 Nov test); a channel still above 1 brings the pixel down to 1, keeping its hue
+    Y = np.maximum(lin @ LWb, 1e-4)
+    Ys = np.where(Y > 0.7, 0.7 + 0.3 * np.tanh((Y - 0.7) / 0.3), Y)
+    lin = lin * (Ys / Y)[..., None]
+    lin = lin / np.maximum(lin.max(axis=2, keepdims=True), 1.0)
+    print("LOOK_FINISH hot %.2f lift %.2f" % (args.hot, args.lift), flush=True)
+    return to_srgb(lin)
+
+
 if args.dehaze > 0:
     # 12 Nov: the transfer lifts the darkest 1 % from 0.04 to 0.18 (display values) and squeezes the midtones: a fog. On the display
     # lightness, the black point goes back to Blender's, the white point stays, and the median lands between Blender's and the AI's.
@@ -192,8 +303,8 @@ if args.dehaze > 0:
     Ln = np.where(Lo > w_out, Lo, Ln)
     disp = np.clip(disp * (Ln / np.maximum(Lo, 1e-4))[..., None], 0, 1)
     print("LOOK_DEHAZE black %.3f -> %.3f, median %.3f -> %.3f (Blender %.3f), gamma %.2f" % (b_out, black, m_out, float(np.median((disp @ LW)[band])), m_bl, gamma))
-    res = (disp * 255 + 0.5).astype(np.uint8)
+    res = (finish(disp) * 255 + 0.5).astype(np.uint8)
 else:
-    res = (to_srgb(out) * 255 + 0.5).astype(np.uint8)
+    res = (finish(to_srgb(out)) * 255 + 0.5).astype(np.uint8)
 cv2.imwrite(args.out, res, [cv2.IMWRITE_JPEG_QUALITY, 93])
 print("LOOK_TRANSFER %dx%d in %.1f s, trusted share %.0f %%, gain median %.2f" % (W, H, time.time() - t0, 100 * float((trust > 0.5).mean()), float(np.median(g))))

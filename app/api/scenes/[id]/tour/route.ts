@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
 import { PANO_REJECT_REASONS } from '@/lib/pano-review'
-import { confirmTourPoints, dropTourProposal, editTourPoint, startPlan3d, readTour, stopTourBuild, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
+import { confirmTourPoints, dropTourProposal, editTourPoint, openPointsEditor, startPlan3d, readTour, stopTourBuild, stopTourPropose, reviewTourAi, startMirrorRepair, startNewVersion, startTourAi, startTourBuild, startTourPropose, startTourUpdate, TOUR_AI_LIGHTS, type TourAiLight } from '@/lib/scene-tour'
 import { planAutoAi } from '@/lib/look-pipeline'
-import { cloudMode, cloudUsage } from '@/lib/roomia-cloud'
-import { readMeta } from '@/lib/scene-store'
+import { cloudMode, cloudUpdateRefusal, cloudUsage } from '@/lib/roomia-cloud'
+import { readMeta, type SceneMeta } from '@/lib/scene-store'
 
 export const runtime = 'nodejs'
 
@@ -29,6 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * With { mirrors: true }: puts the real mirrors back into AI 360° views not approved yet (free).
  * With { complete: true, light? }: the build, then every stop in photo quality (paid, 1 image per stop).
  * With { propose: true }: Roomia places the points and draws the plan, renders no 360° (free, ~1 min); the page shows them.
+ * With { editPoints: true }: the points editor for a finished visit, made from the visit (instant); Blender only without a visit.
+ * With { stopPropose: true }: stops the placement of the points.
  * With { confirmPoints: { views: [sceneIndex], auto: [{ id?, name, position, target }] }, autoAi?: { max } }: the person's points;
  * the build starts with exactly those, then the Présentation and the AI finish on all of them (at most `max`).
  * With { autoAi: { views?: [{ index, name }], max } } on a plain build: the golden-hour Présentation is followed by the paid AI
@@ -67,6 +69,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return Response.json(await readTour(id))
     }
     if (body?.propose === true) return Response.json({ proposal: await startTourPropose(id, (body as { fresh?: unknown }).fresh === true) })
+    // "Points de vue" on a finished visit (18 Nov): the editor from the visit itself, no Blender (Blender only when it can't)
+    if ((body as { editPoints?: unknown } | null)?.editPoints === true) return Response.json({ proposal: await openPointsEditor(id) })
+    // "Arrêter" while the points are being placed
+    if ((body as { stopPropose?: unknown } | null)?.stopPropose === true) {
+      await stopTourPropose(id)
+      return Response.json(await readTour(id))
+    }
     if (body?.confirmPoints) {
       const views = Array.isArray(body.confirmPoints.views) ? body.confirmPoints.views.map(Number) : []
       const auto = Array.isArray(body.confirmPoints.auto) ? (body.confirmPoints.auto as { id?: string; name: string; position: number[]; target: number[] }[]) : []
@@ -93,9 +102,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // The new version must be reachable by the same person (its owner, with accounts on).
       const deniedFrom = await accessDenied(req, body.newVersion)
       if (deniedFrom) return deniedFrom
+      const [before, next] = await Promise.all([readMeta(id), readMeta(body.newVersion)])
+      // Roomia Desktop: a projects forfait includes 3 updates per started project (lib/forfait.ts): asked before anything moves
+      if (cloudMode()) {
+        const refusal = await cloudUpdateRefusal(id, next?.fileName ?? body.newVersion)
+        if (refusal) return Response.json({ detail: refusal }, { status: 402 })
+      }
       const status = await startNewVersion(id, body.newVersion)
-      // Roomia Desktop: a client's forfait counts its updates (lib/forfait.ts); the work is free and never waits for this
-      if (cloudMode()) void readMeta(id).then(meta => cloudUsage('update', meta?.fileName ?? id))
+      if (cloudMode()) void cloudUsage('update', next?.fileName ?? id, { id, note: unlikeModel(before, next) })
       return Response.json({ status })
     }
     if (body?.update === true) return Response.json({ status: await startTourUpdate(id) })
@@ -120,4 +134,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err) {
     return Response.json({ detail: err instanceof Error ? err.message : String(err) }, { status: 400 })
   }
+}
+
+/**
+ * An update must be the same apartment, modified. When the new model is far from the current one (3 times more or fewer
+ * triangles), Roomia's admin sees a note on that update; nothing is refused (an architect may furnish an empty model).
+ */
+function unlikeModel(before: SceneMeta | null, next: SceneMeta | null): string | null {
+  const a = Number(before?.report?.trianglesIn ?? 0)
+  const b = Number(next?.report?.trianglesIn ?? 0)
+  if (!a || !b) return null
+  const ratio = b / a
+  if (ratio < 3 && ratio > 1 / 3) return null
+  const m = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : `${Math.round(n / 1e3)} k`)
+  return `modèle très différent (${m(a)} → ${m(b)} triangles) : autre appartement ?`
 }

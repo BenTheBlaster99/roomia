@@ -76,7 +76,7 @@ def points(raw=False):
         # a view whose 360 failed to build (no pano yet) gets one too: its eye is the view's own, else the saved camera's, else the walk probe's
         pos = v.get("position") or cams.get(v["name"]) or (probes[v["index"]]["eye"] if probes and v["index"] < len(probes) else None)
         if pos:
-            out.append({"index": v["index"], "name": v["name"], "position": pos})
+            out.append({"index": v["index"], "name": v["name"], "position": pos, "auto": bool(v.get("auto"))})
     # a camera against a wall or inside a cupboard takes its 360 from the better spot the analysis found nearby (11 Nov)
     an_p = os.path.join(AUTO, "analysis.json")
     if raw:
@@ -96,6 +96,10 @@ def blender(job_path, script, log):
         argv = ["bash", "-c", "echo 1000 > /proc/self/oom_score_adj; exec nice -n 10 \"$@\"", "blender"] + argv
     with open(log, "w") as f:
         subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT, check=False)
+    keep = os.environ.get("ROOMIA_LOOK_KEEP_LOGS")  # benchmarks: every batch's log is kept (render.log holds only the last one)
+    if keep and os.path.exists(log):
+        os.makedirs(keep, exist_ok=True)
+        shutil.copyfile(log, os.path.join(keep, "%s-%d.log" % (os.path.splitext(os.path.basename(log))[0], len([f_ for f_ in os.listdir(keep) if f_.startswith("render-")]))))
     print("  %s %.0fs" % (script, time.time() - t), flush=True)
 
 
@@ -113,16 +117,43 @@ def ensure_prepared():
     subprocess.run(["npx", "tsx", "--env-file=.env.local", "scripts/look-prep.mts", args.scene], cwd=ROOT, check=True)
 
 
+def quality():
+    """
+    The final render's quality from the graphics card (18 Nov, the owner: "max everything out, if the card can take it"; Sarah
+    wants the texture of D5 / Enscape even if it takes longer). Roomia Desktop passes the card's memory (ROOMIA_GPU_VRAM_MB,
+    desktop/engine.js). ROOMIA_LOOK_QUALITY=max|balanced|standard forces one; ROOMIA_LOOK_SAMPLES / _NOISE still override.
+      max      (10 GB and more): every texture at its own size, 128 samples, noise 0.01
+      balanced (6 GB and more):  textures up to 4096 px, 64 samples, noise 0.02
+      standard (smaller, CPU):   textures up to 2048 px, 32 samples, noise 0.03 (the 9 Nov speed setting)
+    """
+    tier = os.environ.get("ROOMIA_LOOK_QUALITY", "")
+    if tier not in ("max", "balanced", "standard"):
+        vram = int(os.environ.get("ROOMIA_GPU_VRAM_MB", "0") or 0)
+        backend = os.environ.get("ROOMIA_GPU_BACKEND", "")
+        tier = "standard" if backend in ("", "CPU") and vram == 0 else "max" if vram >= 10000 else "balanced" if vram >= 6000 else "standard"
+    q = {"max": ("OFF", 128, 0.01), "balanced": ("4096", 64, 0.02), "standard": ("2048", 32, 0.03)}[tier]
+    # 18 Nov: the PC's memory too. A 4096 render on the 16 GB F5 PC peaked at 11.5 GB (the light groups put together at the end)
+    # and the system killed it. Under 24 GB: no texture above 4096 px (the F5's 10383 and 7348 px pictures) and 3072 px views.
+    ram = int(os.environ.get("ROOMIA_RAM_MB", "0") or 0)
+    if tier == "max" and 0 < ram < 24000:
+        q = ("4096",) + q[1:]
+    return tier, q
+
+
 def job(extra, views, out_dir, masks):
+    tier, (tex, spp, noise) = quality()
+    print("quality: %s (textures %s, %s samples, noise %s)" % (tier, tex, os.environ.get("ROOMIA_LOOK_SAMPLES", spp), os.environ.get("ROOMIA_LOOK_NOISE", noise)), flush=True)
     j = {"recipe": os.path.join(AUTO, "recipe-auto.json"), "cameras": os.path.join(S, "cameras.json") if os.path.exists(os.path.join(S, "cameras.json")) else os.path.join(AUTO, "no-cameras.json"),
-         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": args.look,
-         # 48 samples at noise 0.03 (9 Nov benchmark, Suite): half the time of 128 / 0.01, the same image to the eye (floor, wall, fabric crops)
-         "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", 32)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", 0.03)), "targetMedian": 0.45}
+         "outDir": out_dir, "scriptsDir": SCRIPTS, "mode": "pano", "preset": args.look, "textureLimit": tex, "quality": tier,
+         "samples": int(os.environ.get("ROOMIA_LOOK_SAMPLES", spp)), "noise": float(os.environ.get("ROOMIA_LOOK_NOISE", noise)), "targetMedian": 0.45}
     if not os.path.exists(j["cameras"]):
         json.dump([], open(j["cameras"], "w"))
     if not masks:
         j["noMasks"] = True
-    j["views"] = [{"name": "t%d" % p["index"], "position": p["position"], "yaw": 0, "width": 3072, "height": 1536} for p in views]
+    # 18 Nov: a max card renders at the size the visit shows (4096), no more stretching 3072 up
+    ram = int(os.environ.get("ROOMIA_RAM_MB", "0") or 0)
+    width = int(os.environ.get("ROOMIA_LOOK_WIDTH", 4096 if tier == "max" and ram >= 24000 else 3072))
+    j["views"] = [{"name": "t%d" % p["index"], "position": p["position"], "yaw": 0, "width": width, "height": width // 2} for p in views]
     # an invisible, very soft fill above each point: a room with no fixtures of its own stays readable (5 W is nothing next to real lights)
     j["fills"] = [{"position": [p["position"][0], p["position"][1] + 0.9, p["position"][2]], "power": float(os.environ.get("ROOMIA_LOOK_FILL", 25)), "color": [1.0, 0.9, 0.78]} for p in views]
     j.update(extra)
@@ -132,7 +163,7 @@ def job(extra, views, out_dir, masks):
 def finalize(names):
     lk = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
     e = dict(os.environ, LIFT=os.environ.get("LIFT", str(lk.get("lift", 0.1))), LOOK=args.look)
-    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), "0.5" if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
+    subprocess.run([PY, os.path.join(SCRIPTS, "look_finalize_panos.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(names), os.environ.get("ROOMIA_LOOK_MEDIAN", "0.57") if args.look == "daylight" else "0.45", "3.0"], env=e, check=True)
 
 
 def install(width, pairs):
@@ -141,8 +172,12 @@ def install(width, pairs):
     t = json.load(open(tour_p))
     for i, _ in pairs:
         for v in t["views"]:
-            if v["index"] == i and not v.get("pano"):
-                v["pano"] = "pano-%d.jpg" % i
+            if v["index"] == i:
+                if not v.get("pano"):
+                    v["pano"] = "pano-%d.jpg" % i
+                # 25 Nov: job() renders every 360 centred on +x (yaw 0), not along the view's direction: the tour turns its cone,
+                # arrows and arrivals by this (lib/scene-tour.ts pointFrame)
+                v["panoYaw"] = 0.0
     # moved cameras: the tour's arrows and the plan's dot follow the 360 to its new spot (plan pixels from the views that have both)
     mv = {p["index"]: p["position"] for p in points() if p.get("moved")}
     known = [v for v in t["views"] if v.get("position") and v.get("plan") and v["index"] not in mv]
@@ -159,6 +194,15 @@ def install(width, pairs):
             v.pop("facesWall", None)
             if fit and v.get("plan"):
                 v["plan"] = dict(v["plan"], x=fit[0] * mv[v["index"]][0] + fit[1], y=fit[0] * mv[v["index"]][2] + fit[2])
+    # 22 Nov: a view that makes the same 360 as an earlier one (see look_analyze.py) leaves the visit; "Remettre ... dans la visite" brings it back
+    an_p = os.path.join(AUTO, "analysis.json")
+    if os.path.exists(an_p):
+        dups = {c["index"]: c["duplicateOf"] for c in json.load(open(an_p)).get("cameras", []) if c.get("duplicateOf") is not None}
+        names = {v["index"]: v.get("name") for v in t["views"]}
+        for v in t["views"]:
+            if v["index"] in dups and v["index"] not in {i for i, _ in pairs}:
+                v["hidden"] = True
+                v["duplicateOf"] = names.get(dups[v["index"]], dups[v["index"]])
     if all(v.get("pano") or v.get("hidden") for v in t["views"]):
         # a build that failed long ago (out of memory, 30 Oct) no longer shows its red notice on a tour that is complete
         st = os.path.join(TOUR, "status.json")
@@ -168,7 +212,7 @@ def install(width, pairs):
     json.dump(t, open(tour_p, "w"), ensure_ascii=False)
 
 
-ANALYSIS_VERSION = 3  # bump when look_analyze.py's method changes (3: camera search with the 8-ray pre-test, same results)
+ANALYSIS_VERSION = 4  # bump when look_analyze.py's method changes (3: camera search with the 8-ray pre-test, same results; 4: duplicate views after the moves, 22 Nov)
 
 
 def source_hash():
@@ -247,7 +291,11 @@ if args.stage == "render":
     an = analysis()
     fz = floor_z()
     subprocess.run([PY, os.path.join(SCRIPTS, "look_make_recipe.py"), os.path.join(AUTO, "analysis.json"), os.path.join(AUTO, "recipe-auto.json")] + ([str(fz)] if fz is not None else []), check=True)
-    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok"}
+    # 20 Nov: only Roomia's own points are dropped for a tight camera. An architect's scene is a view they chose (F5 Scène 2 looks
+    # down the dressing between the hangers): skipping it left the visit with its old pre-materials image, so it is rendered as drawn.
+    auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
+    # 22 Nov: a view that duplicates an earlier one once the cameras have been moved (look_analyze.py) is dropped whoever drew it.
+    bad = {c["index"]: c["verdict"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building" or c.get("duplicateOf") is not None)}
     pts = [p for p in points() if p["index"] not in bad]
     if args.points:
         want = {int(x) for x in args.points.split(",")}
@@ -255,9 +303,45 @@ if args.stage == "render":
     print("points: %d to render, %d skipped (camera): %s" % (len(pts), len(bad), bad), flush=True)
     if args.dry:
         raise SystemExit(0)
-    json.dump(job({}, pts, AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
     print("rendering %d panoramas (about 3 minutes each)..." % len(pts), flush=True)
-    blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+    # 18 Nov: two views per Blender, then a fresh one (4 still reached 8.5 GB with a browser open). One Blender for the F5's 14 views grew to 9.5 GB by the 8th and the
+    # 16 GB PC's kernel stopped it; each new Blender starts from the file again (about 20 s) with its memory back to the start.
+    started = time.time()  # a picture older than this render is not this render's
+    batch = max(1, int(os.environ.get("ROOMIA_LOOK_BATCH", 2)))
+    # 21 Nov (step 2): the app asks (ROOMIA_LOOK_STREAM=1) for each batch's views to be made ready as soon as the batch is rendered, so the AI
+    # image and the light transfer of those views run while the next batch renders (lib/look-pipeline.ts, startStreamer). The group
+    # exposure and the install at the end of this render stay exactly as they were.
+    streaming = os.environ.get("ROOMIA_LOOK_STREAM") == "1"
+    stream_proc = None
+    if streaming:
+        lk_ = (json.load(open(os.path.join(AUTO, "recipe-auto.json"))).get("looks") or {}).get(args.look, {})
+        stream_lift = os.environ.get("LIFT", str(lk_.get("lift", 0.1)))
+        stream_median = os.environ.get("ROOMIA_LOOK_MEDIAN", "0.57") if args.look == "daylight" else "0.45"
+    for b0 in range(0, len(pts), batch):
+        json.dump(job({}, pts[b0:b0 + batch], AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
+        blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+        # 21 Nov: the GPU compositor is on by default for a "max" card (look_render.py). If a batch gave no picture (a card that cannot
+        # hold it, a driver that refuses), the views of that batch are made again once with the compositor on the processor, as before.
+        lost = [p for p in pts[b0:b0 + batch] if not os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"])) or os.path.getmtime(os.path.join(AUTO, "t%d-lin.npy" % p["index"])) < started]
+        if lost and os.environ.get("ROOMIA_COMPOSITOR_GPU") != "0":
+            print("batch without picture for %s: again with the compositor on the processor" % [p["index"] for p in lost], flush=True)
+            os.environ["ROOMIA_COMPOSITOR_GPU"] = "0"
+            try:
+                json.dump(job({}, lost, AUTO, False), open(os.path.join(AUTO, "job-render.json"), "w"))
+                blender(os.path.join(AUTO, "job-render.json"), "look_render.py", os.path.join(AUTO, "render.log"))
+            finally:
+                del os.environ["ROOMIA_COMPOSITOR_GPU"]
+        if streaming:
+            done_ = ["t%d" % p["index"] for p in pts[b0:b0 + batch] if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
+            if done_:
+                if stream_proc is not None:
+                    stream_proc.wait()  # one at a time: they share exposure.json
+                argv_ = [PY, os.path.join(SCRIPTS, "look_stream_view.py"), AUTO, os.path.join(AUTO, "recipe-auto.json"), ",".join(done_), stream_median, stream_lift, args.look, "4096"]
+                if sys.platform.startswith("linux"):
+                    argv_ = ["nice", "-n", "15"] + argv_  # it yields to Blender's own processor work
+                stream_proc = subprocess.Popen(argv_)  # its VIEW_READY lines go to this process's output, which the app reads
+    if stream_proc is not None:
+        stream_proc.wait()  # before the group exposure rewrites the same files
     names = ["t%d" % p["index"] for p in pts if os.path.exists(os.path.join(AUTO, "t%d-lin.npy" % p["index"]))]
     finalize(names)
     install(4096, [(int(n[1:]), os.path.join(AUTO, n + "-pano.png")) for n in names])
@@ -271,7 +355,8 @@ elif args.stage == "suggest":
     import cv2
     import numpy as np
     an = json.load(open(os.path.join(AUTO, "analysis.json")))
-    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok"}
+    auto_idx = {v["index"] for v in tour["views"] if v.get("auto")}
+    bad = {c["index"] for c in an["cameras"] if c["verdict"] != "ok" and (c["index"] in auto_idx or c["verdict"] == "outside the building" or c.get("duplicateOf") is not None)}
     pts = {p["index"]: p for p in points()}
     scored = []
     for i, p in pts.items():

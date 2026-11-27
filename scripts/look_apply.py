@@ -656,6 +656,29 @@ for rule in R.get("materials", []):
                 m["look_translucent"] = True
             if "sheenTint" in rule:
                 n.inputs["Sheen Tint"].default_value = (*rule["sheenTint"], 1)
+            # 18 Nov: the relief of a material from its OWN picture (marble veins, wood grain, fabric weave): its brightness as a
+            # bump. Nothing is added to the picture and no colour changes; a material that has its own normal map keeps it.
+            if rule.get("selfBump") and not m.get("look_selfbump") and n.inputs["Base Color"].is_linked and not n.inputs["Normal"].is_linked:
+                img_ = None
+                stack_, seen_ = [n.inputs["Base Color"].links[0].from_node], set()
+                while stack_ and img_ is None:
+                    x_ = stack_.pop()
+                    if x_.name in seen_:
+                        continue
+                    seen_.add(x_.name)
+                    if x_.type == "TEX_IMAGE" and x_.image is not None:
+                        img_ = x_
+                        break
+                    for inp_ in x_.inputs:
+                        for l_ in inp_.links:
+                            stack_.append(l_.from_node)
+                if img_ is not None:
+                    bump_ = m.node_tree.nodes.new("ShaderNodeBump")
+                    bump_.inputs["Strength"].default_value = float(rule["selfBump"])
+                    bump_.inputs["Distance"].default_value = float(rule.get("bumpDistance", 0.002))
+                    m.node_tree.links.new(img_.outputs["Color"], bump_.inputs["Height"])
+                    m.node_tree.links.new(bump_.outputs["Normal"], n.inputs["Normal"])
+                    m["look_selfbump"] = True
             if "tint" in rule and not n.inputs["Base Color"].is_linked:
                 b = n.inputs["Base Color"].default_value
                 n.inputs["Base Color"].default_value = (b[0] * rule["tint"][0], b[1] * rule["tint"][1], b[2] * rule["tint"][2], 1)

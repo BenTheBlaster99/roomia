@@ -46,7 +46,7 @@ if (!args['skip-build']) {
   step(`next build (standalone, ${DIST})`)
   const link = path.join(ROOT, DIST)
   if (process.platform === 'linux') {
-    const target = path.join(os.homedir(), '.cache', 'roomia-next-desktop')
+    const target = path.join(os.homedir(), '.cache', process.env.ROOMIA_DESKTOP_CACHE || 'roomia-next-desktop')
     fs.mkdirSync(target, { recursive: true })
     const isLink = fs.existsSync(link) && fs.lstatSync(link).isSymbolicLink()
     if (!isLink) {
@@ -103,7 +103,10 @@ fs.cpSync(path.join(ROOT, 'public'), path.join(OUT, 'public'), { recursive: true
   if (fs.existsSync(nm) && fs.lstatSync(nm).isSymbolicLink()) {
     const real = fs.realpathSync(nm)
     fs.unlinkSync(nm)
-    fs.cpSync(real, nm, { recursive: true, dereference: true })
+    // 26 Nov: in a nested build the link leaves the standalone output (roomia-speed → roomia-w → roomia's whole install: 35k files,
+    // eslint, @types…) and filled the drive; the traced packages are in standalone/<other checkout>/node_modules, copied just below
+    if (nested && !real.startsWith(standalone + path.sep)) fs.mkdirSync(nm)
+    else fs.cpSync(real, nm, { recursive: true, dereference: true })
   }
   if (nested) {
     for (const d of fs.readdirSync(standalone)) {
@@ -208,6 +211,32 @@ const walk = d => {
 }
 walk(OUT)
 console.log('native modules:', natives.join(', ') || 'none')
+
+// 5b. IfcOpenShell for Blender's Python (22 Nov: IFC import): pinned wheels for the target, each checked against the SHA-256 PyPI publishes
+step(`IfcOpenShell for ${PLATFORM}`)
+{
+  const ifcDir = path.join(DESKTOP, `pylib-ifc-${PLATFORM}`)
+  if (!fs.existsSync(path.join(ifcDir, 'ifcopenshell')) || !fs.existsSync(path.join(ifcDir, 'typing_extensions.py'))) {
+    fs.rmSync(ifcDir, { recursive: true, force: true })
+    fs.mkdirSync(ifcDir, { recursive: true })
+    const wanted = [
+      ['ifcopenshell', '0.8.5', PLATFORM === 'win32' ? 'py311-none-win_amd64' : 'py311-none-manylinux_2_31_x86_64'],
+      ['typing-extensions', '4.16.0', 'py3-none-any'],
+    ]
+    for (const [name, version, tag] of wanted) {
+      const meta = await (await fetch(`https://pypi.org/pypi/${name}/${version}/json`)).json()
+      const file = meta.urls.find(u => u.filename.endsWith(`${tag}.whl`))
+      if (!file) throw new Error(`${name} ${version}: no ${tag} wheel on PyPI`)
+      const bytes = Buffer.from(await (await fetch(file.url)).arrayBuffer())
+      const sha = crypto.createHash('sha256').update(bytes).digest('hex')
+      if (sha !== file.digests.sha256) throw new Error(`${file.filename}: SHA-256 does not match PyPI (${sha})`)
+      const whl = path.join(ifcDir, file.filename)
+      fs.writeFileSync(whl, bytes)
+      sh('unzip', ['-q', '-o', whl, '-d', ifcDir])
+      fs.rmSync(whl)
+    }
+  }
+}
 
 // 5. scipy and Pillow for Blender's Python
 step(`Python packages for ${PLATFORM}`)

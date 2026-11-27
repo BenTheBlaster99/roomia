@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const fileName = String(body?.fileName ?? '')
   const size = Number(body?.size)
   const format = sceneFormatOf(fileName)
-  if (!format) return Response.json({ detail: 'Formats acceptés : .glb, .dae ou .zip' }, { status: 400 })
+  if (!format) return Response.json({ detail: 'Formats acceptés : .glb, .dae, .fbx, .obj, .gltf, .stl, .ply, .usd, .blend ou .zip' }, { status: 400 })
   if (!Number.isFinite(size) || size <= 0) return Response.json({ detail: 'Taille de fichier invalide' }, { status: 400 })
   if (size > MAX_SCENE_BYTES) return Response.json({ detail: 'Fichier trop volumineux' }, { status: 413 })
   if (queueLength() >= MAX_QUEUED) {
