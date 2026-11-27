@@ -73,8 +73,8 @@ const toPlane = (p: THREE.Vector3) => ({ x: p.x, y: -p.z })
 
 /** The walk's yaw (0 = +y, turning left) of a point's own direction: the middle of its 360°. */
 const facing = (v: TourView) => {
-  const p = toPlane(new THREE.Vector3(...v.position))
-  const t = toPlane(new THREE.Vector3(...v.target))
+  const p = toPlane(new THREE.Vector3(...(v.eye ?? v.position)))
+  const t = toPlane(new THREE.Vector3(...(v.ahead ?? v.target)))
   return Math.atan2(-(t.x - p.x), t.y - p.y)
 }
 
@@ -128,16 +128,18 @@ const FINISHES: [RegExp, { roughness: number; metalness?: number }][] = [
  *  at the floor where the next point stands. */
 const photoSpots = (from: TourView, views: TourView[]): PanoSpot[] => {
   const linked = new Set(from.links)
-  const [px, py, pz] = from.position
-  const fx = from.target[0] - px
-  const fz = from.target[2] - pz
+  // 25 Nov: the frame of from's 360° (where it was taken, the way its middle looks), not the saved camera's
+  const [px, py, pz] = from.eye ?? from.position
+  const fx = (from.ahead ?? from.target)[0] - px
+  const fz = (from.ahead ?? from.target)[2] - pz
   return views
     .filter(v => v.index !== from.index && v.panoAi && v.pano && (linked.size ? linked.has(v.index) : true))
     .map(v => {
-      const vx = v.position[0] - px
-      const vz = v.position[2] - pz
+      const at = v.eye ?? v.position
+      const vx = at[0] - px
+      const vz = at[2] - pz
       const dist = Math.hypot(vx, vz)
-      return { key: String(v.index), label: v.name, dist, yaw: Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz), pitch: Math.atan2(v.position[1] - 1.25 - py, dist) }
+      return { key: String(v.index), label: v.name, dist, yaw: Math.atan2(fx * vz - fz * vx, fx * vx + fz * vz), pitch: Math.atan2(at[1] - 1.25 - py, dist) }
     })
     .filter(s => s.dist <= 9)
     .sort((a, b) => a.dist - b.dist)
@@ -845,9 +847,9 @@ export default function ExploreClient({ sceneId, title, published = false }: { s
         if (!v) throw new Error(`no point ${index}`)
         const target = new THREE.WebGLCubeRenderTarget(1024, { type: THREE.HalfFloatType, generateMipmaps: false })
         const cube = new THREE.CubeCamera(0.05, 500, target)
-        cube.position.set(...v.position)
+        cube.position.set(...(v.eye ?? v.position))
         cube.update(renderer, scene)
-        const f = new THREE.Vector3(v.target[0] - v.position[0], 0, v.target[2] - v.position[2]).normalize()
+        const f = new THREE.Vector3((v.ahead ?? v.target)[0] - (v.eye ?? v.position)[0], 0, (v.ahead ?? v.target)[2] - (v.eye ?? v.position)[2]).normalize()
         const quad = new THREE.Mesh(
           new THREE.PlaneGeometry(2, 2),
           new THREE.ShaderMaterial({

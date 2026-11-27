@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import type { ForfaitItem } from '@/lib/forfait'
+import { plural, PROJECT_SCOPE, type ForfaitItem, type ProjectsForfait } from '@/lib/forfait'
 import type { CloudDrive } from '@/lib/roomia-cloud'
 import DesktopNav from '../components/DesktopNav'
 import Icon from '../components/Icon'
@@ -28,6 +28,84 @@ const FORFAIT_KIND_LABELS: Record<string, string> = {
   refund: 'Rendue au forfait (signalement)',
   grant: 'Ajout au forfait',
   adjust: 'Correction',
+  pack: 'Projets ajoutés',
+  'pack-adjust': 'Correction',
+  project: 'Projet commencé',
+  'project-undo': 'Projet rendu (échec)',
+  'project-update': 'Mise à jour',
+  'project-admin': 'Ajustement Roomia',
+}
+
+/**
+ * 27 Nov: the projects forfait (lib/forfait.ts). The person sees projects, what one project includes, and their started
+ * projects; never a stock of photos or 360 views.
+ */
+function ProjectsBlock({ f }: { f: ProjectsForfait }) {
+  const left = Math.max(0, f.total - f.used)
+  const day = (ms: number) => new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  return (
+    <section className="space-y-4">
+      <h2 className="text-[18px] font-bold text-[var(--brand-ink)]">Mon forfait</h2>
+      <div className="grid gap-3 sm:grid-cols-[minmax(220px,280px)_1fr]">
+        <div className="flex flex-col gap-2 rounded-[14px] border border-[var(--brand-line)] bg-white p-5">
+          <span className="text-[14px] font-semibold text-[var(--brand-ink-soft)]">Projets</span>
+          <span className="flex items-baseline gap-1.5">
+            <b className={`font-[family-name:var(--font-display)] text-[40px] font-extrabold leading-none ${left === 0 ? 'text-[var(--brand-gold-text)]' : 'text-[var(--brand-blue)]'}`}>{left}</b>
+            <span className="text-[13px] text-[var(--brand-muted)]">
+              restant{left > 1 ? 's' : ''} sur {f.total}
+            </span>
+          </span>
+          <span className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--brand-blue-tint)]" aria-hidden>
+            <span className="block h-full rounded-full bg-[var(--brand-gold)]" style={{ width: `${f.total ? (left / f.total) * 100 : 0}%` }} />
+          </span>
+          {left === 0 && <span className="text-[13px] text-[var(--brand-muted)]">Pour ajouter des projets, contactez Roomia.</span>}
+        </div>
+        <div className="rounded-[14px] border border-[var(--brand-line)] bg-white p-5">
+          <span className="text-[14px] font-semibold text-[var(--brand-ink-soft)]">Chaque projet comprend</span>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {[
+              `Visite 360° complète (jusqu’à ${PROJECT_SCOPE.views} points de vue)`,
+              `${PROJECT_SCOPE.photos} photos HD`,
+              'Plan 2D',
+              'Plan 3D',
+              'Lien client',
+              `${PROJECT_SCOPE.updates} mises à jour`,
+            ].map(t => (
+              <li key={t} className="ui-chip ui-chip--gold">
+                <Icon name="check" />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[13px] leading-relaxed text-[var(--brand-muted)]">
+            Un projet = un appartement type : les appartements identiques comptent pour un seul projet. Un projet est compté à sa première image IA ; une
+            image qui échoue ne compte jamais. Villas, duplex et projets sur plusieurs niveaux : sur devis.
+          </p>
+        </div>
+      </div>
+      {f.projects.length > 0 && (
+        <div className="rounded-[14px] border border-[var(--brand-line)] bg-white p-5">
+          <span className="text-[14px] font-semibold text-[var(--brand-ink-soft)]">Mes projets</span>
+          <ul className="mt-2 divide-y divide-[var(--brand-line)]">
+            {f.projects.map(p => (
+              <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-[14px]">
+                <span className="font-semibold text-[var(--brand-ink)]">
+                  {p.name}
+                  {p.credits > 1 ? <span className="font-normal text-[var(--brand-muted)]"> · compte pour {p.credits} projets</span> : null}
+                </span>
+                <span className="text-[13px] text-[var(--brand-muted)]">
+                  Commencé le {day(p.openedAt)} · version {p.version} ·{' '}
+                  {p.updates.used >= p.updates.included
+                    ? 'mises à jour incluses utilisées'
+                    : plural(p.updates.included - p.updates.used, 'mise à jour restante', 'mises à jour restantes')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
 }
 
 /** One part of the package: what is left, large, over what it was (16 Nov redesign). */
@@ -187,7 +265,9 @@ export default function AccountClient() {
               </div>
             </section>
 
-            {forfait && (
+            {forfait?.projects && <ProjectsBlock f={forfait.projects} />}
+
+            {forfait && !forfait.projects && (
               <section>
                 <h2 className="mb-3 text-[18px] font-bold text-[var(--brand-ink)]">Mon forfait</h2>
                 <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(190px,1fr))]">

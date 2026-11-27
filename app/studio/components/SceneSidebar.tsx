@@ -8,7 +8,7 @@ import { DEFAULT_LENS, LENSES, lensHfov, type LensId, type SceneCamera } from '@
 import { useStudioStore } from '@/store/useStudioStore'
 import type { HeldRender } from '@/lib/held-renders'
 import type { ScenePhoto } from '@/lib/scene-photos'
-import { forfaitLeft, type Forfait } from '@/lib/forfait'
+import { forfaitLeft, projectNotice, PROJECT_SCOPE, type Forfait } from '@/lib/forfait'
 import DesktopRenderNotice from './DesktopRenderNotice'
 import Icon from './Icon'
 
@@ -412,7 +412,8 @@ export default function SceneSidebar() {
   const running = phase === 'running'
   const busy = running || phase === 'checking'
   // No photo without a credit: the request would be refused anyway, after a capture that takes minutes on a CPU-only PC.
-  const photosLeft = forfaitLeft(account?.forfait, 'photo')
+  const photosLeft = forfaitLeft(account?.forfait, 'photo', sceneId)
+  const projectNote = projectNotice(account?.forfait, sceneId)
   const noCredits = !!account && (photosLeft !== null ? photosLeft < 1 : account.credits < 1)
   const hasView = useCurrent || selected !== null
 
@@ -429,8 +430,15 @@ export default function SceneSidebar() {
       : desktopAccount === 'signed-out'
         ? { tone: 'info', text: 'signed-out' }
         : noCredits
-          ? { tone: 'warn', text: 'Plus de photos dans votre forfait. Contactez Roomia pour l’étendre.' }
-          : null
+          ? {
+              tone: 'warn',
+              text: account?.forfait?.projects
+                ? projectNote?.tone === 'warn'
+                  ? projectNote.text
+                  : `Les ${PROJECT_SCOPE.photos} photos HD incluses dans ce projet sont faites. Pour des photos en plus, contactez Roomia.`
+                : 'Plus de photos dans votre forfait. Contactez Roomia pour l’étendre.',
+            }
+          : projectNote
 
   return (
     <aside className="flex h-full w-[24rem] flex-shrink-0 flex-col border-l border-[var(--brand-line)] bg-white">

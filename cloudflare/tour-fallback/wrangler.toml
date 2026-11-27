@@ -1,0 +1,18 @@
+# Roomia: the tours' copy in front of studio.room-ia.com (see worker.js). Deploy: npx wrangler deploy (from this folder).
+name = "roomia-tour-fallback"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+# only the paths a client's tour uses go through the Worker (the free plan counts 100,000 requests a day)
+routes = [
+  { pattern = "studio.room-ia.com/studio/tour/*", zone_name = "room-ia.com" },
+  { pattern = "studio.room-ia.com/api/scenes/*", zone_name = "room-ia.com" },
+  { pattern = "studio.room-ia.com/_next/static/*", zone_name = "room-ia.com" },
+  { pattern = "studio.room-ia.com/brand/*", zone_name = "room-ia.com" },
+  { pattern = "studio.room-ia.com/favicon.ico", zone_name = "room-ia.com" },
+  { pattern = "studio.room-ia.com/apple-icon*", zone_name = "room-ia.com" },
+]
+
+[[r2_buckets]]
+binding = "TOURS"
+bucket_name = "roomia-tours"

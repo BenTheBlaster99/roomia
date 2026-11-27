@@ -34,6 +34,8 @@
   font-family: var(--font-display), sans-serif; font-weight: 900; font-variation-settings: 'wdth' 125; font-size: 20px; line-height: 1;
 }
 .tour-rail-mark span { color: var(--brand-gold-light); }
+.tour-rail-mark:has(img) { background: none; overflow: hidden; }
+.tour-rail-mark img { display: block; width: 100%; height: 100%; }
 .tour-rail-items { display: flex; flex-direction: column; gap: 4px; width: 100%; }
 .tour-rail-item {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 11px 4px 10px;
@@ -367,6 +369,38 @@
 .points-legend i { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--brand-line-strong); background: var(--brand-gold); }
 .points-legend i.view { background: var(--brand-blue); }
 .points-sum { margin-top: auto; display: grid; gap: 8px; padding-top: 6px; }
+/* The carousel (25 Nov): every point as a cover from its AI 360°, along the bottom, right of the plan. */
+.tour-strip {
+  position: absolute; z-index: 4; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 16px;
+  display: flex; justify-content: flex-end; pointer-events: none;
+}
+.tour-strip.with-plan { left: calc(16px + min(clamp(150px, 22vw, 300px), calc(38vh * var(--ratio, 1))) + 16px + 14px); }
+.tour-strip-track {
+  display: flex; gap: 8px; max-width: 100%; overflow-x: auto; padding: 6px; border-radius: 16px; pointer-events: auto;
+  background: rgba(8, 30, 38, 0.42); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line);
+  scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+.tour-card {
+  position: relative; flex: none; width: 148px; aspect-ratio: 8 / 5; padding: 0; border: 2px solid transparent; border-radius: 11px;
+  overflow: hidden; cursor: pointer; background: rgba(255, 255, 255, 0.08); scroll-snap-align: center; transition: border-color 0.2s, transform 0.2s;
+}
+.tour-card img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s; }
+.tour-card:hover img { transform: scale(1.06); }
+.tour-card.here { border-color: var(--brand-gold); }
+.tour-card-name {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; padding: 14px 8px 5px;
+  background: linear-gradient(to top, rgba(4, 18, 24, 0.85), rgba(4, 18, 24, 0)); color: #fff; font-size: 12px; font-weight: 600;
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tour-card-name b {
+  flex: none; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.22); font-size: 11px;
+}
+.tour-card.here .tour-card-name b { background: var(--brand-gold); color: var(--brand-blue-night); }
+/* the hint and the progress pill sit above the carousel */
+.tour-hint { bottom: 128px; }
+.tour-pill { bottom: calc(128px + env(safe-area-inset-bottom, 0px)); }
+
 @media (max-width: 860px) { .points-body { flex-direction: column; } .points-side { flex: none; } .points-plan-fit { height: 60vh; } }
 
 /* ── the published visit and phones ── */
@@ -388,6 +422,12 @@
   .tour-visitbar { top: 10px; left: 10px; right: 10px; }
   .tour-plan { padding: 6px; left: 10px; bottom: 10px; }
   .tour-plan-inner { width: min(120px, calc(22vh * var(--ratio, 1))); }
+  .tour-strip { right: 10px; left: 10px; bottom: 10px; }
+  .tour-strip.with-plan { left: calc(10px + min(120px, calc(22vh * var(--ratio, 1))) + 12px + 8px); }
+  .tour-strip-track { gap: 6px; padding: 4px; border-radius: 12px; }
+  .tour-card { width: 104px; border-radius: 9px; }
+  .tour-card-name { font-size: 11px; padding: 10px 6px 4px; }
+  .tour-hint { bottom: 96px; }
   .spot-disc { width: 50px; height: 50px; }
   .spot-label { font-size: 12px; }
   .tour-pill { max-width: calc(100% - 28px); bottom: 150px; }

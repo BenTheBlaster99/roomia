@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 
         send({ type: 'progress', step: 'generating', label: 'Étape 2 · Photo', detail: 'Génération de la photo (environ 1 à 2 minutes)…', pct: 35 })
         if (user && isJobId(jobId)) {
-          reserveCredit(user.id, jobId, sceneId, camera.name)
+          reserveCredit(user.id, jobId, sceneId, camera.name, 'photo', { id: sceneId, name: meta.fileName })
           reserved = true
         }
         // the desktop's photos are counted on Roomia's server
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         const cloudAccount: { credits: number | null } = { credits: null }
         const photo = cloud
           ? await cloudPhoto(
-              { jobId: String(jobId), project: meta.fileName, view: camera.name, lighting, capture: capture.png, ask, quality },
+              { jobId: String(jobId), project: meta.fileName, projectId: sceneId, view: camera.name, lighting, capture: capture.png, ask, quality },
               () => send({ type: 'ping' }),
             )
               .then(remote => {

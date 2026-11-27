@@ -91,6 +91,12 @@ export interface TourViewPoint {
   startYaw?: number
   /** The level it stands on (index into TourBuild.levels; plan coordinates are on that level's plan). */
   level?: number
+  /**
+   * 25 Nov: the way the middle of its 360° looks, Blender's floor plane (radians, counter-clockwise from +x). The quality render
+   * (scripts/look_pipeline.py) centres every 360° on +x (0); absent, the 360° is centred on the view's own direction (the build's
+   * stitch). The plan's cone, the arrows and the arrivals follow it (Sarah's bedroom pointed backwards, the kitchen sideways).
+   */
+  panoYaw?: number
 }
 
 /** One level of a site with several (31 Oct): its own plan, named from the bottom up. */
@@ -2971,7 +2977,7 @@ export async function refinishPlans(sceneId: string) {
 }
 
 /**
- * The 3D plan (2 Nov): each level seen from above at an angle in Cycles, cut 1.6 m over its floor (an exact cut of the
+ * The 3D plan (2 Nov): each level seen from above at an angle in Cycles, cut just under its ceiling (25 Nov; 1.6 m before: an exact cut of the
  * meshes: walls end in a clean edge) and kept to the apartment (faces outside its cells, grown 40 cm, are dropped: the
  * other flats of a building file and the ground). Run on its own, on the plan sources a build keeps (plan-src/).
  */
@@ -3000,6 +3006,11 @@ for kind in [] if picked == "CPU" else list(dict.fromkeys([k for k in (picked, "
     except Exception:
         continue
 scene.cycles.samples = int(spec.get("plan3dSamples", 128))
+# 25 Nov: textures capped at 2048 px (a whole flat seen from above shows none bigger): the render stopped on a 16 GB PC
+# with the browser open ("mémoire presque pleine")
+scene.render.use_simplify = True
+scene.render.simplify_subdivision_render = 6
+scene.cycles.texture_limit_render = str(spec.get("plan3dTextureLimit", "2048"))
 scene.cycles.use_adaptive_sampling = True
 scene.cycles.adaptive_threshold = 0.015
 scene.cycles.use_denoising = True
@@ -3051,7 +3062,15 @@ def grown(mask, cells):
 for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
     sfx = L.get("suffix", "")
     floor = float(L.get("floor", 0.0))
-    cut = floor + float(spec.get("plan3dCut", 1.6))
+    # 25 Nov: cut just under the ceiling (Sarah: the 1.6 m cut "cropped too much from the top"); plan3dCut, a height over
+    # the floor, still overrides it. Without a measured ceiling, 2.6 m.
+    ceil_ = float(L.get("ceil") or floor + 2.6)
+    cut = floor + float(spec["plan3dCut"]) if "plan3dCut" in spec else max(floor + 1.6, ceil_ - 0.03)
+    # what may stand above 1.2 m once the walls go up to the ceiling: long and narrow things along a wall (wall cupboards,
+    # the wall over a door, a curtain rod); compact ones (pendants, ceiling lamps) and wide ones (ceilings) still go
+    def along_wall(xs_, ys_):
+        a_, b_ = sorted((max(xs_) - min(xs_), max(ys_) - min(ys_)))
+        return a_ <= 0.45 and b_ >= 0.6
     x0f, y0f, x1f, y1f = L["frame"]
     # The apartment as the 2D plan drew it (plan-apt: pixel-exact up to and including the walls), in 5 cm cells;
     # else the build's 25 cm cells grown 60 cm.
@@ -3089,7 +3108,10 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
         bb = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
         # as on the 2D plan, nothing that starts above 1.2 m (hanging lamps, wall cupboards): a pendant cut at 1.6 m
         # left its shade floating over the tables (Restaurant)
-        if min(p.z for p in bb) >= floor + 1.2 or max(p.z for p in bb) < floor - 1.0:
+        if max(p.z for p in bb) < floor - 1.0 or min(p.z for p in bb) >= cut - 0.01:
+            ob.hide_render = True
+            continue
+        if min(p.z for p in bb) >= floor + 1.2 and (cut < floor + 2.0 or not along_wall([p.x for p in bb], [p.y for p in bb])):
             ob.hide_render = True
             continue
         if ob.data.users > 1:
@@ -3101,8 +3123,30 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
         if max(p.z for p in bb) > cut:
             bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector((0, 0, cut)), plane_no=Vector((0, 0, 1)), clear_outer=True)
             n_cut += 1
-            # what floats above 1.25 m after the cut (the bottom of a pendant grouped with its table, a shelf) goes too
-            high = [f for f in bm.faces if min(v.co.z for v in f.verts) > floor + 1.25]
+            # what floats above 1.25 m after the cut (the bottom of a pendant grouped with its table, a shelf) goes too;
+            # with the cut at the ceiling, only pieces that float on their own and are not long and narrow along a wall
+            # (the upper part of a wall, the wall over a door stay)
+            if cut < floor + 2.0:
+                high = [f for f in bm.faces if min(v.co.z for v in f.verts) > floor + 1.25]
+            else:
+                high, seen = [], set()
+                bm.faces.index_update()
+                for f0 in bm.faces:
+                    if f0.index in seen:
+                        continue
+                    island, stack = [], [f0]
+                    seen.add(f0.index)
+                    while stack:
+                        f_ = stack.pop()
+                        island.append(f_)
+                        for e_ in f_.edges:
+                            for g_ in e_.link_faces:
+                                if g_.index not in seen:
+                                    seen.add(g_.index)
+                                    stack.append(g_)
+                    vs_ = [v.co for f_ in island for v in f_.verts]
+                    if min(v.z for v in vs_) > floor + 1.25 and not along_wall([v.x for v in vs_], [v.y for v in vs_]):
+                        high.extend(island)
             if high:
                 bmesh.ops.delete(bm, geom=high, context="FACES")
         if bm.faces:
@@ -3146,7 +3190,8 @@ for L in sorted(levels, key=lambda l: -l.get("floor", 0.0)):
     c = sum(corners, Vector()) / len(corners)
     # the corner to look from: the one of eight (every 45 degrees) where the apartment comes out largest, measured on
     # its cells (a flat drawn diagonally in the file fills the picture from its own corner)
-    el = math.radians(float(spec.get("plan3dElevation", 55)))
+    # walls up to the ceiling hide more of each room: seen steeper (65 degrees, 55 with the old 1.6 m cut)
+    el = math.radians(float(spec.get("plan3dElevation", 65 if cut >= floor + 2.0 else 55)))
     tx = cam_data.sensor_width / 2 / cam_data.lens
     ty = tx * H3 / W3
     pts = corners
@@ -4139,6 +4184,11 @@ async function build(sceneId: string, cameras: SceneCamera[], { shiftViews = fal
       if (redo.length) v.panoAiUpdate = AI_FACES.filter(f => redo.includes(f))
     }
     if (old.hidden) v.hidden = true
+    // a 360° kept from the last build keeps its frame (25 Nov): where it was taken and the way its middle looks
+    if (keptFile(v.index) || v.panoAi) {
+      if (old.panoYaw !== undefined) v.panoYaw = old.panoYaw
+      if (!v.auto && old.position) v.position = old.position
+    }
     if (old.startYaw !== undefined) {
       // The panorama is centred on the point's direction; a point that moved may face another way.
       const yaw = (p: TourViewPoint) => (p.position && p.target ? Math.atan2(-(p.target[2] - p.position[2]), p.target[0] - p.position[0]) : 0)
@@ -5656,6 +5706,10 @@ export interface TourView {
   name: string
   position: SceneCamera['position']
   target: SceneCamera['target']
+  /** Where its 360° was taken (a camera moved off a wall or out of a bed is not where it was saved), glTF frame. */
+  eye: [number, number, number]
+  /** A point 1 m ahead of the eye along the middle of its 360°: the frame of its arrows and of the plan's cone. */
+  ahead: [number, number, number]
   /** Horizontal field of view of the photo (the lens it was made with). */
   photoHfov: number
   photo: string | null
@@ -5715,8 +5769,53 @@ async function upgradeAiPanos(sceneId: string): Promise<void> {
   await writeFile(marker, new Date().toISOString())
 }
 
+/**
+ * 25 Nov: where a point's 360° really stands and looks, and its dot and cone on the plan from that. The quality render takes a
+ * camera from a better spot nearby (out of a wall, off a bed: tour.json position) and centres its 360° on +x (panoYaw), so the
+ * saved camera's place and direction were wrong for most points: the bedroom's dot sat on the bed and its cone looked backwards.
+ */
+function pointFrame(built: TourBuild | null, point: TourViewPoint | undefined, position: [number, number, number], target: [number, number, number]) {
+  const eye = (point?.position ?? position) as [number, number, number]
+  const yaw = point?.panoYaw ?? Math.atan2(-(target[2] - position[2]), target[0] - position[0])
+  const ahead: [number, number, number] = [eye[0] + Math.cos(yaw), eye[1], eye[2] - Math.sin(yaw)]
+  const was = point?.plan ?? null
+  if (!was) return { eye, ahead, plan: null }
+  // plan pixels from the level's frame (Blender x0, y0, x1, y1; the plan's y goes down, Blender's y = -glTF z)
+  const geometry = built?.planGeometry
+  const g = geometry?.find(l => l.index === (point?.level ?? -1)) ?? (geometry?.length === 1 ? geometry[0] : geometry?.find(l => l.main))
+  const angle = (-yaw * 180) / Math.PI
+  if (!g) return { eye, ahead, plan: { ...was, angle } }
+  const [x0, y0, x1, y1] = g.frame
+  return { eye, ahead, plan: { x: ((eye[0] - x0) / (x1 - x0)) * g.width, y: ((y1 + eye[2]) / (y1 - y0)) * g.height, angle } }
+}
+
+/**
+ * 25 Nov, once per project: a 360° the quality render made before panoYaw was written (scripts/look_pipeline.py renders at yaw 0) gets
+ * it, so the plan's cone, the arrows and the published link follow the picture. Its render (look/auto/t<k>-pano.png) tells it apart from
+ * a 360° the build stitched along the view's own direction.
+ */
+async function markQualityPanos(sceneId: string): Promise<void> {
+  const marker = path.join(sceneDir(sceneId), 'look', 'pano-yaw.done')
+  if (await stat(marker).then(() => true, () => false)) return
+  const auto = path.join(sceneDir(sceneId), 'look', 'auto')
+  const names = await readdir(auto).catch(() => null)
+  if (!names) return
+  const built = await readBuild(sceneId)
+  if (!built) return
+  let changed = false
+  for (const v of built.views) {
+    if (v.panoYaw === undefined && v.pano && names.includes(`t${v.index}-pano.png`)) {
+      v.panoYaw = 0
+      changed = true
+    }
+  }
+  if (changed) await writeFile(tourPath(sceneId), JSON.stringify(built))
+  await writeFile(marker, new Date().toISOString())
+}
+
 export async function readTour(sceneId: string, { review = false } = {}) {
   await upgradeAiPanos(sceneId).catch(() => {})
+  await markQualityPanos(sceneId).catch(() => {})
   const [cameras, photos, status, labels] = await Promise.all([readCameras(sceneId), listPhotos(sceneId), readTourStatus(sceneId), readLabels(sceneId)])
   const built = await readBuild(sceneId)
   const linksOf = (index: number) => (built?.links ?? []).flatMap(([a, b]) => (a === index ? [b] : b === index ? [a] : []))
@@ -5725,11 +5824,14 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     const photo = photos.find(p => p.view === camera.name)
     const point = built?.views.find(v => v.index === index && v.name === camera.name)
     const lens = photo?.lens === 'file' || photo?.lens === '35' || photo?.lens === '24' || photo?.lens === '18' ? photo.lens : '24'
+    const at = pointFrame(built, point, camera.position as [number, number, number], camera.target as [number, number, number])
     return {
       index,
       name: labels[`view:${camera.name}`] ?? camera.name,
       position: camera.position,
       target: camera.target,
+      eye: at.eye,
+      ahead: at.ahead,
       photoHfov: lensHfov(lens, camera),
       photo: point?.facesWall ? null : (photo?.file ?? null),
       noPhoto: point?.facesWall === true,
@@ -5742,7 +5844,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       panoAiCheck: (review && point?.panoAiCheck) || null,
       panoAiApproved: point?.panoAiApproved === true,
       panoAiStale: point?.panoAiStale === true,
-      plan: point?.plan ?? null,
+      plan: at.plan,
       level: point?.level ?? null,
       auto: false,
       links: linksOf(index),
@@ -5752,11 +5854,14 @@ export async function readTour(sceneId: string, { review = false } = {}) {
     }
   })
   for (const point of built?.views.filter(v => v.auto && v.position && v.target) ?? []) {
+    const at = pointFrame(built, point, point.position!, point.target!)
     all.push({
       index: point.index,
       name: labels[labelKey(point)] ?? point.name,
       position: point.position!,
       target: point.target!,
+      eye: at.eye,
+      ahead: at.ahead,
       photoHfov: 74,
       photo: null,
       noPhoto: true,
@@ -5768,7 +5873,7 @@ export async function readTour(sceneId: string, { review = false } = {}) {
       panoAiCheck: (review && point.panoAiCheck) || null,
       panoAiApproved: point.panoAiApproved === true,
       panoAiStale: point.panoAiStale === true,
-      plan: point.plan,
+      plan: at.plan,
       level: point.level ?? null,
       auto: true,
       links: linksOf(point.index),

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { NextRequest } from 'next/server'
 import { accessDenied } from '@/lib/access-guard'
+import { panoCover } from '@/lib/pano-cover'
 import { TOUR_FILE, tourDir } from '@/lib/scene-tour'
 import { readMeta } from '@/lib/scene-store'
 
@@ -29,6 +30,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return new Response(Readable.toWeb(stream) as ReadableStream, {
       headers: { 'Content-Type': TYPES[path.extname(file)], 'Content-Length': String(size), 'Cache-Control': cache },
     })
+  }
+  // ?cover=1&yaw=<radians>: the visit carousel's cover of a 360° (lib/pano-cover.ts)
+  const q = req.nextUrl.searchParams
+  if (q.get('cover') === '1' && /^pano-.*\.jpg$/.test(file)) {
+    const cover = await panoCover(full, Number(q.get('yaw')) || 0).catch(() => null)
+    if (!cover) return Response.json({ detail: 'Fichier introuvable' }, { status: 404 })
+    return new Response(new Uint8Array(cover), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': cache } })
   }
   const data = await readFile(full).catch(() => null)
   if (!data) return Response.json({ detail: 'Fichier introuvable' }, { status: 404 })

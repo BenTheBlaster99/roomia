@@ -17,7 +17,8 @@ out = sys.argv[2]
 floor_z = float(sys.argv[3]) if len(sys.argv) > 3 else None
 az = float(an["sun"]["azimuth"])
 # "lum" alone matched "Aluminum" (10 Nov: F5 got downlights under every aluminium trim): luminaire/luminaria/lumi... but never alumin...
-LAMP = re.compile(r"led|light|lamp|(?<!a)lum(?!inum|inium)|bulb|spot|downl|neon|glow|strip|ampoule", re.I)
+# 25 Nov: the fixtures blender-render.ts now lights by name (Emissive discs are ceiling spots: they get their downlight too)
+LAMP = re.compile(r"led|light|lamp|(?<!a)lum(?!inum|inium)|bulb|spot|downl|neon|glow|strip|ampoule|emissi|arandela|lustre|chandelier|applique", re.I)
 
 small, glow = [], []
 for name, e in an.get("emissive", {}).items():

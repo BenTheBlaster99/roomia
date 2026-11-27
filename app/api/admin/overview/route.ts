@@ -32,5 +32,5 @@ export async function GET(req: NextRequest) {
        FROM claims c JOIN users u ON u.id = c.user_id ORDER BY (c.status = 'pending') DESC, c.id DESC LIMIT 100`,
     )
     .all()
-  return Response.json({ users: users.map(u => ({ ...u, forfait: forfaitOf(Number(u.id)) })), ledger, claims })
+  return Response.json({ users: users.map(u => ({ ...u, forfait: forfaitOf(Number(u.id), { admin: true }) })), ledger, claims })
 }

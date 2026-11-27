@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { adminDenied } from '@/lib/access-guard'
 import { getUser, setPassword } from '@/lib/auth'
-import { adjustCredits, CreditError, removeForfait, setForfait } from '@/lib/credits'
+import { addProjects, adjustCredits, adjustProject, CreditError, removeForfait, setForfait } from '@/lib/credits'
 import { getDb } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -11,6 +11,9 @@ export const runtime = 'nodejs'
  *   { action: 'credits', delta, reason }   add (positive) or remove (negative) credits
  *   { action: 'forfait', label, photo, pano, plan2d, plan3d, update }   gives a forfait (lib/forfait.ts), replacing any other
  *   { action: 'forfait-remove' }            back to plain credits
+ *   { action: 'pack', projects, price?, reason }   27 Nov: projects bought (negative: a correction); the first one turns the
+ *                                           account into a projects forfait (lib/forfait.ts)
+ *   { action: 'project', project, credits?, extraUpdates?, extraViews?, extraPhotos?, remove? }   one started project
  *   { action: 'suspend' } / { action: 'activate' }
  *   { action: 'password', password }        sets a new password and signs the account out everywhere
  */
@@ -31,6 +34,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const label = String(body.label ?? '').trim().slice(0, 60) || 'Projet'
         const forfait = setForfait(id, label, { photo: n('photo'), pano: n('pano'), plan2d: n('plan2d'), plan3d: n('plan3d'), update: n('update') }, check.user.id)
         return Response.json({ ok: true, forfait })
+      }
+      case 'pack': {
+        const price = Number(body.price)
+        const forfait = addProjects(id, Number(body.projects), String(body.reason ?? ''), check.user.id, Number.isFinite(price) && price > 0 ? price : null)
+        return Response.json({ ok: true, forfait })
+      }
+      case 'project': {
+        const num = (k: string) => (body[k] === undefined ? undefined : Number(body[k]))
+        adjustProject(
+          id,
+          String(body.project ?? ''),
+          { credits: num('credits'), extraUpdates: num('extraUpdates'), extraViews: num('extraViews'), extraPhotos: num('extraPhotos'), remove: body.remove === true },
+          check.user.id,
+        )
+        return Response.json({ ok: true })
       }
       case 'forfait-remove':
         removeForfait(id)

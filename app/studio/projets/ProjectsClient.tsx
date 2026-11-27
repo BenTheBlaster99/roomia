@@ -64,7 +64,7 @@ export default function ProjectsClient() {
   async function applyVersion(project: DesktopProject) {
     const old = project.versionOf
     if (!old) return
-    if (!window.confirm(`Mettre à jour « ${old.name} » avec cette nouvelle version ?\n\nLa visite est recalculée (gratuit, Blender) et garde ses photos ; les vues qui n’ont pas changé ne bougent pas. Ce nouvel envoi est ensuite fusionné dans « ${old.name} ».`)) return
+    if (!window.confirm(`Mettre à jour « ${old.name} » avec cette nouvelle version ?\n\nLa visite est recalculée (gratuit, Blender) et garde ses photos ; les vues qui n’ont pas changé ne bougent pas. Ce nouvel envoi est ensuite fusionné dans « ${old.name} ».\n\nUne mise à jour, c’est le même appartement modifié (elle compte parmi les mises à jour du projet). Si c’est un autre appartement, choisissez plutôt « Garder comme projet séparé ».`)) return
     const res = await fetch(`/api/scenes/${old.id}/tour`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newVersion: project.id }) })
     if (!res.ok) {
       setError(((await res.json().catch(() => ({}))) as { detail?: string }).detail ?? 'Mise à jour impossible.')
